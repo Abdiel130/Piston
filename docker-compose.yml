@@ -1,0 +1,86 @@
+services:
+  # ============================================================================
+  # Database Service (PostgreSQL 18)
+  # ============================================================================
+  piston-db:
+    image: postgres:alpine
+    container_name: piston-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-piston}
+      POSTGRES_USER: ${DB_USERNAME:-piston_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-piston_secret_password}
+    ports:
+      - "${DB_PORT:-5438}:5432"
+    volumes:
+      - piston_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - piston-network
+
+  # ============================================================================
+  # Backend API Service (Laravel 13 + PHP 8.5)
+  # ============================================================================
+  piston-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: piston-server
+    restart: unless-stopped
+    ports:
+      - "${SERVER_PORT:-8088}:8000"
+    volumes:
+      - ./server:/var/www/html
+    environment:
+      APP_NAME: ${APP_NAME:-Piston}
+      APP_ENV: ${APP_ENV:-local}
+      APP_KEY: ${APP_KEY}
+      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_URL: ${APP_URL:-http://localhost:8088}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:4300}
+      DB_CONNECTION: pgsql
+      DB_HOST: piston-db
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-piston}
+      DB_USERNAME: ${DB_USERNAME:-piston_user}
+      DB_PASSWORD: ${DB_PASSWORD:-piston_secret_password}
+    depends_on:
+      piston-db:
+        condition: service_healthy
+    networks:
+      - piston-network
+
+  # ============================================================================
+  # Frontend Application Service (Angular 22 + Dexie.js)
+  # ============================================================================
+  piston-app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: piston-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-4300}:4300"
+    volumes:
+      - ./app:/app
+      - /app/node_modules
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    depends_on:
+      - piston-server
+    networks:
+      - piston-network
+
+networks:
+  piston-network:
+    name: piston-network
+    driver: bridge
+
+volumes:
+  piston_pgdata:
+    name: piston_pgdata
+    driver: local
