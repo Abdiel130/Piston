@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::get('/', fn () => response()->json([
+    'project' => 'Piston API',
+    'docs' => url('/api/health'),
+]));

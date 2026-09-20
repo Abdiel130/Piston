@@ -1,0 +1,49 @@
+.triage {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--pst-space-3);
+}
+
+.triage__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+  padding: var(--pst-space-4) var(--pst-space-2);
+  border-radius: var(--pst-r-md);
+  background: color-mix(in srgb, var(--tone) 12%, var(--pst-surface-1));
+  border: 0.5px solid color-mix(in srgb, var(--tone) 28%, transparent);
+}
+
+.triage__cell--bad  { --tone: var(--pst-bad); }
+.triage__cell--warn { --tone: var(--pst-warn); }
+.triage__cell--good { --tone: var(--pst-good); }
+
+.triage__count {
+  font-size: var(--pst-title-1);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--tone);
+}
+
+.triage__label {
+  font-size: var(--pst-caption);
+  color: var(--pst-label-2);
+}
+
+.sched {
+  align-items: flex-start;
+  padding-top: var(--pst-space-4);
+  padding-bottom: var(--pst-space-4);
+}
+
+.sched__line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pst-space-2);
+}
+
+.sched__bar {
+  margin-top: var(--pst-space-2);
+}

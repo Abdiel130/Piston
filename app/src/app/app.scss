@@ -1,0 +1,31 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+}
+
+.shell {
+  /* El contenido empieza por debajo del carril de la isla y termina por encima
+     de la barra de pestañas. Sin esto, la primera tarjeta nace tapada. */
+  height: 100dvh;
+  padding-top: calc(var(--pst-safe-top) + var(--pst-island-lane));
+  padding-bottom: calc(var(--pst-safe-bottom) + var(--pst-tabbar-h) + var(--pst-space-6));
+  padding-left: calc(var(--pst-gutter) + var(--pst-safe-left));
+  padding-right: calc(var(--pst-gutter) + var(--pst-safe-right));
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--pst-dur-base) var(--pst-snap);
+}
+
+.scrim.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}

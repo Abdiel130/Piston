@@ -1,0 +1,41 @@
+.total {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-3);
+}
+
+.total__bar {
+  display: flex;
+  gap: 2px;
+  height: 0.75rem;
+}
+
+.total__seg {
+  border-radius: var(--pst-r-pill);
+  animation: pst-rise 0.55s var(--pst-spring) both;
+}
+
+.total__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pst-space-2) var(--pst-space-4);
+}
+
+.total__key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pst-space-2);
+  font-size: var(--pst-caption);
+  color: var(--pst-label-2);
+}
+
+.total__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+}
+
+.cat__bar {
+  margin-top: var(--pst-space-2);
+  height: 0.25rem;
+}

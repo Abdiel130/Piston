@@ -1,0 +1,94 @@
+<div class="pst-stack pst-stagger">
+  <header class="pst-header">
+    <p class="pst-header__eyebrow">
+      Combustible
+      <span class="pst-badge pst-badge--brand">Maqueta</span>
+    </p>
+    <h1 class="pst-header__title">13.1 km/L</h1>
+  </header>
+
+  <!-- Captura por rayitas: el diferenciador de la app, en primer plano. -->
+  <section class="pst-card capture">
+    <div class="pst-card__head">
+      <h2 class="pst-card__title">Nivel del tanque</h2>
+      <span class="pst-badge">8 rayitas</span>
+    </div>
+
+    <pst-gauge
+      [segments]="8"
+      [value]="gaugeValue()"
+      [size]="180"
+      [caption]="gaugeValue() + '/8'"
+      hint="~{{ (gaugeValue() * 6.4).toFixed(1) }} L estimados"
+    />
+
+    <div class="capture__scale" role="group" aria-label="Seleccionar rayitas">
+      @for (s of segments; track s) {
+        <button
+          type="button"
+          class="capture__tick"
+          [class.is-active]="gaugeValue() === s"
+          [attr.aria-pressed]="gaugeValue() === s"
+          (click)="select(s)"
+        >
+          {{ s }}
+        </button>
+      }
+    </div>
+
+    <p class="capture__note">
+      <pst-icon name="spark" [size]="14" />
+      La curva de tu tanque se ajusta sola con cada carga a tanque lleno.
+    </p>
+  </section>
+
+  <!-- Métricas -->
+  <section>
+    <h2 class="pst-section-title">Resumen</h2>
+    <div class="pst-stat-grid">
+      <div class="pst-stat">
+        <span class="pst-stat__label"><pst-icon name="checkCircle" [size]="14" /> Medición exacta</span>
+        <span class="pst-stat__value pst-numeric">14.2<span class="pst-stat__unit">km/L</span></span>
+      </div>
+      <div class="pst-stat">
+        <span class="pst-stat__label"><pst-icon name="gauge" [size]="14" /> Estimada</span>
+        <span class="pst-stat__value pst-numeric">12.9<span class="pst-stat__unit">km/L</span></span>
+      </div>
+      <div class="pst-stat">
+        <span class="pst-stat__label"><pst-icon name="droplet" [size]="14" /> Precio promedio</span>
+        <span class="pst-stat__value pst-numeric">$23.9<span class="pst-stat__unit">/L</span></span>
+      </div>
+      <div class="pst-stat">
+        <span class="pst-stat__label"><pst-icon name="chart" [size]="14" /> Cargas</span>
+        <span class="pst-stat__value pst-numeric">12</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Historial -->
+  <section>
+    <h2 class="pst-section-title">Últimas cargas</h2>
+    <div class="pst-card pst-card--flush">
+      <div class="pst-list">
+        @for (row of rows; track row.date) {
+          <button type="button" class="pst-row">
+            <span class="pst-row__icon"><pst-icon name="fuel" [size]="18" /></span>
+            <span class="pst-row__body">
+              <span class="pst-row__title">{{ row.station }}</span>
+              <span class="pst-row__sub">{{ row.date }} · {{ row.liters }} · {{ row.amount }}</span>
+            </span>
+            <span class="pst-row__trail">
+              <span class="eff">
+                <span class="pst-numeric eff__value">{{ row.efficiency }}</span>
+                <!-- La procedencia del número va pegada al número. Separarlos
+                     invita a comparar peras con manzanas. -->
+                <span [class]="row.exact ? 'pst-badge pst-badge--good' : 'pst-badge'">{{ row.exact ? 'Exacto' : 'Estimado' }}</span>
+              </span>
+              <pst-icon name="chevronRight" [size]="16" />
+            </span>
+          </button>
+        }
+      </div>
+    </div>
+  </section>
+</div>

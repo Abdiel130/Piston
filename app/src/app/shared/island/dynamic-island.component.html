@@ -1,0 +1,77 @@
+<!-- El filtro vive una sola vez en el documento. width/height 0 para que no
+     ocupe espacio; `position: absolute` lo saca del flujo por si acaso. -->
+<svg class="island__defs" aria-hidden="true">
+  <defs>
+    <filter id="pst-goo">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
+      <!-- El canal alfa se estira con una pendiente alta y un desplazamiento
+           negativo: el desenfoque se vuelve a endurecer en los bordes, pero las
+           dos formas ya se tocaron y salen fundidas. -->
+      <feColorMatrix
+        in="blur"
+        mode="matrix"
+        values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10"
+        result="goo"
+      />
+      <feBlend in="SourceGraphic" in2="goo" />
+    </filter>
+  </defs>
+</svg>
+
+<div class="island-lane" [style.--tone]="toneVar()">
+  <button
+    type="button"
+    class="island"
+    [class.island--expanded]="expanded()"
+    [attr.aria-expanded]="expanded()"
+    [attr.aria-label]="expanded() ? 'Contraer estado' : 'Expandir estado: ' + activity().title"
+    (click)="toggle()"
+  >
+    <!-- Capa de fondo: formas puras bajo el filtro. -->
+    <span class="island__goo" aria-hidden="true">
+      <span class="island__shape"></span>
+      @if (activity().pulsing && !expanded()) {
+        <span class="island__blob"></span>
+      }
+    </span>
+
+    <!-- Capa de contenido: encima del filtro, nítida. -->
+    <span class="island__layer">
+      <!-- Estado colapsado -->
+      <span class="island__compact" [class.is-hidden]="expanded()">
+        <span class="island__chip">
+          <pst-icon [name]="activity().icon" [size]="15" />
+        </span>
+        <span class="island__label">{{ activity().label }}</span>
+        <span class="island__value pst-numeric">{{ activity().value }}</span>
+      </span>
+
+      <!-- Estado expandido -->
+      <span class="island__expanded" [class.is-hidden]="!expanded()">
+        <span class="island__head">
+          <span class="island__chip island__chip--lg">
+            <pst-icon [name]="activity().icon" [size]="20" />
+          </span>
+          <span class="island__headtext">
+            <span class="island__title">{{ activity().title }}</span>
+            <span class="island__subtitle">{{ activity().subtitle }}</span>
+          </span>
+          <span class="island__hero pst-numeric">{{ activity().value }}</span>
+        </span>
+
+        @if (activity().details.length) {
+          <span class="island__details">
+            @for (d of activity().details; track d.label) {
+              <span class="island__detail">
+                <span class="island__detail-label">{{ d.label }}</span>
+                <span class="island__detail-value pst-numeric">{{ d.value }}</span>
+              </span>
+            }
+          </span>
+        }
+
+        <span class="island__hint">Toca para contraer</span>
+      </span>
+    </span>
+  </button>
+</div>

@@ -1,0 +1,19 @@
+<div class="gauge" [style.width.px]="size()" [style.height.px]="size()" [style.--tone]="tone()">
+  <svg [attr.viewBox]="viewBox" class="gauge__svg" aria-hidden="true">
+    @for (seg of arcs(); track $index) {
+      <path
+        class="gauge__seg"
+        [class.is-filled]="seg.filled"
+        [attr.d]="seg.d"
+        [style.animation-delay]="seg.delay"
+      />
+    }
+  </svg>
+
+  <div class="gauge__center">
+    <span class="gauge__caption pst-numeric">{{ caption() }}</span>
+    @if (hint()) {
+      <span class="gauge__hint">{{ hint() }}</span>
+    }
+  </div>
+</div>

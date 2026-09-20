@@ -1,0 +1,70 @@
+.capture {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pst-space-4);
+}
+
+.capture__scale {
+  display: flex;
+  gap: var(--pst-space-1);
+  width: 100%;
+  padding: var(--pst-space-1);
+  border-radius: var(--pst-r-pill);
+  background: var(--pst-surface-2);
+}
+
+/* Control segmentado de iOS: la selección es una pastilla que se desliza de
+   una posición a otra. Aquí cada botón pinta su propio fondo, y la sensación
+   de deslizamiento la da la transición de color más el rebote de escala. */
+.capture__tick {
+  flex: 1;
+  padding: var(--pst-space-2) 0;
+  border-radius: var(--pst-r-pill);
+  font-size: var(--pst-footnote);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--pst-label-3);
+  transition:
+    background-color var(--pst-dur-base) var(--pst-spring),
+    color var(--pst-dur-fast) var(--pst-snap),
+    transform var(--pst-dur-fast) var(--pst-snap);
+}
+
+.capture__tick:active {
+  transform: scale(0.9);
+}
+
+.capture__tick.is-active {
+  background: var(--pst-ignition);
+  color: #fff;
+  box-shadow: 0 2px 10px var(--pst-ignition-glow);
+}
+
+.capture__note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pst-space-2);
+  font-size: var(--pst-caption);
+  line-height: 1.35;
+  color: var(--pst-label-3);
+  text-align: left;
+}
+
+.capture__note pst-icon {
+  color: var(--pst-ignition);
+  margin-top: 0.0625rem;
+}
+
+.eff {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1875rem;
+}
+
+.eff__value {
+  font-size: var(--pst-footnote);
+  font-weight: 600;
+  color: var(--pst-label);
+}

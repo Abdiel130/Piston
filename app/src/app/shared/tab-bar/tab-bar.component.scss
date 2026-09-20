@@ -1,0 +1,66 @@
+:host {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+}
+
+.tabbar {
+  /* Material translúcido: el contenido se intuye por detrás al hacer scroll,
+     que es lo que da sensación de profundidad en iOS. Si el navegador no
+     soporta backdrop-filter, el color de respaldo ya es casi opaco. */
+  background: var(--pst-material);
+  backdrop-filter: var(--pst-blur);
+  -webkit-backdrop-filter: var(--pst-blur);
+  border-top: 0.5px solid var(--pst-separator-soft);
+  padding-bottom: var(--pst-safe-bottom);
+}
+
+.tabbar__list {
+  display: flex;
+  align-items: stretch;
+  height: var(--pst-tabbar-h);
+}
+
+.tabbar__item {
+  flex: 1;
+  display: flex;
+}
+
+.tabbar__link {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  color: var(--pst-label-3);
+  transition: color var(--pst-dur-fast) var(--pst-snap);
+}
+
+.tabbar__icon {
+  display: grid;
+  place-items: center;
+  transition: transform var(--pst-dur-base) var(--pst-overshoot);
+}
+
+.tabbar__label {
+  font-size: var(--pst-caption-2);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+/* El destino activo se marca con color Y con un salto de escala. Solo con
+   color, un daltónico no distingue en qué pestaña está. */
+.is-active {
+  color: var(--pst-ignition);
+}
+
+.is-active .tabbar__icon {
+  transform: translateY(-1px) scale(1.08);
+}
+
+.tabbar__link:active .tabbar__icon {
+  transform: scale(0.88);
+}

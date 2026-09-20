@@ -1,0 +1,694 @@
+Project piston {
+  database_type: 'PostgreSQL'
+  Note: '''
+    # Piston — Gestión vehicular offline-first
+
+    Convención en TODAS las tablas de dominio:
+      id                uuid  PK  (UUIDv7 generado en el cliente)
+      created_at        timestamptz
+      updated_at        timestamptz
+      client_updated_at timestamptz  -- base del last-write-wins
+      deleted_at        timestamptz  -- tombstone (soft delete)
+      rev               bigint       -- secuencia global, trigger en INSERT/UPDATE
+
+    Sync delta: GET /api/sync?since=<rev>
+  '''
+}
+
+// ─────────────────────────────── ENUMS ───────────────────────────────
+
+enum vehicle_type   { car motorcycle pickup truck van }
+enum vehicle_status { active archived sold }
+enum transmission   { manual automatic cvt dsg }
+enum fuel_grade     { regular premium diesel }
+enum sticker_color  { yellow pink red green blue none }
+
+enum gauge_point_source { default_linear user_measured manual }
+
+enum odometer_source { manual fuel service trip expense document }
+
+enum fuel_input_mode        { by_amount by_liters by_segments }
+enum fuel_efficiency_method { full_to_full gauge_estimate none }
+
+enum price_source { self_reported from_fuel_entry imported }
+
+enum service_category { oil_filters brakes suspension tires engine transmission electrical body general }
+
+enum schedule_status { optimal warning urgent unknown }
+
+enum issue_severity { low medium high critical }
+enum issue_status   { open monitoring resolved dismissed }
+
+enum reminder_kind   { service document custom }
+enum reminder_status { pending notified done dismissed }
+
+enum periodicity { monthly quarterly semiannual annual custom_days }
+
+enum document_type { insurance emissions_check ownership_tax circulation_card driver_license warranty other }
+
+enum trip_purpose { personal work mixed other }
+
+enum attachment_owner { vehicle fuel_entry service_record service_part expense document issue trip }
+enum attachment_kind  { photo invoice document_scan receipt other }
+enum upload_status    { pending uploading uploaded failed }
+
+enum outbox_op     { insert update delete }
+enum outbox_status { pending in_flight failed }
+
+// ───────────────────────── USUARIO Y VEHÍCULO ─────────────────────────
+
+Table users {
+  id            uuid [pk]
+  name          varchar(120) [not null]
+  email         varchar(180) [not null, unique]
+  password      varchar(255) [not null]
+  locale        varchar(10)  [not null, default: 'es-MX']
+  currency      varchar(3)   [not null, default: 'MXN']
+  distance_unit varchar(4)   [not null, default: 'km']
+  volume_unit   varchar(4)   [not null, default: 'L']
+  email_verified_at timestamptz
+  created_at    timestamptz
+  updated_at    timestamptz
+  Note: 'Uso personal/familiar. Sanctum para tokens de API.'
+}
+
+Table vehicles {
+  id            uuid [pk]
+  user_id       uuid [not null]
+  nickname      varchar(60)  [note: 'Como lo llamas: el Mazda']
+  make          varchar(60)  [not null]
+  model         varchar(80)  [not null]
+  year          smallint     [not null]
+  trim          varchar(80)
+  vehicle_type  vehicle_type [not null, default: 'car']
+  transmission  transmission
+  engine_displacement_l numeric(4,1)
+  color         varchar(40)
+  vin           varchar(17)
+  license_plate varchar(15)
+
+  plate_last_digit  smallint      [note: 'Terminación de placa → calendario de verificación']
+  emissions_sticker sticker_color [default: 'none']
+
+  default_fuel_grade      fuel_grade   [not null, default: 'regular']
+  tank_capacity_l         numeric(6,2) [not null]
+  gauge_total_segments    smallint     [not null, default: 8, note: 'Rayitas del indicador']
+  factory_km_per_liter    numeric(5,2)
+  oil_capacity_l          numeric(4,2)
+  oil_spec                varchar(40)  [note: 'ej. 5W-30 full sintético']
+  tire_pressure_front_psi smallint
+  tire_pressure_rear_psi  smallint
+
+  current_odometer_km int [not null, default: 0, note: 'Caché de MAX(odometer_readings.km)']
+
+  purchase_date        date
+  purchase_price       numeric(12,2)
+  purchase_odometer_km int
+  sale_date            date
+  sale_price           numeric(12,2)
+  sale_odometer_km     int
+
+  status     vehicle_status [not null, default: 'active', note: 'archived/sold conservan todo el histórico']
+  is_primary boolean [not null, default: false]
+  notes      text
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (user_id, status)
+    (user_id, deleted_at)
+    rev
+  }
+}
+
+Table gauge_calibration_points {
+  id           uuid [pk]
+  vehicle_id   uuid [not null]
+  segment      numeric(5,2) [not null, note: 'Posición de la aguja: 0 .. gauge_total_segments. Decimal para medias rayitas']
+  liters       numeric(6,2) [not null, note: 'Litros REALES en esa posición']
+  source       gauge_point_source [not null, default: 'default_linear']
+  measured_at  timestamptz
+  sample_count smallint [not null, default: 0, note: 'Cargas a tanque lleno que respaldan este punto']
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (vehicle_id, segment) [unique]
+  }
+  Note: 'B9 — El indicador NO es lineal. Esta curva se auto-calibra con cada carga a tanque lleno.'
+}
+
+Table odometer_readings {
+  id         uuid [pk]
+  user_id    uuid [not null]
+  vehicle_id uuid [not null]
+  read_at    timestamptz [not null]
+  km         int  [not null]
+  source     odometer_source [not null]
+  source_id  uuid [note: 'FK lógica al evento que la originó']
+  is_suspect boolean [not null, default: false, note: 'Retrocede o salta de forma imposible']
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (vehicle_id, read_at)
+    (vehicle_id, km)
+  }
+  Note: 'A4 — El odómetro es una serie temporal, no un campo.'
+}
+
+// ─────────────────────────── COMBUSTIBLE ───────────────────────────
+
+Table fuel_stations {
+  id           uuid [pk]
+  user_id      uuid [note: 'NULL = estación del catálogo del sistema']
+  brand        varchar(60)
+  name         varchar(120) [not null]
+  address      varchar(200)
+  city         varchar(80)
+  state        varchar(80)
+  latitude     numeric(9,6)
+  longitude    numeric(9,6)
+  external_ref varchar(60) [note: 'Id de la CRE, para un futuro import']
+  notes        text
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (latitude, longitude)
+    external_ref
+  }
+}
+
+Table fuel_station_prices {
+  id            uuid [pk]
+  user_id       uuid
+  station_id    uuid [not null]
+  fuel_grade    fuel_grade [not null]
+  price         numeric(8,3) [not null]
+  observed_at   timestamptz [not null, note: 'Timestamp real; el "hace 18 min" se calcula en la vista']
+  source        price_source [not null, default: 'self_reported']
+  fuel_entry_id uuid [note: 'Si nació de una carga tuya']
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (station_id, fuel_grade, observed_at)
+  }
+  Note: 'E2 — Último precio conocido por estación y tipo.'
+}
+
+Table fuel_entries {
+  id         uuid [pk]
+  user_id    uuid [not null]
+  vehicle_id uuid [not null]
+  station_id uuid
+
+  filled_at   timestamptz [not null]
+  odometer_km int [not null]
+  fuel_grade  fuel_grade [not null]
+
+  input_mode           fuel_input_mode [not null, note: 'Qué escribió el usuario; lo demás es derivado']
+  amount_paid          numeric(10,2)
+  price_per_liter      numeric(8,3)
+  liters               numeric(8,3)
+  gauge_before         numeric(5,2) [note: 'Rayitas antes de cargar']
+  gauge_after          numeric(5,2) [note: 'Rayitas después']
+  gauge_total_segments smallint     [note: 'Snapshot, por si cambian las specs']
+
+  is_full_tank    boolean [not null, default: false, note: 'Habilita full-to-full y recalibra la curva']
+  is_partial      boolean [not null, default: true]
+  missed_previous boolean [not null, default: false, note: 'Rompe la cadena en vez de ensuciar el promedio']
+
+  liters_before_est     numeric(8,3) [note: 'Litros según la curva en gauge_before']
+  liters_after_est      numeric(8,3)
+  distance_km           int
+  km_per_liter          numeric(6,2)
+  cost_per_km           numeric(8,3)
+  efficiency_method     fuel_efficiency_method [not null, default: 'none']
+  is_efficiency_outlier boolean [not null, default: false, note: 'B7 — desvío > X% del promedio móvil']
+  recomputed_at         timestamptz
+
+  notes text
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (vehicle_id, filled_at)
+    (vehicle_id, odometer_km)
+    station_id
+    rev
+  }
+  Note: 'B1–B7 — Núcleo del diferenciador: rendimiento sin exigir tanque lleno.'
+}
+
+// ───────────────────────── MANTENIMIENTO ─────────────────────────
+
+Table service_types {
+  id                      uuid [pk]
+  user_id                 uuid [note: 'NULL = catálogo del sistema']
+  name                    varchar(120) [not null]
+  category                service_category [not null, default: 'general']
+  applies_to              vehicle_type [note: 'NULL = cualquier tipo de vehículo']
+  default_interval_km     int
+  default_interval_months smallint
+  icon                    varchar(40)
+  is_system               boolean [not null, default: false]
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+  Note: 'C1 — Catálogo sembrado: aceite, filtros, balatas, bujías, banda, anticongelante, afinación…'
+}
+
+Table service_records {
+  id           uuid [pk]
+  user_id      uuid [not null]
+  vehicle_id   uuid [not null]
+  performed_at date [not null]
+  odometer_km  int  [not null]
+  shop_name    varchar(120)
+  shop_phone   varchar(40)
+  is_diy       boolean [not null, default: false]
+  labor_cost   numeric(10,2) [not null, default: 0]
+  parts_cost   numeric(10,2) [not null, default: 0, note: 'Espejo de SUM(service_parts)']
+  total_cost   numeric(10,2) [not null, default: 0]
+  currency     varchar(3) [not null, default: 'MXN']
+  notes        text
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (vehicle_id, performed_at)
+    (vehicle_id, odometer_km)
+  }
+  Note: 'C2 — Un EVENTO pasado (una visita al taller). Es el histórico.'
+}
+
+Table service_record_items {
+  id                uuid [pk]
+  service_record_id uuid [not null]
+  service_type_id   uuid [not null]
+  description       varchar(200)
+  cost              numeric(10,2)
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+  Note: 'Una visita puede cubrir varios servicios (aceite + rotación de llantas).'
+}
+
+Table service_parts {
+  id                uuid [pk]
+  service_record_id uuid [not null]
+  name              varchar(140) [not null]
+  brand             varchar(80)
+  part_number       varchar(80)
+  quantity          numeric(8,2) [not null, default: 1]
+  unit              varchar(20)  [default: 'pza']
+  unit_cost         numeric(10,2) [not null, default: 0]
+  warranty_months   smallint [note: 'Dato reservado; la ALERTA de garantía queda fuera de alcance']
+  warranty_km       int
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    service_record_id
+    part_number
+  }
+  Note: 'C3 — Aquí vive el valor real del histórico del auto.'
+}
+
+Table maintenance_schedules {
+  id              uuid [pk]
+  user_id         uuid [not null]
+  vehicle_id      uuid [not null]
+  service_type_id uuid [not null]
+  interval_km     int
+  interval_months smallint
+
+  last_service_record_id uuid
+  last_done_at           date
+  last_done_km           int
+
+  next_due_km   int
+  next_due_date date
+  status        schedule_status [not null, default: 'unknown', note: 'Semáforo cacheado: depende del odómetro actual']
+  is_active     boolean [not null, default: true]
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (vehicle_id, service_type_id) [unique]
+    (vehicle_id, status)
+  }
+  Note: 'C4 — La REGLA vigente: cada X km o cada Y meses, lo que ocurra primero.'
+}
+
+Table issues {
+  id                   uuid [pk]
+  user_id              uuid [not null]
+  vehicle_id           uuid [not null]
+  title                varchar(160) [not null, note: 'ej. Ruido metálico al frenar en reversa']
+  description          text
+  severity             issue_severity [not null, default: 'low']
+  status               issue_status   [not null, default: 'open']
+  noticed_at           date [not null]
+  noticed_odometer_km  int
+  resolved_at          date
+  resolved_odometer_km int
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (vehicle_id, status)
+  }
+  Note: 'C10 — Diario de diagnóstico: el síntoma se registra ANTES de saber qué lo causa.'
+}
+
+Table issue_service_links {
+  id                uuid [pk]
+  issue_id          uuid [not null]
+  service_record_id uuid [not null]
+  resolved_it       boolean [not null, default: false]
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (issue_id, service_record_id) [unique]
+  }
+  Note: 'Tabla puente: un síntoma suele requerir VARIOS intentos. Saber qué NO lo arregló vale tanto como saber qué sí.'
+}
+
+Table reminders {
+  id                 uuid [pk]
+  user_id            uuid [not null]
+  vehicle_id         uuid [not null]
+  kind               reminder_kind [not null]
+  source_id          uuid [note: 'FK lógica: maintenance_schedule_id o document_id']
+  title              varchar(160) [not null]
+  due_date           date
+  due_odometer_km    int
+  notify_days_before smallint [default: 15]
+  notify_km_before   int      [default: 500]
+  status             reminder_status [not null, default: 'pending']
+  last_notified_at   timestamptz
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (user_id, status, due_date)
+  }
+  Note: 'C5 + F2 — Un solo motor de alertas para servicios y documentos.'
+}
+
+// ──────────────────────── GASTOS Y DOCUMENTOS ────────────────────────
+
+Table expense_categories {
+  id        uuid [pk]
+  user_id   uuid [note: 'NULL = categoría del sistema']
+  name      varchar(80) [not null]
+  icon      varchar(40)
+  is_system boolean [not null, default: false]
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+  Note: 'Sembradas: tenencia, verificación, seguro, lavado, estacionamiento, casetas, multas, accesorios.'
+}
+
+Table expenses {
+  id                   uuid [pk]
+  user_id              uuid [not null]
+  vehicle_id           uuid [not null]
+  category_id          uuid [not null]
+  recurring_expense_id uuid [note: 'Si lo generó una regla recurrente']
+  spent_at             date [not null]
+  odometer_km          int
+  amount               numeric(10,2) [not null]
+  currency             varchar(3) [not null, default: 'MXN']
+  description          varchar(200)
+  notes                text
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (vehicle_id, spent_at)
+    (vehicle_id, category_id)
+  }
+  Note: 'D1 — Combustible y servicios NO viven aquí; tienen su propia tabla.'
+}
+
+Table recurring_expenses {
+  id              uuid [pk]
+  user_id         uuid [not null]
+  vehicle_id      uuid [not null]
+  category_id     uuid [not null]
+  name            varchar(120) [not null]
+  amount_estimate numeric(10,2)
+  periodicity     periodicity [not null]
+  interval_days   smallint [note: 'Solo si periodicity = custom_days']
+  next_due_date   date [not null]
+  auto_create     boolean [not null, default: false]
+  is_active       boolean [not null, default: true]
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+  Note: 'D2 — Seguro anual, tenencia anual, verificación semestral.'
+}
+
+Table documents {
+  id         uuid [pk]
+  user_id    uuid [not null]
+  vehicle_id uuid [not null]
+  type       document_type [not null]
+  title      varchar(160)
+  issuer     varchar(120) [note: 'Aseguradora, verificentro, gobierno del estado']
+  reference  varchar(80)  [note: 'Número de póliza / folio / holograma']
+  coverage   varchar(120) [note: 'ej. Amplia, Limitada, RC']
+  issued_at  date
+  expires_at date
+  cost       numeric(10,2)
+  notes      text
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (vehicle_id, type)
+    (user_id, expires_at)
+  }
+  Note: 'F1 — Seguro, verificación, tenencia, tarjeta de circulación, licencia. Genera reminders.'
+}
+
+Table trips {
+  id                uuid [pk]
+  user_id           uuid [not null]
+  vehicle_id        uuid [not null]
+  started_at        timestamptz [not null]
+  ended_at          timestamptz
+  start_odometer_km int
+  end_odometer_km   int
+  distance_km       int
+  origin            varchar(160)
+  destination       varchar(160)
+  purpose           trip_purpose [not null, default: 'personal']
+  notes             text
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (vehicle_id, started_at)
+  }
+  Note: 'G1 — Sin GPS: captura manual de origen/destino/km.'
+}
+
+// ─────────────────────────── ADJUNTOS ───────────────────────────
+
+Table attachments {
+  id             uuid [pk]
+  user_id        uuid [not null]
+  owner_type     attachment_owner [not null]
+  owner_id       uuid [not null, note: 'Relación polimórfica: sin FK física, se valida en la app']
+  kind           attachment_kind [not null, default: 'photo']
+  file_name      varchar(200) [not null]
+  mime_type      varchar(100)
+  size_bytes     int
+  width          smallint
+  height         smallint
+  checksum       varchar(64)  [note: 'SHA-256, para deduplicar y detectar subidas a medias']
+  storage_path   varchar(300) [note: 'Ruta en el servidor; NULL mientras no se suba']
+  local_blob_key varchar(120) [note: 'Clave del Blob en IndexedDB (solo cliente)']
+  upload_status  upload_status [not null, default: 'pending']
+  sort_order     smallint [not null, default: 0]
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (owner_type, owner_id)
+    (user_id, upload_status)
+  }
+  Note: 'A6 + C8 + F3 — La fila se crea al instante offline; el binario sube después por su propia cola.'
+}
+
+// ───────── SOLO CLIENTE (Dexie / IndexedDB) — NO existen en Postgres ─────────
+
+Table sync_outbox {
+  id            uuid [pk]
+  table_name    varchar(60) [not null]
+  row_id        uuid [not null]
+  op            outbox_op [not null]
+  payload       text [note: 'JSON del registro completo']
+  status        outbox_status [not null, default: 'pending']
+  attempts      smallint [not null, default: 0]
+  last_error    text
+  next_retry_at timestamptz
+  created_at    timestamptz
+
+  indexes {
+    (status, next_retry_at)
+    (table_name, row_id)
+  }
+  Note: 'H3 — CLIENT-ONLY. Cola de mutaciones pendientes con backoff exponencial.'
+}
+
+Table sync_state {
+  table_name     varchar(60) [pk]
+  last_rev       bigint [not null, default: 0]
+  last_synced_at timestamptz
+  Note: 'H6 — CLIENT-ONLY. Cursor por tabla para el sync delta.'
+}
+
+// ─────────────────────────── RELACIONES ───────────────────────────
+
+Ref: vehicles.user_id > users.id
+
+Ref: gauge_calibration_points.vehicle_id > vehicles.id
+
+Ref: odometer_readings.user_id    > users.id
+Ref: odometer_readings.vehicle_id > vehicles.id
+
+Ref: fuel_stations.user_id > users.id
+
+Ref: fuel_station_prices.user_id       > users.id
+Ref: fuel_station_prices.station_id    > fuel_stations.id
+Ref: fuel_station_prices.fuel_entry_id > fuel_entries.id
+
+Ref: fuel_entries.user_id    > users.id
+Ref: fuel_entries.vehicle_id > vehicles.id
+Ref: fuel_entries.station_id > fuel_stations.id
+
+Ref: service_types.user_id > users.id
+
+Ref: service_records.user_id    > users.id
+Ref: service_records.vehicle_id > vehicles.id
+
+Ref: service_record_items.service_record_id > service_records.id
+Ref: service_record_items.service_type_id   > service_types.id
+
+Ref: service_parts.service_record_id > service_records.id
+
+Ref: maintenance_schedules.user_id                > users.id
+Ref: maintenance_schedules.vehicle_id             > vehicles.id
+Ref: maintenance_schedules.service_type_id        > service_types.id
+Ref: maintenance_schedules.last_service_record_id > service_records.id
+
+Ref: issues.user_id    > users.id
+Ref: issues.vehicle_id > vehicles.id
+
+Ref: issue_service_links.issue_id          > issues.id
+Ref: issue_service_links.service_record_id > service_records.id
+
+Ref: reminders.user_id    > users.id
+Ref: reminders.vehicle_id > vehicles.id
+
+Ref: expense_categories.user_id > users.id
+
+Ref: expenses.user_id              > users.id
+Ref: expenses.vehicle_id           > vehicles.id
+Ref: expenses.category_id          > expense_categories.id
+Ref: expenses.recurring_expense_id > recurring_expenses.id
+
+Ref: recurring_expenses.user_id     > users.id
+Ref: recurring_expenses.vehicle_id  > vehicles.id
+Ref: recurring_expenses.category_id > expense_categories.id
+
+Ref: documents.user_id    > users.id
+Ref: documents.vehicle_id > vehicles.id
+
+Ref: trips.user_id    > users.id
+Ref: trips.vehicle_id > vehicles.id
+
+Ref: attachments.user_id > users.id

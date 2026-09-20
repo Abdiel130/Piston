@@ -1,0 +1,100 @@
+<div class="pst-stack pst-stagger">
+  <header class="pst-header">
+    <p class="pst-header__eyebrow">
+      Servicios
+      <span class="pst-badge pst-badge--brand">Maqueta</span>
+    </p>
+    <h1 class="pst-header__title">Mantenimiento</h1>
+  </header>
+
+  <!-- Resumen del semáforo. Tres cifras: qué arde, qué está por arder, qué no. -->
+  <section class="triage">
+    <div class="triage__cell triage__cell--bad">
+      <span class="triage__count pst-numeric">1</span>
+      <span class="triage__label">Vencido</span>
+    </div>
+    <div class="triage__cell triage__cell--warn">
+      <span class="triage__count pst-numeric">1</span>
+      <span class="triage__label">Próximo</span>
+    </div>
+    <div class="triage__cell triage__cell--good">
+      <span class="triage__count pst-numeric">6</span>
+      <span class="triage__label">En regla</span>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="pst-section-title">Programa de mantenimiento</h2>
+    <div class="pst-card pst-card--flush">
+      <div class="pst-list">
+        @for (row of schedules; track row.name) {
+          <button type="button" class="pst-row sched">
+            <span class="pst-row__icon" [style.color]="'var(--pst-' + row.tone + ')'">
+              <pst-icon [name]="row.icon" [size]="18" />
+            </span>
+            <span class="pst-row__body">
+              <span class="sched__line">
+                <span class="pst-row__title">{{ row.name }}</span>
+                <span [class]="'pst-badge pst-badge--' + row.tone">{{ row.status }}</span>
+              </span>
+              <span class="pst-row__sub">{{ row.due }}</span>
+              <span class="pst-bar sched__bar" [style.--tone]="'var(--pst-' + row.tone + ')'">
+                <span class="pst-bar__fill" [style.width.%]="row.progress"></span>
+              </span>
+            </span>
+          </button>
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Bitácora de síntomas: lo que suena raro aunque todavía no se sepa qué es. -->
+  <section>
+    <h2 class="pst-section-title">Fallas en seguimiento</h2>
+    <div class="pst-card pst-card--flush">
+      <div class="pst-list">
+        @for (issue of issues; track issue.title) {
+          <button type="button" class="pst-row">
+            <span class="pst-row__icon" [style.color]="'var(--pst-' + issue.severity + ')'">
+              <pst-icon name="alert" [size]="18" />
+            </span>
+            <span class="pst-row__body">
+              <span class="pst-row__title">{{ issue.title }}</span>
+              <span class="pst-row__sub">{{ issue.noticed }}</span>
+            </span>
+            <span class="pst-row__trail">
+              <span [class]="'pst-badge pst-badge--' + issue.severity">{{ issue.severityLabel }}</span>
+              <pst-icon name="chevronRight" [size]="16" />
+            </span>
+          </button>
+        }
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="pst-section-title">Historial</h2>
+    <div class="pst-card pst-card--flush">
+      <div class="pst-list">
+        @for (item of history; track item.name) {
+          <button type="button" class="pst-row">
+            <span class="pst-row__icon"><pst-icon name="wrench" [size]="18" /></span>
+            <span class="pst-row__body">
+              <span class="pst-row__title">{{ item.name }}</span>
+              <span class="pst-row__sub">{{ item.shop }} · {{ item.date }} · {{ item.km }}</span>
+            </span>
+            <span class="pst-row__trail">
+              <span class="pst-numeric">{{ item.cost }}</span>
+              <pst-icon name="chevronRight" [size]="16" />
+            </span>
+          </button>
+        }
+      </div>
+    </div>
+  </section>
+
+  <button type="button" class="pst-btn pst-btn--primary pst-btn--block">
+    <pst-icon name="plus" [size]="18" />
+    Registrar servicio
+  </button>
+</div>

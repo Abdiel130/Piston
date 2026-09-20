@@ -1,1 +1,16 @@
-<router-outlet></router-outlet>
+<pst-dynamic-island />
+
+<!-- Velo al expandir la isla. Tocar fuera cierra, que es lo que espera
+     cualquiera que haya usado una hoja modal en iOS. -->
+<div
+  class="scrim"
+  [class.is-visible]="islandExpanded()"
+  (click)="collapseIsland()"
+  aria-hidden="true"
+></div>
+
+<main class="shell pst-scroll-area">
+  <router-outlet />
+</main>
+
+<pst-tab-bar />

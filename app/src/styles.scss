@@ -1,50 +1,563 @@
+/* =============================================================================
+   PISTON — Sistema de diseño
+   -----------------------------------------------------------------------------
+   Identidad: instrumento de precisión. Base casi negra al estilo iOS oscuro,
+   semántica de color del sistema (verde/ámbar/rojo) para los estados de salud
+   del vehículo, y un único acento de marca —"ignición"— reservado para lo que
+   es de Piston y nada más: la Dynamic Island, la acción primaria y el dato
+   destacado de cada pantalla.
+
+   Reglas duras del proyecto:
+   · Cero dependencias de red. Ni fuentes externas ni iconos remotos: la app es
+     offline-first, y una tipografía que tarda en cargar rompe el primer render
+     justo cuando no hay señal. Se usa la pila del sistema, que además da SF Pro
+     en iOS, que es exactamente la estética que buscamos.
+   · Cero emojis. Todo icono es SVG en línea (ver shared/icon).
+   · Todo espaciado sale de la escala. Nada de píxeles sueltos.
+============================================================================= */
+
 :root {
-  --bg-primary: #0b0f14;
-  --bg-secondary: #161b22;
-  --bg-tertiary: #21262d;
-  --text-primary: #f0f6fc;
-  --text-secondary: #8b949e;
-  --text-muted: #6e7681;
-  --accent-cyan: #58a6ff;
-  --accent-blue: #1f6feb;
-  --color-success: #3fb950;
-  --color-warning: #d29922;
-  --color-danger: #f85149;
-  --border-color: rgba(255, 255, 255, 0.08);
+  /* --- Superficies -------------------------------------------------------- */
+  --pst-bg:              #000000;
+  --pst-surface-1:       #0E0E10;  /* tarjetas sobre el fondo                */
+  --pst-surface-2:       #1C1C1E;  /* tarjetas sobre tarjetas                */
+  --pst-surface-3:       #2C2C2E;  /* controles, chips                       */
+  --pst-surface-4:       #3A3A3C;  /* estado presionado                      */
+
+  /* Material translúcido: barras y hojas que dejan ver el contenido detrás. */
+  --pst-material:        rgba(28, 28, 30, 0.72);
+  --pst-material-thick:  rgba(18, 18, 20, 0.88);
+  --pst-blur:            saturate(180%) blur(20px);
+
+  /* --- Texto -------------------------------------------------------------- */
+  --pst-label:           #FFFFFF;
+  --pst-label-2:         rgba(235, 235, 245, 0.62);
+  --pst-label-3:         rgba(235, 235, 245, 0.38);
+  --pst-label-4:         rgba(235, 235, 245, 0.20);
+
+  /* --- Separadores -------------------------------------------------------- */
+  --pst-separator:       rgba(84, 84, 88, 0.55);
+  --pst-separator-soft:  rgba(84, 84, 88, 0.28);
+
+  /* --- Marca -------------------------------------------------------------- */
+  /* Naranja de ignición. Combustión, aguja de tacómetro, zona roja. Es lo que
+     distingue a Piston del azul genérico de cualquier dashboard. */
+  --pst-ignition:        #FF6B2C;
+  --pst-ignition-dim:    #C24A17;
+  --pst-ignition-glow:   rgba(255, 107, 44, 0.24);
+
+  /* --- Semántica de estado ------------------------------------------------ */
+  --pst-good:            #32D74B;
+  --pst-warn:            #FFD60A;
+  --pst-bad:             #FF453A;
+  --pst-info:            #0A84FF;
+  --pst-idle:            #8E8E93;
+
+  /* --- Tipografía --------------------------------------------------------- */
+  --pst-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+              "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto,
+              "Helvetica Neue", Arial, sans-serif;
+  /* Para cifras: ancho fijo, para que un contador no baile al actualizarse. */
+  --pst-font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+                   "Roboto Mono", monospace;
+
+  /* Escala tipográfica de iOS. Los nombres son los de Apple a propósito:
+     hablar de "title-2" y no de "18px" mantiene la jerarquía consistente. */
+  --pst-large-title: 2.125rem;  /* 34 */
+  --pst-title-1:     1.75rem;   /* 28 */
+  --pst-title-2:     1.375rem;  /* 22 */
+  --pst-title-3:     1.25rem;   /* 20 */
+  --pst-headline:    1.0625rem; /* 17 semibold */
+  --pst-body:        1.0625rem; /* 17 */
+  --pst-callout:     1rem;      /* 16 */
+  --pst-subhead:     0.9375rem; /* 15 */
+  --pst-footnote:    0.8125rem; /* 13 */
+  --pst-caption:     0.75rem;   /* 12 */
+  --pst-caption-2:   0.6875rem; /* 11 */
+
+  /* --- Espaciado (escala de 4) -------------------------------------------- */
+  --pst-space-1: 0.25rem;
+  --pst-space-2: 0.5rem;
+  --pst-space-3: 0.75rem;
+  --pst-space-4: 1rem;
+  --pst-space-5: 1.25rem;
+  --pst-space-6: 1.5rem;
+  --pst-space-8: 2rem;
+  --pst-space-10: 2.5rem;
+  --pst-space-12: 3rem;
+
+  /* Margen lateral estándar de iOS. Todo respira contra el mismo borde. */
+  --pst-gutter: 1rem;
+
+  /* --- Radios ------------------------------------------------------------- */
+  /* Continuos, no circulares: iOS usa "squircles". Un radio generoso sobre
+     superficies grandes y uno pequeño sobre controles. */
+  --pst-r-sm:   0.5rem;
+  --pst-r-md:   0.875rem;
+  --pst-r-lg:   1.25rem;
+  --pst-r-xl:   1.5rem;
+  --pst-r-2xl:  2rem;
+  --pst-r-pill: 999px;
+
+  /* --- Sombras ------------------------------------------------------------ */
+  --pst-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --pst-shadow-float: 0 8px 30px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --pst-shadow-island: 0 12px 40px rgba(0, 0, 0, 0.8);
+
+  /* --- Movimiento --------------------------------------------------------- */
+  /* Estas tres curvas son toda la personalidad de la interfaz.
+     · spring:    el muelle de iOS. Arranca rápido y se asienta sin rebote.
+                  Es la curva de las hojas modales y de la Dynamic Island.
+     · overshoot: rebasa el destino y vuelve. Solo para elementos que APARECEN;
+                  usarla al desaparecer se siente nervioso.
+     · snap:      cambios de estado cortos (un toggle, un chip activo). */
+  --pst-spring:    cubic-bezier(0.32, 0.72, 0, 1);
+  --pst-overshoot: cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  --pst-snap:      cubic-bezier(0.4, 0, 0.2, 1);
+
+  --pst-dur-fast:   0.18s;
+  --pst-dur-base:   0.32s;
+  --pst-dur-slow:   0.5s;
+  --pst-dur-island: 0.55s;
+
+  /* --- Zonas seguras ------------------------------------------------------ */
+  --pst-safe-top:    env(safe-area-inset-top, 0px);
+  --pst-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --pst-safe-left:   env(safe-area-inset-left, 0px);
+  --pst-safe-right:  env(safe-area-inset-right, 0px);
+
+  /* Alturas de los dos elementos fijos del chrome. Las pantallas las usan
+     para su padding, así nada queda tapado. */
+  --pst-island-lane: 3.5rem;
+  --pst-tabbar-h:    3.25rem;
 }
 
-*, *::before, *::after {
+/* ---------------------------------------------------------------------------
+   Reset
+--------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
+html {
+  /* Evita que iOS agrande el texto al girar el dispositivo. */
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
-  background-color: var(--bg-primary);
-  background-image: 
-    radial-gradient(circle at 15% 15%, rgba(31, 111, 235, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 85% 85%, rgba(63, 185, 80, 0.05) 0%, transparent 40%);
-  color: var(--text-primary);
-  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  min-height: 100vh;
-  line-height: 1.5;
+  background: var(--pst-bg);
+  color: var(--pst-label);
+  font-family: var(--pst-font);
+  font-size: var(--pst-body);
+  line-height: 1.4;
+  min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Gestos nativos: sin resaltado gris al tocar, sin selección accidental al
+     arrastrar, sin menú contextual por pulsación larga. */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  overscroll-behavior-y: none;
 }
 
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
 }
 
-::-webkit-scrollbar-track {
-  background: var(--bg-primary);
+button {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
-::-webkit-scrollbar-thumb {
-  background: var(--bg-tertiary);
-  border-radius: 4px;
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #30363d;
+ul,
+ol {
+  list-style: none;
+}
+
+svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* El foco visible solo aparece para quien navega con teclado; el anillo sobre
+   un toque táctil es ruido. */
+:focus-visible {
+  outline: 2px solid var(--pst-ignition);
+  outline-offset: 2px;
+  border-radius: var(--pst-r-sm);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Utilidades compartidas
+--------------------------------------------------------------------------- */
+
+/* Cifras: ancho tabular para que no se muevan al cambiar de valor. */
+.pst-numeric {
+  font-family: var(--pst-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Encabezado de sección, estilo lista agrupada de iOS. */
+.pst-section-title {
+  font-size: var(--pst-footnote);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pst-label-3);
+  padding: 0 var(--pst-space-1);
+  margin-bottom: var(--pst-space-3);
+}
+
+/* Marca de "esto todavía no existe". Deliberadamente visible: en una maqueta,
+   un dato falso que parece real es peor que un hueco evidente. */
+.pst-placeholder {
+  color: var(--pst-label-3);
+  font-style: normal;
+}
+
+.pst-scroll-area {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.pst-scroll-area::-webkit-scrollbar {
+  display: none;
+}
+
+/* Texto accesible pero invisible: para etiquetar iconos sin texto. */
+.pst-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Accesibilidad: movimiento reducido
+
+   La Dynamic Island es casi toda animación. Quien haya pedido menos movimiento
+   debe seguir viendo los MISMOS estados, solo que sin recorrido: las
+   transiciones se vuelven casi instantáneas en lugar de desaparecer, para no
+   romper la continuidad visual.
+--------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =============================================================================
+   Capa de componentes
+   -----------------------------------------------------------------------------
+   Vive en global y no dentro de cada componente porque son las piezas que TODAS
+   las pantallas comparten. Duplicar la definición de una tarjeta cinco veces es
+   la forma más rápida de que dejen de parecerse entre sí.
+============================================================================= */
+
+/* --- Cabecera de pantalla -------------------------------------------------- */
+
+.pst-header {
+  padding: var(--pst-space-4) 0 var(--pst-space-5);
+}
+
+.pst-header__eyebrow {
+  font-size: var(--pst-footnote);
+  font-weight: 500;
+  color: var(--pst-label-3);
+  margin-bottom: 0.125rem;
+}
+
+.pst-header__title {
+  font-size: var(--pst-large-title);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+/* --- Tarjeta --------------------------------------------------------------- */
+
+.pst-card {
+  background: var(--pst-surface-1);
+  border: 0.5px solid var(--pst-separator-soft);
+  border-radius: var(--pst-r-lg);
+  padding: var(--pst-space-4);
+  box-shadow: var(--pst-shadow-card);
+}
+
+.pst-card--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.pst-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pst-space-3);
+  margin-bottom: var(--pst-space-4);
+}
+
+.pst-card__title {
+  font-size: var(--pst-headline);
+  font-weight: 600;
+}
+
+/* --- Lista agrupada (el patrón de Ajustes de iOS) -------------------------- */
+
+.pst-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.pst-row {
+  display: flex;
+  align-items: center;
+  gap: var(--pst-space-3);
+  width: 100%;
+  padding: var(--pst-space-3) var(--pst-space-4);
+  text-align: left;
+  transition: background-color var(--pst-dur-fast) var(--pst-snap);
+}
+
+.pst-row:active {
+  background: var(--pst-surface-3);
+}
+
+/* El separador arranca alineado con el texto, no con el borde de la tarjeta:
+   así la columna de iconos actúa de guía vertical. */
+.pst-row + .pst-row {
+  box-shadow: inset 0 0.5px 0 var(--pst-separator-soft);
+}
+
+.pst-row__icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--pst-r-sm);
+  flex-shrink: 0;
+  color: var(--pst-label-2);
+  background: var(--pst-surface-3);
+}
+
+.pst-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+}
+
+.pst-row__title {
+  font-size: var(--pst-callout);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pst-row__sub {
+  font-size: var(--pst-footnote);
+  color: var(--pst-label-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pst-row__trail {
+  display: flex;
+  align-items: center;
+  gap: var(--pst-space-2);
+  flex-shrink: 0;
+  color: var(--pst-label-3);
+  font-size: var(--pst-subhead);
+}
+
+/* --- Métricas -------------------------------------------------------------- */
+
+.pst-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--pst-space-3);
+}
+
+.pst-stat {
+  background: var(--pst-surface-1);
+  border: 0.5px solid var(--pst-separator-soft);
+  border-radius: var(--pst-r-md);
+  padding: var(--pst-space-3) var(--pst-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-1);
+}
+
+.pst-stat__label {
+  display: flex;
+  align-items: center;
+  gap: var(--pst-space-2);
+  font-size: var(--pst-caption);
+  color: var(--pst-label-3);
+}
+
+.pst-stat__value {
+  font-size: var(--pst-title-2);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.pst-stat__unit {
+  font-size: var(--pst-footnote);
+  font-weight: 500;
+  color: var(--pst-label-3);
+  margin-left: 0.1875rem;
+}
+
+/* --- Chips y distintivos --------------------------------------------------- */
+
+.pst-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pst-space-1);
+  padding: 0.1875rem var(--pst-space-2);
+  border-radius: var(--pst-r-pill);
+  font-size: var(--pst-caption-2);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: var(--pst-surface-3);
+  color: var(--pst-label-2);
+  white-space: nowrap;
+}
+
+.pst-badge--good { background: color-mix(in srgb, var(--pst-good) 16%, transparent); color: var(--pst-good); }
+.pst-badge--warn { background: color-mix(in srgb, var(--pst-warn) 16%, transparent); color: var(--pst-warn); }
+.pst-badge--bad  { background: color-mix(in srgb, var(--pst-bad) 16%, transparent);  color: var(--pst-bad); }
+.pst-badge--brand{ background: color-mix(in srgb, var(--pst-ignition) 16%, transparent); color: var(--pst-ignition); }
+
+/* --- Botones --------------------------------------------------------------- */
+
+.pst-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pst-space-2);
+  padding: var(--pst-space-3) var(--pst-space-5);
+  border-radius: var(--pst-r-pill);
+  font-size: var(--pst-callout);
+  font-weight: 600;
+  background: var(--pst-surface-3);
+  color: var(--pst-label);
+  transition: transform var(--pst-dur-fast) var(--pst-snap),
+              background-color var(--pst-dur-fast) var(--pst-snap);
+}
+
+.pst-btn:active {
+  transform: scale(0.96);
+  background: var(--pst-surface-4);
+}
+
+.pst-btn--primary {
+  background: var(--pst-ignition);
+  color: #fff;
+  box-shadow: 0 4px 16px var(--pst-ignition-glow);
+}
+
+.pst-btn--primary:active {
+  background: var(--pst-ignition-dim);
+}
+
+.pst-btn--block {
+  width: 100%;
+}
+
+/* --- Barra de progreso ----------------------------------------------------- */
+
+.pst-bar {
+  height: 0.375rem;
+  border-radius: var(--pst-r-pill);
+  background: var(--pst-surface-3);
+  overflow: hidden;
+}
+
+.pst-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--tone, var(--pst-ignition));
+  /* Se anima el ancho al montar para que la barra "cargue" en vez de aparecer
+     ya llena. Es un detalle pequeño que hace que el dato se lea. */
+  animation: pst-bar-fill 0.9s var(--pst-spring) both;
+}
+
+@keyframes pst-bar-fill {
+  from { width: 0; }
+}
+
+/* --- Secciones apiladas ---------------------------------------------------- */
+
+.pst-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-6);
+}
+
+/* --- Entrada escalonada ----------------------------------------------------
+   Cada bloque de la pantalla entra con unos milisegundos de diferencia. Es el
+   recurso que usa iOS para que una vista se sienta "armada" y no "pegada".
+   Seis niveles bastan: más allá, el último tarda tanto que se percibe como
+   lentitud en vez de como elegancia.
+--------------------------------------------------------------------------- */
+
+.pst-stagger > * {
+  animation: pst-rise 0.5s var(--pst-spring) both;
+}
+
+.pst-stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.pst-stagger > *:nth-child(2) { animation-delay: 0.07s; }
+.pst-stagger > *:nth-child(3) { animation-delay: 0.12s; }
+.pst-stagger > *:nth-child(4) { animation-delay: 0.17s; }
+.pst-stagger > *:nth-child(5) { animation-delay: 0.22s; }
+.pst-stagger > *:nth-child(n + 6) { animation-delay: 0.27s; }
+
+@keyframes pst-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }

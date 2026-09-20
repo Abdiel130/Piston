@@ -1,0 +1,87 @@
+<div class="pst-stack pst-stagger">
+  <header class="pst-header">
+    <p class="pst-header__eyebrow">
+      Gastos
+      <span class="pst-badge pst-badge--brand">Maqueta</span>
+    </p>
+    <h1 class="pst-header__title">$4,318</h1>
+  </header>
+
+  <section class="pst-card total">
+    <div class="pst-card__head">
+      <h2 class="pst-card__title">Septiembre 2026</h2>
+      <span class="pst-badge pst-badge--warn">+18%</span>
+    </div>
+
+    <!-- Barra apilada: la proporción se lee antes que las cifras. -->
+    <div class="total__bar" role="img" aria-label="Distribución del gasto por categoría">
+      @for (cat of categories; track cat.name) {
+        <span
+          class="total__seg"
+          [style.flex-grow]="cat.share"
+          [style.background]="cat.color"
+        ></span>
+      }
+    </div>
+
+    <div class="total__legend">
+      @for (cat of categories; track cat.name) {
+        <span class="total__key">
+          <span class="total__dot" [style.background]="cat.color"></span>
+          {{ cat.name }}
+        </span>
+      }
+    </div>
+  </section>
+
+  <section>
+    <h2 class="pst-section-title">Por categoría</h2>
+    <div class="pst-card pst-card--flush">
+      <div class="pst-list">
+        @for (cat of categories; track cat.name) {
+          <button type="button" class="pst-row">
+            <span class="pst-row__icon" [style.color]="cat.color">
+              <pst-icon [name]="cat.icon" [size]="18" />
+            </span>
+            <span class="pst-row__body">
+              <span class="pst-row__title">{{ cat.name }}</span>
+              <span class="pst-bar cat__bar" [style.--tone]="cat.color">
+                <span class="pst-bar__fill" [style.width.%]="cat.share"></span>
+              </span>
+            </span>
+            <span class="pst-row__trail">
+              <span class="pst-numeric">{{ cat.amount }}</span>
+              <pst-icon name="chevronRight" [size]="16" />
+            </span>
+          </button>
+        }
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="pst-section-title">Próximos vencimientos</h2>
+    <div class="pst-card pst-card--flush">
+      <div class="pst-list">
+        @for (item of upcoming; track item.name) {
+          <button type="button" class="pst-row">
+            <span class="pst-row__icon"><pst-icon name="calendar" [size]="18" /></span>
+            <span class="pst-row__body">
+              <span class="pst-row__title">{{ item.name }}</span>
+              <span class="pst-row__sub">{{ item.when }}</span>
+            </span>
+            <span class="pst-row__trail">
+              <span class="pst-numeric">{{ item.amount }}</span>
+              <pst-icon name="chevronRight" [size]="16" />
+            </span>
+          </button>
+        }
+      </div>
+    </div>
+  </section>
+
+  <button type="button" class="pst-btn pst-btn--primary pst-btn--block">
+    <pst-icon name="plus" [size]="18" />
+    Registrar gasto
+  </button>
+</div>

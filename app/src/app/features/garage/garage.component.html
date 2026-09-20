@@ -1,0 +1,110 @@
+<div class="pst-stack pst-stagger">
+  <header class="pst-header">
+    <p class="pst-header__eyebrow">
+      Mi garage
+      <span class="pst-badge pst-badge--brand">Maqueta</span>
+    </p>
+    <h1 class="pst-header__title">Mazda 3 Sedan</h1>
+  </header>
+
+  <!-- Tarjeta protagonista: el estado del vehículo de un vistazo. -->
+  <section class="hero pst-card">
+    <div class="hero__top">
+      <div class="hero__ident">
+        <span class="pst-badge">PST-9421</span>
+        <span class="pst-badge">2022 · Turbo</span>
+      </div>
+      <button type="button" class="hero__more" aria-label="Más opciones del vehículo">
+        <pst-icon name="more" [size]="20" />
+      </button>
+    </div>
+
+    <pst-gauge [segments]="8" [value]="5" [size]="184" caption="5/8" hint="rayitas" />
+
+    <div class="hero__readout">
+      <div class="hero__cell">
+        <span class="hero__cell-label">Odómetro</span>
+        <span class="hero__cell-value pst-numeric">48,650<span class="pst-stat__unit">km</span></span>
+      </div>
+      <div class="hero__divider" aria-hidden="true"></div>
+      <div class="hero__cell">
+        <span class="hero__cell-label">Autonomía est.</span>
+        <span class="hero__cell-value pst-numeric">405<span class="pst-stat__unit">km</span></span>
+      </div>
+    </div>
+
+    <button type="button" class="pst-btn pst-btn--primary pst-btn--block">
+      <pst-icon name="plus" [size]="18" />
+      Registrar carga
+    </button>
+  </section>
+
+  <!-- Métricas derivadas -->
+  <section>
+    <h2 class="pst-section-title">Este mes</h2>
+    <div class="pst-stat-grid">
+      <div class="pst-stat">
+        <span class="pst-stat__label"><pst-icon name="gauge" [size]="14" /> Rendimiento</span>
+        <span class="pst-stat__value pst-numeric">13.1<span class="pst-stat__unit">km/L</span></span>
+      </div>
+      <div class="pst-stat">
+        <span class="pst-stat__label"><pst-icon name="road" [size]="14" /> Costo por km</span>
+        <span class="pst-stat__value pst-numeric">$1.83</span>
+      </div>
+      <div class="pst-stat">
+        <span class="pst-stat__label"><pst-icon name="fuel" [size]="14" /> Combustible</span>
+        <span class="pst-stat__value pst-numeric">$2,840</span>
+      </div>
+      <div class="pst-stat">
+        <span class="pst-stat__label"><pst-icon name="road" [size]="14" /> Recorrido</span>
+        <span class="pst-stat__value pst-numeric">1,552<span class="pst-stat__unit">km</span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Semáforo de salud -->
+  <section>
+    <h2 class="pst-section-title">Salud del vehículo</h2>
+    <div class="pst-card pst-card--flush">
+      <div class="pst-list">
+        @for (item of health; track item.name) {
+          <div class="pst-row health">
+            <span class="pst-row__icon"><pst-icon [name]="item.icon" [size]="18" /></span>
+            <span class="pst-row__body">
+              <span class="health__line">
+                <span class="pst-row__title">{{ item.name }}</span>
+                <span [class]="'pst-badge pst-badge--' + item.tone">{{ item.status }}</span>
+              </span>
+              <span class="pst-row__sub">{{ item.detail }}</span>
+              <span class="pst-bar health__bar" [style.--tone]="'var(--pst-' + item.tone + ')'">
+                <span class="pst-bar__fill" [style.width.%]="item.progress"></span>
+              </span>
+            </span>
+          </div>
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Historial reciente -->
+  <section>
+    <h2 class="pst-section-title">Actividad reciente</h2>
+    <div class="pst-card pst-card--flush">
+      <div class="pst-list">
+        @for (item of activity; track item.title) {
+          <button type="button" class="pst-row">
+            <span class="pst-row__icon"><pst-icon [name]="item.icon" [size]="18" /></span>
+            <span class="pst-row__body">
+              <span class="pst-row__title">{{ item.title }}</span>
+              <span class="pst-row__sub">{{ item.sub }}</span>
+            </span>
+            <span class="pst-row__trail">
+              <span class="pst-numeric">{{ item.amount }}</span>
+              <pst-icon name="chevronRight" [size]="16" />
+            </span>
+          </button>
+        }
+      </div>
+    </div>
+  </section>
+</div>

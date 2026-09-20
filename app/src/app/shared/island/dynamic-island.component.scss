@@ -1,0 +1,298 @@
+/* -----------------------------------------------------------------------------
+   Dynamic Island
+   Las medidas viven en variables para que la caja y su sombra animen juntas.
+----------------------------------------------------------------------------- */
+
+:host {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: block;
+  pointer-events: none; /* el carril no intercepta; solo la píldora */
+}
+
+.island__defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.island-lane {
+  display: flex;
+  justify-content: center;
+  padding-top: calc(var(--pst-safe-top) + var(--pst-space-2));
+}
+
+/* --- La forma ------------------------------------------------------------- */
+
+.island {
+  --island-w: 13.5rem;
+  --island-h: 2.375rem;
+  --island-r: 1.1875rem;
+
+  position: relative;
+  width: var(--island-w);
+  height: var(--island-h);
+  pointer-events: auto;
+  display: block;
+  padding: 0;
+  text-align: left;
+
+  transition:
+    width var(--pst-dur-island) var(--pst-spring),
+    height var(--pst-dur-island) var(--pst-spring),
+    transform var(--pst-dur-fast) var(--pst-snap);
+}
+
+/* La pulsación hunde ligeramente la isla. Es el único feedback táctil que
+   tenemos en web, y sin él los toques se sienten muertos. */
+.island:active {
+  transform: scale(0.96);
+}
+
+.island--expanded {
+  --island-w: min(23rem, calc(100vw - 2 * var(--pst-gutter)));
+  --island-h: 11.75rem;
+  --island-r: 2rem;
+}
+
+/* --- Capa de fondo (fundido gooey) ---------------------------------------- */
+
+.island__goo {
+  position: absolute;
+  inset: 0;
+  filter: url('#pst-goo');
+}
+
+.island__shape {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  border-radius: var(--island-r);
+  transition: border-radius var(--pst-dur-island) var(--pst-spring);
+}
+
+/* El satélite: un punto que orbita pegado al borde derecho. Al estar bajo el
+   mismo filtro que la píldora, sus bordes se funden con ella. */
+.island__blob {
+  position: absolute;
+  top: 50%;
+  right: -0.9rem;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-top: -0.45rem;
+  background: #000;
+  border-radius: 50%;
+  animation: island-orbit 2.4s var(--pst-spring) infinite;
+}
+
+@keyframes island-orbit {
+  0%,
+  100% {
+    transform: translateX(0) scale(1);
+  }
+  50% {
+    transform: translateX(0.35rem) scale(0.72);
+  }
+}
+
+/* --- Capa de contenido ---------------------------------------------------- */
+
+.island__layer {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--island-r);
+  overflow: hidden;
+  /* Un filo de luz en el borde superior: sugiere vidrio, no un rectángulo
+     negro pegado a un fondo negro. Es lo que separa la isla del fondo. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    var(--pst-shadow-island);
+  transition: border-radius var(--pst-dur-island) var(--pst-spring);
+}
+
+/* Halo del color del estado. Solo se enciende al expandir, para que la isla
+   colapsada siga siendo discreta. */
+.island__layer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 35%, transparent);
+  transition: opacity var(--pst-dur-base) var(--pst-snap);
+}
+
+.island--expanded .island__layer::after {
+  opacity: 1;
+}
+
+/* Ambos estados ocupan la misma caja y se turnan. Mantenerlos montados evita
+   un reflow a media animación, que es lo que hace que un morph se vea roto. */
+.island__compact,
+.island__expanded {
+  position: absolute;
+  inset: 0;
+  transition:
+    opacity var(--pst-dur-base) var(--pst-snap),
+    transform var(--pst-dur-base) var(--pst-spring),
+    filter var(--pst-dur-base) var(--pst-snap);
+}
+
+/* El contenido que sale se encoge y se desenfoca; el que entra hace lo
+   contrario. El desenfoque es lo que vende la sensación de materia que se
+   reorganiza en vez de dos capas que se cruzan. */
+.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+  filter: blur(6px);
+  transform: scale(0.9);
+}
+
+/* --- Estado colapsado ----------------------------------------------------- */
+
+.island__compact {
+  display: flex;
+  align-items: center;
+  gap: var(--pst-space-2);
+  padding: 0 var(--pst-space-2) 0 var(--pst-space-1);
+  /* El contenido entra con un pelín de retraso respecto a la caja. */
+  transition-delay: 0.08s;
+}
+
+.island__chip {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 16%, transparent);
+}
+
+.island__chip--lg {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.island__label {
+  font-size: var(--pst-footnote);
+  font-weight: 500;
+  color: var(--pst-label-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.island__value {
+  font-size: var(--pst-footnote);
+  font-weight: 600;
+  color: var(--pst-label);
+  white-space: nowrap;
+}
+
+/* --- Estado expandido ----------------------------------------------------- */
+
+.island__expanded {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-3);
+  padding: var(--pst-space-4);
+  transition-delay: 0.1s;
+}
+
+.island__head {
+  display: flex;
+  align-items: center;
+  gap: var(--pst-space-3);
+}
+
+.island__headtext {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.island__title {
+  font-size: var(--pst-subhead);
+  font-weight: 600;
+  color: var(--pst-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.island__subtitle {
+  font-size: var(--pst-caption);
+  color: var(--pst-label-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.island__hero {
+  font-size: var(--pst-title-2);
+  font-weight: 700;
+  color: var(--tone);
+  white-space: nowrap;
+}
+
+.island__details {
+  display: flex;
+  gap: var(--pst-space-2);
+  flex: 1;
+}
+
+.island__detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  justify-content: center;
+  padding: var(--pst-space-2);
+  border-radius: var(--pst-r-md);
+  background: rgba(255, 255, 255, 0.05);
+  min-width: 0;
+}
+
+.island__detail-label {
+  font-size: var(--pst-caption-2);
+  color: var(--pst-label-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.island__detail-value {
+  font-size: var(--pst-subhead);
+  font-weight: 600;
+  color: var(--pst-label);
+}
+
+.island__hint {
+  font-size: var(--pst-caption-2);
+  color: var(--pst-label-4);
+  text-align: center;
+}
+
+/* -----------------------------------------------------------------------------
+   Movimiento reducido: el morph sigue ocurriendo (es información: la caja
+   crece), pero sin recorrido perceptible y sin el satélite latiendo.
+----------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .island__blob {
+    animation: none;
+  }
+
+  .is-hidden {
+    filter: none;
+    transform: none;
+  }
+}

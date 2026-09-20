@@ -63,43 +63,107 @@ Piston/
 ├── docker-compose.yml               # Orquestación de app, server y postgres
 ├── CHANGELOG.md                     # Registro de versiones (iniciando en 1.0.0)
 ├── README.md                        # Documentación principal
+├── docs/
+│   └── schema.dbml                  # Modelo de datos completo (pegar en dbdiagram.io)
 │
 ├── app/                             # FRONTEND: Angular 22 + Dexie.js
-│   ├── Dockerfile                   # Imagen Node 26 dev server (Puerto 4300)
+│   ├── Dockerfile                   # Imagen Node dev server (Puerto 4300)
 │   ├── package.json                 # Dependencias (Angular 22, Dexie.js 4)
 │   ├── src/
-│   │   ├── app/
-│   │   │   ├── core/
-│   │   │   │   ├── models/          # Modelos TypeScript (Vehicle, Fuel, Service)
-│   │   │   │   └── services/        # DexieDbService (IndexedDB), ApiService
-│   │   │   └── features/dashboard/  # Preview interactivo de combustible y servicios
-│   │   └── styles.scss              # Sistema de diseño automotriz oscuro
+│   │   ├── styles.scss              # Sistema de diseño: tokens, tipografía, motion
+│   │   └── app/
+│   │       ├── shared/
+│   │       │   ├── icon/            # Registro de iconos SVG en línea (sin red)
+│   │       │   ├── island/          # Dynamic Island + servicio de actividad
+│   │       │   ├── gauge/           # Medidor de rayitas por segmentos
+│   │       │   └── tab-bar/         # Barra de pestañas estilo iOS
+│   │       ├── features/            # Una pantalla por pestaña
+│   │       │   ├── garage/          # Vehículo, nivel de tanque, salud
+│   │       │   ├── fuel/            # Captura por rayitas e historial
+│   │       │   ├── service/         # Semáforo, fallas en seguimiento
+│   │       │   ├── expenses/        # Gasto por categoría y vencimientos
+│   │       │   └── settings/        # Ajustes y estado de sincronización
+│   │       └── core/                # Dexie y cliente de API (pendiente de reescritura)
 │
 └── server/                          # BACKEND: Laravel 13 + Sanctum + PHP 8.5
     ├── Dockerfile                   # PHP 8.5 con extensiones pdo_pgsql, bcmath, zip
     ├── composer.json                # Dependencias (Laravel 13, Sanctum)
     ├── routes/api.php               # Rutas REST API y endpoint /health
     ├── config/cors.php              # Configuración CORS para localhost:4300
-    └── app/Models/User.php          # Modelo con HasApiTokens para Sanctum
+    ├── app/Models/Concerns/         # SyncsOffline: UUID, soft delete, scope sinceRev
+    └── database/migrations/         # 20 tablas de dominio + trigger de `rev`
 ```
 
 ---
 
-## Características Incluidas en el Preview
+## Características
 
-1. **Calculador de Combustible por "Rayitas"**:
-   - Selector interactivo de nivel de tanque por segmentos/rayitas (ej. 8 rayitas).
-   - Cálculo automático de litros recargados según monto pagado y precio por litro.
-   - Estimación del rendimiento (km/L) y costo por kilómetro sin exigir tanque lleno.
-2. **Persistencia Offline con Dexie.js**:
-   - Toda la información se guarda de inmediato en el IndexedDB del navegador (`piston_local_db`).
-   - Funciona sin conexión a internet y mantiene los datos listos para sincronización con Laravel.
-3. **Radar de Precios de Gasolineras (Estilo Waze)**:
-   - Comparativa de gasolineras locales con precios reportados y corregidos por la comunidad.
-4. **Monitor de Mantenimiento Preventivo**:
-   - Semáforo de salud de refacciones (aceite sintético, filtros, balatas) con alerta por kilometraje.
-5. **Diagnóstico de Stack en Vivo**:
-   - Tarjetas que verifican en tiempo real la conectividad con el contenedor de Laravel 13 y PostgreSQL 18.
+La app es **mobile-first** y **offline-first**: toda escritura ocurre primero en IndexedDB y se sincroniza después contra Laravel.
+
+### 🚗 Garage y vehículos
+- Multi-vehículo con ficha completa: marca, modelo, año, versión, motor, transmisión, VIN, placas y color.
+- Tipos de vehículo (auto, moto, pickup, camión, van) con catálogos de mantenimiento propios.
+- Especificaciones técnicas que alimentan los cálculos: capacidad del tanque, número de rayitas del indicador, rendimiento de fábrica, capacidad y especificación de aceite, presiones de llantas.
+- **Historial de odómetro** como serie temporal, con detección de lecturas inconsistentes.
+- **Ciclo de vida de propiedad**: fecha, precio y kilometraje de compra y de venta.
+- **Archivar vehículos vendidos** conservando todo su histórico, y **expediente exportable** (PDF/JSON) para entregar al comprador.
+- Galería de fotos del vehículo.
+
+### ⛽ Combustible
+- **Captura flexible**: registra por monto pagado, por litros o por **rayitas**; el resto se calcula solo.
+- **Rendimiento km/L sin obligarte a llenar el tanque**, estimado a partir del movimiento de la aguja.
+- **Curva de calibración de rayitas por vehículo**: el indicador de combustible no es lineal, y la app aprende la curva real de tu auto con cada carga a tanque lleno. Entre más la uses, más exacta se vuelve.
+- **Tanque lleno vs. carga parcial**: distingue el rendimiento exacto (full-to-full) del estimado por rayitas y los reporta por separado.
+- **"Olvidé registrar una carga"**: rompe la cadena de cálculo en lugar de ensuciar tus promedios.
+- Gasolinera, tipo de combustible (regular / premium / diésel) y precio por litro en cada carga.
+- **Costo por kilómetro** y gasto de combustible por mes.
+- **Alerta de rendimiento anómalo**: si el km/L cae respecto a tu promedio, puede ser señal de un problema mecánico.
+
+### 🔧 Mantenimiento y servicios
+- Catálogo de tipos de servicio precargado (aceite, filtros, balatas, bujías, banda, anticongelante, afinación…), ampliable con los tuyos.
+- Registro de servicios con fecha, kilometraje, taller, costo de mano de obra y notas; una sola visita puede cubrir varios servicios.
+- **Refacciones por servicio**: marca, número de parte, cantidad y costo unitario. Aquí vive el histórico real del auto.
+- **Intervalos por vehículo** (cada X km **o** cada Y meses, lo que ocurra primero) con **semáforo** de salud verde / amarillo / rojo.
+- **Recordatorios y alertas** al acercarse el kilometraje o la fecha del próximo servicio.
+- **Bitácora de fallas y síntomas**: registra "suena al frenar" como incidencia abierta y lígala después al servicio que la resolvió. Guarda también los intentos que *no* la resolvieron.
+- Adjuntos por servicio (factura, nota del taller).
+
+### 💸 Gastos
+- Gastos categorizados: tenencia, verificación, seguro, lavado, estacionamiento, casetas, multas, accesorios.
+- **Gastos recurrentes** con periodicidad (seguro anual, tenencia anual, verificación semestral).
+
+### 📄 Documentos y trámites
+- Seguro, verificación, tenencia, tarjeta de circulación y licencia, con vigencias y costos.
+- **Alertas de vencimiento** configurables (30 / 15 / 7 días antes).
+- Foto o escaneo del documento, disponible **sin conexión**.
+- Calendario de verificación por **engomado y terminación de placa**.
+
+### 🛰️ Gasolineras
+- Catálogo de gasolineras con marca, dirección y geolocalización.
+- Registro histórico de precios por tipo de combustible, alimentado automáticamente por tus propias cargas.
+- Comparativa de precios de las estaciones que ya conoces.
+
+### 🧭 Uso
+- **Bitácora de viajes**: origen, destino, kilómetros y propósito (personal / trabajo).
+
+### 📊 Dashboard
+- Rendimiento promedio, gasto del mes y próximo servicio de un vistazo.
+- Tendencias de rendimiento, de precio pagado por litro y de gasto por categoría.
+- Comparativa entre tus vehículos.
+
+### 📶 Offline-first (arquitectura)
+- Escritura local inmediata en IndexedDB (Dexie) y sincronización en segundo plano.
+- **UUIDv7 generado en el cliente**: los registros creados sin conexión nacen con su id definitivo, sin mapeos ni reescritura de relaciones al sincronizar.
+- **Outbox** de mutaciones pendientes con reintentos y backoff exponencial.
+- **Sync delta** por número de revisión, sin depender de relojes que pueden ir desfasados.
+- **Soft delete con tombstones**: los borrados se propagan y no "reviven" al reconectar.
+- **Adjuntos diferidos**: la foto se guarda al instante y el binario sube cuando haya red.
+- PWA instalable con service worker.
+
+### Fuera de alcance por ahora
+Vehículos híbridos y eléctricos · compartir un vehículo entre varias cuentas · comunidad de precios con votos y reputación · importación de precios oficiales de la CRE · plan de mantenimiento del fabricante precargado · alertas de garantía de refacciones · presupuestos mensuales · OBD-II · OCR de tickets · decodificador de VIN.
+
+> El modelo de datos ya deja preparado el terreno para varias de estas: ver [`docs/schema.dbml`](docs/schema.dbml), que se puede pegar en [dbdiagram.io](https://dbdiagram.io) para verlo de forma visual.
 
 ---
 
@@ -141,4 +205,4 @@ docker compose ps
 ---
 
 ## 📄 Licencia y Versión
-- Versión actual: **1.0.0** (Ver [CHANGELOG.md](file:///home/abdiel/projects/personal/Piston/CHANGELOG.md) para más detalles).
+- Versión actual: **1.1.0** (Ver [CHANGELOG.md](file:///home/abdiel/projects/personal/Piston/CHANGELOG.md) para más detalles).

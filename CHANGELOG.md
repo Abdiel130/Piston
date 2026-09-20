@@ -4,6 +4,51 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
+## [Unreleased]
+
+## [1.1.0] - 2026-09-20
+
+Definición del alcance funcional de la aplicación y construcción de sus dos
+cimientos: el modelo de datos y el lenguaje visual. El preview inicial queda
+sustituido por una base real sobre la que construir.
+
+### Added
+- **Modelo de datos definitivo**: se diseñó y documentó el esquema completo de
+  la aplicación, cubriendo vehículos, combustible, mantenimiento, refacciones,
+  gastos, documentos, viajes y adjuntos. Queda publicado en formato visual para
+  poder discutirlo antes de escribir código sobre él.
+- **Arquitectura de sincronización offline-first**: las claves primarias se
+  generan en el dispositivo, los borrados se propagan en lugar de desaparecer y
+  la sincronización viaja por diferencias en vez de descargarlo todo. Es lo que
+  permite crear registros sin conexión y que sobrevivan intactos al reconectar.
+- **Base de datos operativa**: todo el esquema queda implementado en PostgreSQL
+  y listo para migrar.
+- **Identidad visual propia**: se definió el lenguaje de diseño de Piston
+  —color, tipografía, espaciado, profundidad y movimiento— como un sistema
+  coherente en lugar de estilos sueltos por pantalla.
+- **Dynamic Island**: elemento central de la interfaz. Muestra el estado vivo
+  del vehículo y se transforma según la sección en la que estés, con el
+  comportamiento y las animaciones de iOS.
+- **Iconografía propia**: set de iconos dibujado para la aplicación, con un
+  trazo y una rejilla consistentes en toda la interfaz.
+- **Navegación móvil**: la aplicación se reorganizó en cinco secciones —Garage,
+  Combustible, Servicios, Gastos y Ajustes— accesibles desde una barra de
+  pestañas fija. Las pantallas son maqueta: definen estructura y estética, sin
+  lógica ni persistencia detrás.
+- **Alcance documentado**: el README recoge las características acordadas y, de
+  forma explícita, las que quedan fuera por ahora.
+
+### Changed
+- **Identidad de usuario y preferencias**: las cuentas pasan a identificarse por
+  UUID, y las unidades, moneda e idioma dejan de estar fijados en la aplicación
+  para vivir con cada usuario.
+
+### Removed
+- **Toda dependencia de red en el arranque**: se eliminaron las fuentes remotas
+  y los emojis que hacían de iconografía. En una aplicación offline-first, un
+  recurso externo es un recurso que falta justo cuando no hay señal.
+- **El preview del demo** y los restos del andamiaje inicial que ya no
+  correspondían a la dirección del proyecto.
 
 ## [1.0.0] - 2026-09-10
 

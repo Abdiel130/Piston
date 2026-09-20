@@ -1,0 +1,21 @@
+<nav class="tabbar" aria-label="Navegación principal">
+  <ul class="tabbar__list">
+    @for (tab of tabs; track tab.path) {
+      <li class="tabbar__item">
+        <a
+          class="tabbar__link"
+          [routerLink]="tab.path"
+          routerLinkActive="is-active"
+          [routerLinkActiveOptions]="{ exact: tab.path === '/' }"
+          #rla="routerLinkActive"
+          [attr.aria-current]="rla.isActive ? 'page' : null"
+        >
+          <span class="tabbar__icon">
+            <pst-icon [name]="tab.icon" [size]="24" />
+          </span>
+          <span class="tabbar__label">{{ tab.label }}</span>
+        </a>
+      </li>
+    }
+  </ul>
+</nav>

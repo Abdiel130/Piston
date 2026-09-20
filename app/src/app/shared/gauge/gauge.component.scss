@@ -1,0 +1,64 @@
+.gauge {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.gauge__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.gauge__seg {
+  fill: none;
+  stroke: var(--pst-surface-3);
+  stroke-width: 9;
+  stroke-linecap: round;
+  transition: stroke var(--pst-dur-base) var(--pst-snap);
+}
+
+.gauge__seg.is-filled {
+  stroke: var(--tone);
+  /* El halo hace que las rayitas encendidas parezcan iluminadas y no solo
+     pintadas de otro color. */
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--tone) 55%, transparent));
+  animation: gauge-ignite 0.45s var(--pst-overshoot) both;
+}
+
+/* Cada rayita entra encogida desde su propio centro. Con el retardo escalonado
+   del componente, el medidor "se llena" de izquierda a derecha al montar. */
+@keyframes gauge-ignite {
+  from {
+    opacity: 0;
+    stroke-width: 3;
+  }
+  to {
+    opacity: 1;
+    stroke-width: 9;
+  }
+}
+
+.gauge__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+  /* El arco está abierto por abajo, así que el texto sube un poco para quedar
+     ópticamente centrado dentro de la herradura. */
+  transform: translateY(-6%);
+}
+
+.gauge__caption {
+  font-size: var(--pst-title-1);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.gauge__hint {
+  font-size: var(--pst-caption);
+  color: var(--pst-label-3);
+}
