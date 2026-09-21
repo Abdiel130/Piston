@@ -18,8 +18,14 @@ RUN apt-get update && apt-get install -y \
 # Install Composer from official image
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+# Install PHP dependencies first (capa cacheable)
+COPY composer.json composer.lock ./
+RUN composer install --no-interaction --prefer-dist --no-scripts --no-autoloader
+
 # Copy application files
 COPY . /var/www/html
+
+RUN composer dump-autoload --optimize
 
 # Adjust permissions
 RUN chown -R www-data:www-data /var/www/html \
@@ -27,6 +33,8 @@ RUN chown -R www-data:www-data /var/www/html \
 
 # Expose Artisan serve port
 EXPOSE 8000
+
+ENTRYPOINT ["/var/www/html/docker-entrypoint.sh"]
 
 # Start command
 CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]

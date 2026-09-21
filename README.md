@@ -11,7 +11,7 @@
 | Capa | Tecnología | Versión | Contenedor Docker | Puerto Host Asignado |
 | :--- | :--- | :--- | :--- | :--- |
 | **Frontend** | Angular + Signals + PWA | **`22.x`** (`22.1.8`) | `piston-app` | **`4300`** |
-| **Backend REST API** | Laravel (Sanctum) | **`13.x`** (`13.10.1`) | `piston-server` | **`8088`** |
+| **Backend REST API** | Laravel (Sanctum) | **`13.x`** (`13.31.0`) | `piston-server` | **`8088`** |
 | **Entorno PHP** | PHP CLI / FPM | **`8.5`** (`8.5.10`) | `piston-server` | *(Interno 8000)* |
 | **Base de Datos** | PostgreSQL Alpine | **`18.x`** (`18.6`) | `piston-db` | **`5438`** *(Interno 5432)* |
 | **Persistencia Local** | IndexedDB vía Dexie.js | **`4.x`** | *Navegador / PWA* | *Offline* |
@@ -24,23 +24,95 @@
 
 ### 1. Requisitos Previos
 - [Docker](https://docs.docker.com/get-docker/) y Docker Compose v2+.
+- Nada más: PHP, Composer, Node y PostgreSQL viven dentro de los contenedores.
 
-### 2. Clonar y Configurar Variables de Entorno
-Copia el archivo de ejemplo para configurar tus variables locales:
+### 2. Configurar Variables de Entorno
+Copia el archivo de ejemplo. Aquí viven los puertos del host y las credenciales de PostgreSQL:
 ```bash
 cp .env.example .env
 ```
 
-### 3. Levantar Todo el Stack con Docker
-Construye y arranca los contenedores en segundo plano con un solo comando:
+> **Sobre `APP_KEY`:** no se configura a mano. La clave de cifrado de Laravel vive en `server/.env`, y el entrypoint del contenedor crea ese archivo (a partir de `server/.env.example`) y genera la clave la primera vez que arranca. Si alguna vez necesitas rotarla: `./piston key`.
+
+> **Sobre el frontend:** no hay nada que copiar. Su configuración (`app/src/environments/`) está versionada y no contiene secretos; ver [Configuración por entorno](#configuración-por-entorno).
+
+### 3. Levantar Todo el Stack
 ```bash
-docker compose up -d --build
+./piston up          # equivale a: docker compose up -d --build
 ```
 
-### 4. Ejecutar Migraciones de Base de Datos
-Aplica las migraciones iniciales de Laravel y Sanctum en PostgreSQL 18:
+El primer arranque tarda unos minutos porque construye las imágenes. Al iniciar, `piston-server` ejecuta automáticamente (ver [`server/docker-entrypoint.sh`](server/docker-entrypoint.sh)):
+
+1. `composer install` si falta `vendor/` (el bind mount tapa lo instalado en el build).
+2. Creación de `storage/` y `bootstrap/cache` con permisos de escritura.
+3. Creación de `server/.env` y generación de `APP_KEY` si no existe.
+4. Espera activa a que PostgreSQL acepte conexiones.
+5. `php artisan migrate --force` — las **migraciones se aplican solas**.
+
+Para desactivar las migraciones automáticas, añade `RUN_MIGRATIONS=false` al entorno de `piston-server` en `docker-compose.yml`.
+
+### 4. Verificar que Todo Está Arriba
 ```bash
-docker compose exec piston-server php artisan migrate
+./piston ps          # los tres contenedores en estado "Up"
+./piston health      # respuesta JSON con database.status = "connected"
+```
+
+Salida esperada del health check:
+```json
+{"status":"ok","project":"Piston API","laravel_version":"13.31.0","php_version":"8.5.10","database":{"status":"connected","driver":"pgsql","error":null}}
+```
+
+Después abre [http://localhost:4300](http://localhost:4300).
+
+### 5. Si Algo Falla
+```bash
+./piston logs server     # logs del backend
+./piston logs app        # logs del frontend
+./piston rebuild         # reconstrucción limpia (--no-cache) del stack completo
+```
+
+| Síntoma | Causa y solución |
+| :--- | :--- |
+| `piston-server` en `Restarting (255)` | Falta `vendor/`. `./piston rebuild` o `./piston composer install`. |
+| `database.status: "disconnected"` | PostgreSQL aún inicializando. Espera y repite `./piston health`. |
+| Error CORS en el navegador | El origen del front debe estar en `FRONTEND_URL` (`.env`) y en `server/config/cors.php`. |
+| Puerto ocupado | Cambia `APP_PORT`, `SERVER_PORT` o `DB_PORT` en `.env` y `./piston up`. |
+| Archivos nuevos con dueño `root` | Los generó un contenedor. `./piston own`. |
+| Quieres empezar de cero | `./piston down && docker volume rm piston_pgdata && ./piston up` (⚠️ borra la base de datos). |
+
+---
+
+## El CLI `./piston`
+
+Todos los comandos se ejecutan dentro de los contenedores, así que no necesitas PHP ni Node instalados en tu máquina.
+
+```bash
+./piston help                   # lista completa de comandos
+```
+
+| Comando | Qué hace |
+| :--- | :--- |
+| `./piston up` / `down` / `restart [svc]` | Ciclo de vida del stack |
+| `./piston rebuild` | Reconstruye imágenes sin caché |
+| `./piston ps` / `logs [svc]` | Estado y logs (`svc` = `server`, `app`, `db`) |
+| `./piston health` | `curl` al endpoint `/api/health` |
+| `./piston artisan <cmd>` | Cualquier comando Artisan |
+| `./piston composer <cmd>` | Composer en el backend |
+| `./piston npm <cmd>` / `ng <cmd>` | npm o Angular CLI en el frontend |
+| `./piston psql ["SQL"]` | Consola de PostgreSQL, o ejecuta una sentencia |
+| `./piston sh <server\|app\|db>` | Shell interactiva en el contenedor |
+| `./piston migrate` / `fresh` | Migrar / recrear el esquema (⚠️ `fresh` borra datos) |
+| `./piston routes` | `route:list --path=api` |
+| `./piston test` | Suite de PHPUnit (backend) |
+| `./piston npm test` | Suite de Vitest (frontend) |
+| `./piston key` | Regenera `APP_KEY` |
+| `./piston own` | Devuelve al usuario del host los archivos que generó un contenedor |
+
+Hay dos atajos para lo que más se usa:
+
+```bash
+./artisan migrate:status        # === ./piston artisan migrate:status
+./npm run build                 # === ./piston npm run build
 ```
 
 ---
@@ -49,6 +121,7 @@ docker compose exec piston-server php artisan migrate
 
 - **Frontend (Angular 22)**: [http://localhost:4300](http://localhost:4300)
 - **Backend Health Check**: [http://localhost:8088/api/health](http://localhost:8088/api/health)
+- **PWA**: instalable desde una build de producción (`./npm run build` → servir `app/dist/app/browser`). En `ng serve` el service worker está desactivado a propósito.
 - **Base de Datos PostgreSQL 18**: Conexión externa en `localhost:5438` (Usuario: `piston_user`, Contraseña: `piston_secret_password`, DB: `piston`).
 
 ---
@@ -61,15 +134,27 @@ Piston/
 ├── .env                             # Variables locales activas
 ├── .gitignore                       # Ignorados globales
 ├── docker-compose.yml               # Orquestación de app, server y postgres
+├── piston                           # CLI de desarrollo (up, artisan, npm, psql…)
+├── artisan                          # Atajo -> ./piston artisan
+├── npm                              # Atajo -> ./piston npm
 ├── CHANGELOG.md                     # Registro de versiones (iniciando en 1.0.0)
 ├── README.md                        # Documentación principal
 ├── docs/
 │   └── schema.dbml                  # Modelo de datos completo (pegar en dbdiagram.io)
 │
-├── app/                             # FRONTEND: Angular 22 + Dexie.js
+├── app/                             # FRONTEND: Angular 22 + Dexie.js + PWA
 │   ├── Dockerfile                   # Imagen Node dev server (Puerto 4300)
-│   ├── package.json                 # Dependencias (Angular 22, Dexie.js 4)
+│   ├── package.json                 # Dependencias (Angular 22, Dexie.js 4, ngsw)
+│   ├── ngsw-config.json             # Política de caché del service worker
+│   ├── tools/
+│   │   └── generate-icons.py        # Regenera los iconos (sin dependencias)
+│   ├── public/
+│   │   ├── manifest.webmanifest     # Manifiesto PWA (nombre, tema, shortcuts)
+│   │   └── icons/
+│   │       └── app/                 # Icono de la app: 72→512 px, incluidos maskable
 │   ├── src/
+│   │   ├── environments/            # apiBaseUrl por entorno (fileReplacements)
+│   │   ├── test-setup.ts            # Polyfill de IndexedDB para Vitest
 │   │   ├── styles.scss              # Sistema de diseño: tokens, tipografía, motion
 │   │   └── app/
 │   │       ├── shared/
@@ -82,11 +167,17 @@ Piston/
 │   │       │   ├── fuel/            # Captura por rayitas e historial
 │   │       │   ├── service/         # Semáforo, fallas en seguimiento
 │   │       │   ├── expenses/        # Gasto por categoría y vencimientos
-│   │       │   └── settings/        # Ajustes y estado de sincronización
-│   │       └── core/                # Dexie y cliente de API (pendiente de reescritura)
+│   │       │   └── settings/        # Ajustes + estado real de sincronización
+│   │       └── core/                # Capa offline-first
+│   │           ├── models/          # Enums y tipos, espejo de schema.dbml
+│   │           ├── db/              # Dexie, UUIDv7 y siembra de catálogos
+│   │           ├── data/            # OfflineStore (escrituras) y adjuntos
+│   │           ├── sync/            # Motor de sync: outbox, backoff, delta
+│   │           └── api/             # Cliente HTTP de la API
 │
 └── server/                          # BACKEND: Laravel 13 + Sanctum + PHP 8.5
     ├── Dockerfile                   # PHP 8.5 con extensiones pdo_pgsql, bcmath, zip
+    ├── docker-entrypoint.sh         # Bootstrap: composer, APP_KEY, espera a la DB, migraciones
     ├── composer.json                # Dependencias (Laravel 13, Sanctum)
     ├── routes/api.php               # Rutas REST API y endpoint /health
     ├── config/cors.php              # Configuración CORS para localhost:4300
@@ -167,42 +258,136 @@ Vehículos híbridos y eléctricos · compartir un vehículo entre varias cuenta
 
 ---
 
-## Comandos Útiles de Desarrollo
+## Arquitectura Offline-First del Frontend
 
-### Comandos de Laravel (Artisan)
-```bash
-# Ver estado de rutas API
-docker compose exec piston-server php artisan route:list --path=api
+Toda escritura entra primero a IndexedDB y se sincroniza después. El código vive en `app/src/app/core/`.
 
-# Ejecutar migraciones
-docker compose exec piston-server php artisan migrate
+### Cómo se escribe un dato
 
-# Acceder a la consola interactiva Tinker
-docker compose exec piston-server php artisan tinker
+```ts
+import { OfflineStore } from './core';
+
+const store = inject(OfflineStore);
+
+// Escribe en IndexedDB y encola la mutación en la MISMA transacción.
+const vehicle = await store.create<Vehicle>('vehicles', { make: 'Mazda', /* … */ });
+
+await store.update<Vehicle>('vehicles', vehicle.id, { current_odometer_km: 48_900 });
+
+// Borrado lógico: deja tombstone para que el borrado se propague.
+await store.remove('vehicles', vehicle.id);
 ```
 
-### Comandos de Angular
-```bash
-# Ver logs en tiempo real del frontend
-docker compose logs -f piston-app
+Nunca escribas directo contra `db.vehicles.add(...)`: saltarse el `OfflineStore` guarda el dato pero no lo encola, y ese cambio no sube nunca.
 
-# Ejecutar una compilación de producción de prueba
-docker compose exec piston-app npm run build
+### Las cinco decisiones que sostienen el diseño
+
+| Decisión | Por qué |
+| :--- | :--- |
+| **UUIDv7 generado en el cliente** (`core/db/uuid.ts`) | Un registro creado sin conexión necesita su id definitivo desde el primer instante. Si el servidor asignara la clave, habría que reescribir cada relación que ya apunta a ella. Además v7 ordena por tiempo, así que los ids salen cronológicos y Postgres inserta casi secuencialmente en el índice. |
+| **Fila y outbox en una sola transacción** (`core/data/offline-store.service.ts`) | Si fueran dos pasos, cerrar la pestaña en medio dejaría un cambio guardado que nadie va a enviar. |
+| **Sync delta por `rev`, no por timestamp** (`core/sync/sync.service.ts`) | Los relojes se desfasan, empatan dentro del mismo milisegundo y saltan con el horario de verano. Los tres hacen que un sync incremental se salte registros en silencio. `rev` sale de una secuencia global de Postgres. |
+| **Push antes que pull** | Al revés, el servidor mandaría la versión vieja de una fila que este dispositivo acaba de cambiar, y el last-write-wins la pisaría con datos anteriores. |
+| **Soft delete con tombstones** | Un borrado duro haría que el registro reviva: otro dispositivo desactualizado lo volvería a subir. |
+
+### El outbox
+
+- Guarda el **registro completo**, no un diff: cinco ediciones offline de la misma fila se colapsan en un envío con el estado final.
+- Un `insert` pendiente que luego se borra **se anula solo**: pedirle al servidor que borre algo que nunca recibió es un 404 garantizado.
+- Los reintentos usan **backoff exponencial con jitter** (5 s → 10 min, ±20%). El jitter desalinea a varios dispositivos que recuperaron la red a la vez.
+- Se distingue el error **reintentable** (sin red, 5xx, endpoint que todavía no existe) del **definitivo** (422 por payload inválido). El definitivo sale de la cola activa para que una fila mal formada no bloquee lo que viene detrás.
+- El orden de envío respeta las dependencias (`vehicles` antes que `fuel_entries`): el servidor valida llaves foráneas.
+
+### Resolución de conflictos al jalar
+
+1. Si la fila tiene una mutación pendiente en el outbox, **gana lo local**.
+2. Si no, gana el `client_updated_at` más reciente. Se compara el reloj del cliente que hizo el cambio, no el del servidor: interesa quién editó después, no quién sincronizó después.
+
+### Configuración por entorno
+
+`app/src/environments/` tiene dos archivos y **los dos están versionados**:
+
+| Archivo | Se usa en | `apiBaseUrl` |
+|---|---|---|
+| `environment.ts` | `ng build` (producción) | `''` — mismo origen que la app |
+| `environment.development.ts` | `ng serve` y `ng build --configuration development` | `http://<host>:8088` |
+
+El cambio lo hace `fileReplacements` en `angular.json`: en desarrollo Angular
+sustituye un archivo por el otro al compilar, así que el código importa siempre
+`environment` y nunca pregunta en qué entorno está.
+
+**No van al `.gitignore`, y no hay `.example` de ellos.** Son entrada de
+compilación, no configuración de máquina: `fileReplacements` referencia la ruta
+literal, de modo que si el archivo estuviera ignorado el build fallaría en cada
+clon nuevo hasta que alguien recordara copiarlo a mano. Y no hay nada que
+proteger: no contienen credenciales, y el host de desarrollo se deduce en
+tiempo de ejecución (`globalThis.location.hostname`), para que la app funcione
+igual desde `localhost` que desde el celular apuntando a la IP de tu red.
+
+Lo único acoplado es el puerto `8088`. Si cambias `SERVER_PORT` en el `.env`
+raíz, ajusta también esa línea de `environment.development.ts`.
+
+### Adjuntos diferidos
+
+La foto se guarda como Blob en IndexedDB y se ve al instante; el binario sube por su propia cola, aparte del outbox, para que 4 MB de imagen no bloqueen la sincronización de los datos.
+
+### PWA
+
+`ng build` genera `ngsw-worker.js` y `ngsw.json`. El service worker **solo se registra en producción** (`enabled: !isDevMode()`): en `ng serve` cachearía el bundle y el hot reload dejaría de reflejar los cambios. Para probar la instalación hay que servir `dist/app/browser` sobre HTTP, no usar el dev server.
+
+Los iconos viven en `app/public/icons/app/` (un archivo por tamaño; ver el
+[README de la carpeta](app/public/icons/README.md)) y se regeneran con
+`python3 app/tools/generate-icons.py`, sin dependencias de imagen instaladas.
+
+### Pruebas
+
+```bash
+./piston npm test        # Vitest: 29 pruebas sobre UUIDv7, backoff, outbox y sync
+```
+
+Cubren el ciclo completo contra un servidor simulado: orden de tablas, backoff sin pérdida de mutaciones, tombstones que no reviven, last-write-wins y modo sin conexión.
+
+---
+
+## Comandos Útiles de Desarrollo
+
+Todos tienen su equivalente directo en `docker compose` por si prefieres no usar el CLI.
+
+### Laravel (Artisan)
+```bash
+./artisan route:list --path=api      # docker compose exec piston-server php artisan route:list --path=api
+./artisan migrate                    # docker compose exec piston-server php artisan migrate
+./artisan tinker                     # docker compose exec piston-server php artisan tinker
+./piston composer require <paquete>  # docker compose exec piston-server composer require <paquete>
+```
+
+### Angular
+```bash
+./piston logs app                    # docker compose logs -f piston-app
+./npm run build                      # docker compose exec piston-app npm run build
+./npm install <paquete>              # docker compose exec piston-app npm install <paquete>
+./piston npm test                    # suite de Vitest
+```
+
+> Tras instalar un paquete de npm, reinicia el frontend con `./piston restart app`: `node_modules` vive en un volumen del contenedor, no en tu disco.
+
+> Los contenedores corren como `root`, así que lo que generan dentro (un schematic de Angular, un `make:model` de Artisan) aparece en tu disco con dueño `root`. `./piston own` te devuelve la propiedad.
+
+### Base de Datos
+```bash
+./piston psql                        # consola interactiva de PostgreSQL
+./piston psql "select count(*) from vehicles;"
+./piston fresh                       # recrear el esquema desde cero (⚠️ borra datos)
 ```
 
 ### Control de Contenedores
 ```bash
-# Detener contenedores
-docker compose down
-
-# Reiniciar servicios
-docker compose restart
-
-# Ver estado de los contenedores y puertos
-docker compose ps
+./piston down                        # docker compose down
+./piston restart                     # docker compose restart
+./piston ps                          # docker compose ps
 ```
 
 ---
 
 ## 📄 Licencia y Versión
-- Versión actual: **1.1.0** (Ver [CHANGELOG.md](file:///home/abdiel/projects/personal/Piston/CHANGELOG.md) para más detalles).
+- Versión actual: **1.2.0** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).

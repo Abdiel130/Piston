@@ -6,6 +6,59 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-20
+
+El proyecto pasa de maqueta a aplicación que funciona. El stack arranca solo
+desde un clon limpio, y detrás de la interfaz ya hay una base de datos local
+real con un motor de sincronización que sobrevive a quedarse sin señal.
+
+### Added
+- **Arranque reproducible**: levantar el proyecto vuelve a ser un solo comando.
+  El backend se prepara solo al iniciar —dependencias, clave de cifrado,
+  permisos, espera a que la base de datos esté lista y migraciones— en lugar de
+  exigir una lista de pasos manuales que nadie recuerda completos.
+- **CLI de desarrollo `./piston`**: un único punto de entrada para trabajar
+  dentro de los contenedores. Artisan, npm, psql, logs, salud del stack y
+  reconstrucciones, sin tener que escribir invocaciones de Docker a mano.
+  `./artisan` y `./npm` quedan como atajos directos.
+- **Capa de datos offline-first funcional**: la aplicación ya guarda de verdad.
+  Las claves primarias se generan en el dispositivo y son ordenables por tiempo,
+  cada escritura queda registrada para enviarse después, y los borrados se
+  propagan en vez de desaparecer sin avisar al resto de dispositivos.
+- **Motor de sincronización**: envía los cambios locales antes de traer los del
+  servidor, respeta el orden de dependencias entre entidades, colapsa las
+  ediciones repetidas de un mismo registro en un solo envío y reintenta con
+  espera creciente cuando no hay red. Si dos dispositivos tocan lo mismo, gana
+  la edición más reciente; si el cambio local aún no se ha enviado, gana el
+  local. Un servidor caído retrasa la cola, nunca la descarta.
+- **Adjuntos diferidos**: las fotos se guardan y se ven al instante en el
+  dispositivo y suben por su propia cola, para que un archivo pesado no bloquee
+  la sincronización de los datos.
+- **Catálogo inicial**: al primer arranque la aplicación se siembra con los
+  tipos de servicio y las categorías de gasto de uso común, para no empezar
+  frente a formularios vacíos.
+- **Instalable como aplicación**: Piston se puede instalar en el teléfono y
+  abrir sin conexión, con iconografía propia en todos los tamaños que el
+  sistema operativo pide y accesos directos a Combustible y Servicios.
+- **Documentación de montaje y arquitectura**: el README explica el arranque
+  completo —incluida la generación de claves, que antes faltaba—, los errores
+  típicos y su solución, y las decisiones de diseño del modo sin conexión con
+  el porqué de cada una.
+
+### Changed
+- **Ajustes deja de ser maqueta**: la sección de sincronización muestra el
+  estado real —conexión, cambios pendientes, fotos por subir, último sync— y
+  permite forzar una sincronización o reintentar lo fallido.
+- **La dirección de la API deja de estar escrita en el código**: se resuelve por
+  entorno, de modo que en producción la aplicación habla con su propio origen y
+  en desarrollo con el puerto local.
+- **Los recursos gráficos se organizan por tipo y tamaño**, pensando en que el
+  set crezca, y se generan desde una definición única y reproducible.
+
+### Removed
+- **El andamiaje del preview**: los servicios y modelos de ejemplo que quedaban
+  del arranque inicial, sustituidos por la capa de datos definitiva.
+
 ## [1.1.0] - 2026-09-20
 
 Definición del alcance funcional de la aplicación y construcción de sus dos

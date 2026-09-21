@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# =============================================================================
+# piston — CLI de desarrollo para el stack Docker de Piston
+#
+#   ./piston up                       Levanta el stack (build incluido)
+#   ./piston down                     Apaga el stack
+#   ./piston restart [servicio]       Reinicia todo o un servicio
+#   ./piston rebuild                  Reconstruye imágenes desde cero
+#   ./piston ps                       Estado de contenedores
+#   ./piston logs [servicio]          Logs en vivo
+#   ./piston health                   Consulta /api/health
+#
+#   ./piston artisan <cmd>            php artisan ... en piston-server
+#   ./piston composer <cmd>           composer ... en piston-server
+#   ./piston npm <cmd>                npm ... en piston-app
+#   ./piston ng <cmd>                 ng ... en piston-app
+#   ./piston psql [sql]               psql en piston-db (sin sql = consola)
+#   ./piston sh <servidor|app|db>     Shell dentro del contenedor
+#
+#   ./piston own                      Recupera la propiedad de los archivos
+#                                     generados dentro de los contenedores
+#
+#   ./piston migrate                  Migraciones
+#   ./piston fresh                    migrate:fresh (¡borra datos!)
+#   ./piston key                      Regenera APP_KEY
+#   ./piston test                     Suite de PHPUnit del backend
+#   ./piston npm test                 Suite de Vitest del frontend
+# =============================================================================
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+SERVER=piston-server
+APP=piston-app
+DB=piston-db
+
+dc() { docker compose "$@"; }
+
+# Ejecuta en un contenedor: usa exec si está arriba, si no un run --rm.
+in_container() {
+  local svc="$1"; shift
+  if [ -n "$(docker compose ps -q --status running "$svc" 2>/dev/null)" ]; then
+    dc exec "$svc" "$@"
+  else
+    echo "[piston] $svc no está corriendo; usando 'run --rm'." >&2
+    dc run --rm "$svc" "$@"
+  fi
+}
+
+resolve_svc() {
+  case "${1:-}" in
+    server|api|laravel|php) echo "$SERVER" ;;
+    app|front|frontend|angular|node) echo "$APP" ;;
+    db|database|postgres|pg) echo "$DB" ;;
+    *) echo "${1:-}" ;;
+  esac
+}
+
+cmd="${1:-help}"; shift || true
+
+case "$cmd" in
+  up)       dc up -d --build "$@" && dc ps ;;
+  down)     dc down "$@" ;;
+  restart)  dc restart $( [ $# -gt 0 ] && resolve_svc "$1" ) ;;
+  rebuild)  dc down && dc build --no-cache && dc up -d && dc ps ;;
+  ps)       dc ps ;;
+  logs)     if [ $# -gt 0 ]; then dc logs -f "$(resolve_svc "$1")"; else dc logs -f; fi ;;
+
+  artisan)  in_container "$SERVER" php artisan "$@" ;;
+  composer) in_container "$SERVER" composer "$@" ;;
+  php)      in_container "$SERVER" php "$@" ;;
+  tinker)   in_container "$SERVER" php artisan tinker ;;
+  test)     in_container "$SERVER" php artisan test "$@" ;;
+
+  npm)      in_container "$APP" npm "$@" ;;
+  ng)       in_container "$APP" npx ng "$@" ;;
+  build)    in_container "$APP" npm run build ;;
+
+  psql)
+    if [ $# -gt 0 ]; then
+      dc exec -T "$DB" psql -U "${DB_USERNAME:-piston_user}" -d "${DB_DATABASE:-piston}" -c "$*"
+    else
+      dc exec "$DB" psql -U "${DB_USERNAME:-piston_user}" -d "${DB_DATABASE:-piston}"
+    fi
+    ;;
+
+  sh|shell|bash)
+    svc="$(resolve_svc "${1:-server}")"
+    if [ "$svc" = "$APP" ] || [ "$svc" = "$DB" ]; then dc exec "$svc" sh; else dc exec "$svc" bash; fi
+    ;;
+
+  migrate)  in_container "$SERVER" php artisan migrate --force "$@" ;;
+  fresh)    in_container "$SERVER" php artisan migrate:fresh --force "$@" ;;
+  key)      in_container "$SERVER" php artisan key:generate --force ;;
+  routes)   in_container "$SERVER" php artisan route:list --path=api ;;
+
+  # Los contenedores corren como root: todo lo que generan dentro (un
+  # schematic de Angular, un make:model de Artisan) nace root en tu disco.
+  own|fix-perms)
+    dc exec -T "$APP" sh -c "chown -R $(id -u):$(id -g) /app 2>/dev/null; true"
+    dc exec -T "$SERVER" bash -c "chown -R $(id -u):$(id -g) /var/www/html 2>/dev/null; true"
+    echo "[piston] Archivos devueltos a $(id -un)."
+    ;;
+
+  health)
+    port="$(grep -E '^SERVER_PORT=' .env 2>/dev/null | cut -d= -f2)"
+    curl -fsS "http://localhost:${port:-8088}/api/health" && echo
+    ;;
+
+  help|-h|--help)
+    # Imprime el bloque de comentario de la cabecera, sin el shebang.
+    sed -n '2,/^# =\{10,\}$/p' "$0" | sed 's/^# \{0,1\}//'
+    ;;
+
+  *)
+    echo "Comando desconocido: $cmd" >&2
+    echo "Usa './piston help' para ver las opciones." >&2
+    exit 1
+    ;;
+esac

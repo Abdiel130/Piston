@@ -21,7 +21,7 @@ Route::get('/health', function () {
     return response()->json([
         'status' => 'ok',
         'project' => 'Piston API',
-        'version' => '1.0.0',
+        'version' => '1.2.0',
         'laravel_version' => app()->version(),
         'php_version' => PHP_VERSION,
         'database' => [

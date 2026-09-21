@@ -2,18 +2,17 @@
   <header class="pst-header">
     <p class="pst-header__eyebrow">
       Ajustes
-      <span class="pst-badge pst-badge--brand">Maqueta</span>
     </p>
     <h1 class="pst-header__title">Configuración</h1>
   </header>
 
-  @for (group of groups; track group.title) {
+  @for (group of groups(); track group.title) {
     <section>
       <h2 class="pst-section-title">{{ group.title }}</h2>
       <div class="pst-card pst-card--flush">
         <div class="pst-list">
           @for (row of group.rows; track row.title) {
-            <button type="button" class="pst-row">
+            <button type="button" class="pst-row" (click)="run(row)">
               <span class="pst-row__icon"><pst-icon [name]="row.icon" [size]="18" /></span>
               <span class="pst-row__body">
                 <span class="pst-row__title">{{ row.title }}</span>
