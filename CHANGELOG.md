@@ -6,6 +6,21 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 ## [Unreleased]
 
+### Added
+- **Instalar la aplicación desde Ajustes**: un botón lanza la instalación
+  nativa del navegador, sin depender de encontrarla escondida en su menú. En
+  iPhone, donde el sistema no permite instalar desde un botón, se indica el
+  camino manual; y una vez instalada, Ajustes lo refleja.
+- **Actualizaciones bajo control del usuario**: la aplicación sigue abriendo al
+  instante con la versión guardada en el dispositivo, pero ahora busca versiones
+  nuevas en segundo plano —al abrirse, al volver al frente y periódicamente
+  mientras está abierta— y avisa cuando hay una lista. El usuario decide cuándo
+  aplicarla, para que la aplicación nunca se recargue a media captura. También
+  se puede buscar una actualización a mano.
+- **Recuperación ante una copia local dañada**: si la versión guardada en el
+  dispositivo queda inservible, la aplicación se recarga sola desde el servidor
+  en lugar de quedarse rota.
+
 ## [1.2.0] - 2026-09-20
 
 El proyecto pasa de maqueta a aplicación que funciona. El stack arranca solo

@@ -9,6 +9,7 @@ import {
 import { provideRouter, withComponentInputBinding, withViewTransitions } from '@angular/router';
 import { provideServiceWorker } from '@angular/service-worker';
 import { CatalogSeeder } from './core/db/seed';
+import { PwaService } from './core/pwa/pwa.service';
 import { SyncService } from './core/sync/sync.service';
 import { routes } from './app.routes';
 
@@ -41,6 +42,7 @@ export const appConfig: ApplicationConfig = {
       const seeder = inject(CatalogSeeder);
       const sync = inject(SyncService);
       inject(HttpClient); // fuerza la construcción del cliente antes del primer sync
+      inject(PwaService); // escucha `beforeinstallprompt` antes de que el navegador lo dispare
 
       void seeder.seedIfEmpty().then(() => sync.start());
     }),
