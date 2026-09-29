@@ -619,6 +619,14 @@ svg {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
+/* Estado vacío dentro de una tarjeta o lista: "todavía no hay nada". */
+.pst-empty {
+  padding: var(--pst-space-4);
+  font-size: var(--pst-subhead);
+  color: var(--pst-label-3);
+  text-align: center;
+}
+
 /* Aviso en línea. Tres tonos, los mismos del resto de la app. */
 .pst-note {
   padding: var(--pst-space-3) var(--pst-space-4);

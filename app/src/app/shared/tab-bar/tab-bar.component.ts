@@ -23,9 +23,9 @@ interface Tab {
 export class TabBarComponent {
   protected readonly tabs: readonly Tab[] = [
     { path: '/', icon: 'garage', label: 'Garage' },
-    { path: '/combustible', icon: 'fuel', label: 'Combustible' },
-    { path: '/servicios', icon: 'wrench', label: 'Servicios' },
-    { path: '/gastos', icon: 'receipt', label: 'Gastos' },
-    { path: '/ajustes', icon: 'settings', label: 'Ajustes' },
+    { path: '/fuel', icon: 'fuel', label: 'Combustible' },
+    { path: '/services', icon: 'wrench', label: 'Servicios' },
+    { path: '/expenses', icon: 'receipt', label: 'Gastos' },
+    { path: '/settings', icon: 'settings', label: 'Ajustes' },
   ];
 }

@@ -661,10 +661,11 @@ Table sync_outbox {
   table_name    varchar(60) [not null]
   row_id        uuid [not null]
   op            outbox_op [not null]
-  payload       text [note: 'JSON del registro completo']
-  status        outbox_status [not null, default: 'pending']
+  payload       text [note: 'JSON del registro completo (en delete, el tombstone)']
+  status        outbox_status [not null, default: 'pending', note: 'pending | in_flight | failed | blocked']
   attempts      smallint [not null, default: 0]
-  last_error    text
+  last_attempt  json [note: 'Diagnóstico del último fallo: kind, http_status, code, request_id, field_errors…']
+  blocked_by    json [note: '{table, id} de la fila padre que no ha podido subir']
   next_retry_at timestamptz
   created_at    timestamptz
 
@@ -680,6 +681,31 @@ Table sync_state {
   last_rev       bigint [not null, default: 0]
   last_synced_at timestamptz
   Note: 'H6 — CLIENT-ONLY. Cursor por tabla para el sync delta.'
+}
+
+Table sync_runs {
+  id          uuid [pk]
+  started_at  timestamptz [not null]
+  finished_at timestamptz
+  trigger     varchar(20) [not null]
+  outcome     varchar(20) [not null, note: 'ok | partial | failed | auth']
+  error       json
+  request_ids json
+  Note: 'CLIENT-ONLY. Historial de ciclos de sincronización (30 días / 1000 máx.).'
+}
+
+Table sync_log {
+  id         uuid [pk]
+  run_id     uuid
+  at         timestamptz [not null]
+  table_name varchar(60) [not null]
+  row_id     uuid [not null]
+  op         varchar(10) [not null]
+  label      text [note: 'Descripción legible congelada al momento del evento']
+  outcome    varchar(20) [not null, note: 'applied | stale | rejected | discarded | uploaded | upload_failed']
+  request_id uuid
+  attempt    json
+  Note: 'CLIENT-ONLY. Qué pasó con cada cambio en cada ciclo (30 días / 1000 máx.).'
 }
 
 // ─────────────────────────── RELACIONES ───────────────────────────

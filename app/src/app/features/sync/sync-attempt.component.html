@@ -1,0 +1,95 @@
+<section class="pst-card diag" [class.diag--bad]="diagnosis().tone === 'bad'">
+  <div class="diag__head">
+    <span class="diag__icon">
+      <pst-icon [name]="diagnosis().selfHealing ? 'sync' : 'alert'" [size]="18" />
+    </span>
+    <h2 class="diag__title">{{ diagnosis().title }}</h2>
+  </div>
+
+  <div class="diag__block">
+    <h3 class="diag__label">Qué pasó</h3>
+    <p>{{ diagnosis().what }}</p>
+    @if (attempt().message && attempt().message !== diagnosis().title) {
+      <p class="diag__server">
+        <span class="diag__label">Mensaje:</span> {{ attempt().message }}
+      </p>
+    }
+  </div>
+
+  <div class="diag__block">
+    <h3 class="diag__label">Cómo se soluciona</h3>
+    <p>{{ diagnosis().fix }}</p>
+  </div>
+
+  @if (fieldErrors().length > 0) {
+    <ul class="diag__fields">
+      @for (item of fieldErrors(); track item.field) {
+        <li>
+          <strong>{{ item.field }}</strong>
+          @for (message of item.messages; track message) {
+            <span>{{ message }}</span>
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+<section>
+  <h2 class="pst-section-title">Datos técnicos</h2>
+  <div class="pst-card pst-card--flush">
+    <dl class="tech">
+      <div class="tech__row">
+        <dt>ID de solicitud</dt>
+        <dd>
+          @if (attempt().request_id; as id) {
+            <button type="button" class="tech__copy" (click)="copyRequestId()" [attr.aria-label]="'Copiar ' + id">
+              <code class="tech__code">{{ id }}</code>
+              <span class="pst-badge" [class.pst-badge--good]="copied()">{{ copied() ? 'Copiado' : 'Copiar' }}</span>
+            </button>
+          } @else {
+            <span>—</span>
+          }
+        </dd>
+      </div>
+      <div class="tech__row">
+        <dt>Fecha y hora</dt>
+        <dd class="pst-numeric">{{ exactLocal(attempt().at) }}</dd>
+      </div>
+      <div class="tech__row">
+        <dt>En UTC (logs)</dt>
+        <dd class="pst-numeric">{{ exactUtc(attempt().at) }}</dd>
+      </div>
+      <div class="tech__row">
+        <dt>Respuesta HTTP</dt>
+        <dd class="pst-numeric">{{ attempt().http_status ?? 'Sin respuesta' }}</dd>
+      </div>
+      <div class="tech__row">
+        <dt>Código</dt>
+        <dd><code class="tech__code">{{ attempt().code ?? attempt().kind }}</code></dd>
+      </div>
+      <div class="tech__row">
+        <dt>Duración</dt>
+        <dd class="pst-numeric">{{ duration(attempt().duration_ms) }}</dd>
+      </div>
+      @if (attempt().retry_after_s) {
+        <div class="tech__row">
+          <dt>El servidor pidió esperar</dt>
+          <dd class="pst-numeric">{{ attempt().retry_after_s }} s</dd>
+        </div>
+      }
+      @if (attempts() !== null) {
+        <div class="tech__row">
+          <dt>Intentos</dt>
+          <dd class="pst-numeric">{{ attempts() }}</dd>
+        </div>
+      }
+      @if (nextRetry(); as next) {
+        <div class="tech__row">
+          <dt>Próximo reintento</dt>
+          <dd class="pst-numeric">{{ exactLocal(next) }}</dd>
+        </div>
+      }
+    </dl>
+  </div>
+</section>

@@ -195,6 +195,11 @@ const ICONS: Readonly<Record<string, IconShape>> = {
 
 export type IconName = keyof typeof ICONS;
 
+/** Para iconos que llegan como texto desde datos (p. ej. el catálogo de categorías). */
+export function isIconName(value: string): value is IconName {
+  return Object.prototype.hasOwnProperty.call(ICONS, value);
+}
+
 /**
  * Uso: `<pst-icon name="fuel" [size]="20" />`
  *

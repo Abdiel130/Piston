@@ -30,6 +30,11 @@
                 "ignore": [
                   "**/*.md"
                 ]
+              },
+              {
+                "glob": "dexie.min.js",
+                "input": "node_modules/dexie/dist",
+                "output": "sw"
               }
             ],
             "styles": [

@@ -66,6 +66,8 @@ por defecto.
 | `conflict` | 409 | El recurso cambió; vuelve a intentarlo. |
 | `payload_too_large` | 413 | El envío es demasiado grande. |
 | `too_many_requests` | 429 | Demasiadas peticiones. Espera un momento. |
+| `parent_missing` | 409 | El registro del que depende todavía no existe en el servidor. |
+| `unknown_table` | 400 | El servidor no reconoce ese tipo de registro. |
 | `server_error` | 500 | Algo falló en el servidor. |
 | `service_unavailable` | 503 | El servicio no está disponible por ahora. |
 
@@ -125,6 +127,79 @@ UUID válido**. Cualquier otra cosa se descarta, para que nadie pueda inyectar
 texto arbitrario (saltos de línea, entradas falsas) en los logs.
 
 El header está en `exposed_headers` de CORS, así que el front puede leerlo.
+
+El cliente genera un `X-Request-Id` propio en **cada** petición. Así conoce el
+id aunque la respuesta nunca llegue (timeout, servidor caído) y lo muestra en
+el detalle de un cambio no sincronizado. Los rechazos del sync se registran en
+`storage/logs/sync-AAAA-MM-DD.log` y los 500 en `laravel.log`, ambos con ese id.
+
+## Sincronización
+
+Todas exigen `auth:sanctum` y `throttle:sync` (120/min por cuenta). La lógica
+vive en `server/app/Sync/`; `SyncRegistry` es la única fuente de las 20 tablas,
+sus columnas escribibles, reglas y dueño.
+
+### `POST /api/sync`: push
+
+```json
+{ "mutations": [
+  { "table": "fuel_entries", "id": "<uuidv7>", "op": "insert|update|delete",
+    "payload": { "...fila completa...", "client_updated_at": "2026-09-28T14:03:00.123Z" } }
+] }
+```
+
+Responde `200` con:
+
+```json
+{ "applied":  [{ "table": "fuel_entries", "id": "…", "rev": 812, "stale": false }],
+  "rejected": [{ "table": "…", "id": "…", "code": "validation_failed",
+                 "message": "…", "errors": { "liters": ["…"] } }],
+  "server_rev": 812 }
+```
+
+- **Aislamiento.** Cada mutación corre en un SAVEPOINT; una fila rechazada no
+  afecta al resto del lote.
+- **Idempotente.** El insert es upsert por UUID; borrar lo inexistente es un
+  no-op (`rev: 0`). Reenviar un lote tras un timeout es seguro.
+- **Last-write-wins.** Si la fila guardada tiene un `client_updated_at` más
+  reciente, no se pisa: `stale: true`, y el pull entrega la versión ganadora.
+  Un tombstone gana siempre: una edición atrasada no resucita lo borrado.
+- **Dueño.** `user_id` lo pone el servidor. Los catálogos con `user_id` NULL
+  son del sistema: se leen, no se escriben. Las tablas hijas sin `user_id`
+  pertenecen al dueño del padre.
+- **Rechazos** (`rejected[].code`): `validation_failed` (con `errors` por campo),
+  `forbidden` (fila o FK de otra cuenta), `parent_missing` (el padre no ha
+  llegado; el cliente lo reintenta cuando el padre suba), `conflict`
+  (duplicado por un índice único), `unknown_table`.
+- Más de 500 mutaciones: `413 payload_too_large` (el cliente parte el lote).
+- `server_rev` es informativo. **No** es un cursor: adelantar el cursor con él
+  se saltaría cambios de otros dispositivos que aún no se han jalado.
+
+### `GET /api/sync?since=<rev>&limit=<n>`: pull
+
+`limit` por defecto 500, máximo 1000. Responde
+`{ changes: { tabla: [filas…] }, server_rev, has_more }`.
+
+- Las filas de las 20 tablas se mezclan por `rev` y se cortan en ese orden;
+  `server_rev` es el `rev` de la última fila entregada. Con `has_more` se
+  vuelve a pedir desde `server_rev`.
+- Incluye tombstones (`deleted_at` no nulo).
+- Números como números, fechas `YYYY-MM-DD`, timestamps en el formato de
+  `toISOString()` (`…T14:03:00.123Z`).
+- Un lock consultivo por cuenta (exclusivo en push, compartido en pull) evita
+  que un pull entregue un `rev` alto mientras otro más bajo sigue sin confirmar.
+
+### `GET /api/sync/{table}/{id}`
+
+La versión del servidor de una fila (`{ table, row }`), tombstone incluido.
+`404` si nunca llegó. La usa "Descartar cambio" para restaurar.
+
+### `POST /api/attachments/{id}/file`
+
+Multipart con `file`. Verifica el `checksum` (sha256) de la fila si lo tiene,
+guarda en el disco `local` y marca `upload_status = uploaded`. Idempotente.
+`404` si la fila del adjunto todavía no llegó (el cliente reintenta),
+`413` si excede `SYNC_ATTACHMENT_MAX_KB` (15 MB por defecto).
 
 ## Uso en el backend
 

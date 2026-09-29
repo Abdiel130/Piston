@@ -65,6 +65,16 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Rechazos y fallos del sync, con el request_id que ve el cliente en
+        // el detalle del cambio. `grep <request_id> storage/logs/sync-*.log`.
+        'sync' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/sync.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

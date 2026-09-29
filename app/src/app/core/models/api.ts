@@ -20,6 +20,8 @@ export type ApiCode =
   | 'conflict'
   | 'payload_too_large'
   | 'too_many_requests'
+  | 'parent_missing'
+  | 'unknown_table'
   | 'server_error'
   | 'service_unavailable';
 

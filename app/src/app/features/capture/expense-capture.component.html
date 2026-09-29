@@ -1,0 +1,66 @@
+<div class="pst-stack capture-page">
+  <header class="top">
+    <a class="top__back" routerLink="/expenses"><pst-icon name="chevronLeft" [size]="20" /> Gastos</a>
+    <h1 class="top__title">Nuevo gasto</h1>
+    <p class="top__sub">{{ name() }}</p>
+  </header>
+
+  <form class="pst-form" (submit)="$event.preventDefault(); save()">
+    <div class="pst-field">
+      <span class="pst-field__label">Categoría</span>
+      <div class="pst-chips" role="group" aria-label="Categoría">
+        @for (item of categories(); track item.id) {
+          <button type="button" class="pst-chip" [class.is-active]="category() === item.id" (click)="category.set(item.id)">
+            {{ item.name }}
+          </button>
+        } @empty {
+          <p class="pst-field__hint">Las categorías todavía no están en este dispositivo.</p>
+        }
+      </div>
+      @if (submitted() && errors().category_id; as message) {
+        <p class="error">{{ message }}</p>
+      }
+    </div>
+
+    <div class="pst-field-row">
+      <label class="pst-field">
+        <span class="pst-field__label">Monto</span>
+        <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().amount" [value]="amount() ?? ''" (input)="amount.set(readNumber($event))" />
+      </label>
+      <label class="pst-field">
+        <span class="pst-field__label">Fecha</span>
+        <input class="pst-input" type="date" [value]="spentAt()" (input)="spentAt.set(readText($event))" />
+      </label>
+    </div>
+    @if (submitted() && errors().amount; as message) {
+      <p class="error">{{ message }}</p>
+    }
+
+    <label class="pst-field">
+      <span class="pst-field__label">Descripción</span>
+      <input class="pst-input" maxlength="200" [value]="description()" (input)="description.set(readText($event))" />
+    </label>
+
+    <label class="pst-field">
+      <span class="pst-field__label">Odómetro (opcional)</span>
+      <input class="pst-input pst-numeric" inputmode="numeric" [class.is-invalid]="submitted() && errors().odometer_km" [value]="odometer() ?? ''" (input)="odometer.set(readNumber($event))" />
+    </label>
+    @if (submitted() && errors().odometer_km; as message) {
+      <p class="error">{{ message }}</p>
+    }
+
+    <label class="pst-field">
+      <span class="pst-field__label">Notas</span>
+      <input class="pst-input" [value]="notes()" (input)="notes.set(readText($event))" />
+    </label>
+
+    @if (saveError(); as message) {
+      <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+    }
+
+    <button type="submit" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="saving() || !vehicle()">
+      {{ saving() ? 'Guardando…' : 'Guardar gasto' }}
+    </button>
+    <p class="saved-note">Se guarda en este dispositivo y se sincroniza solo.</p>
+  </form>
+</div>

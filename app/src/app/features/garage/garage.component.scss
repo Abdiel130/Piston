@@ -86,3 +86,10 @@
 .health__bar {
   margin-top: var(--pst-space-2);
 }
+
+.hero__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-2);
+  width: 100%;
+}

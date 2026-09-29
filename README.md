@@ -310,14 +310,17 @@ Nunca escribas directo contra `db.vehicles.add(...)`: saltarse el `OfflineStore`
 
 - Guarda el **registro completo**, no un diff: cinco ediciones offline de la misma fila se colapsan en un envío con el estado final.
 - Un `insert` pendiente que luego se borra **se anula solo**: pedirle al servidor que borre algo que nunca recibió es un 404 garantizado.
-- Los reintentos usan **backoff exponencial con jitter** (5 s → 10 min, ±20%). El jitter desalinea a varios dispositivos que recuperaron la red a la vez.
-- Se distingue el error **reintentable** (sin red, 5xx, endpoint que todavía no existe) del **definitivo** (422 por payload inválido). El definitivo sale de la cola activa para que una fila mal formada no bloquee lo que viene detrás.
-- El orden de envío respeta las dependencias (`vehicles` antes que `fuel_entries`): el servidor valida llaves foráneas.
+- Los reintentos usan **backoff exponencial con jitter** (5 s → 10 min, ±20%) y **no tienen tope**: un fallo transitorio (sin red, 5xx, servidor caído) se reintenta para siempre. El jitter desalinea a varios dispositivos que recuperaron la red a la vez.
+- Se distingue el error **reintentable** del **rechazo definitivo** del servidor (validación, permiso, duplicado). El rechazo sale de la cola activa (`failed`) para que una fila mal formada no bloquee lo que viene detrás.
+- Un hijo cuyo padre fue rechazado queda **`blocked`** y sale solo cuando el padre suba. El orden de envío respeta las dependencias (`vehicles` antes que `fuel_entries`): el servidor valida llaves foráneas.
+- Es **reactivo, sin polling a ciegas**: sincroniza al abrir la app y ~300 ms después de cada cambio. Mientras quedan pendientes, reintenta con el backoff (ese es el único "polling", y se apaga al vaciarse la cola). Al volver a la app o recuperar la red solo va al servidor si hay pendientes o el último sync tiene más de 5 min. Una revisión de respaldo cada 10 min atrapa pendientes que ningún evento disparó, sin tocar la red si no hay nada. Un Web Lock hace que solo una pestaña sincronice a la vez.
+- **Con la app cerrada**, el service worker (`public/piston-sw.js`, que envuelve al de Angular) sube el outbox al volver la red (Background Sync) y ~una vez al día (Periodic Background Sync, solo en la PWA instalada; Chrome decide la hora). Solo sube: jalar y resolver conflictos lo hace la app al abrirse.
+- Cada intento guarda su **diagnóstico** (tipo de fallo, HTTP, código, `X-Request-Id` generado por el cliente y hora exacta). El centro de sincronización (`/settings/sync`, Ajustes › Sincronización) lo muestra por cambio, con historial de 30 días.
 
 ### Resolución de conflictos al jalar
 
-1. Si la fila tiene una mutación pendiente en el outbox, **gana lo local**.
-2. Si no, gana el `client_updated_at` más reciente. Se compara el reloj del cliente que hizo el cambio, no el del servidor: interesa quién editó después, no quién sincronizó después.
+1. Si la fila tiene una mutación en el outbox (pendiente, rechazada o bloqueada), **gana lo local**.
+2. Si no, gana el `client_updated_at` más reciente (comparado como fecha). El servidor aplica la misma regla al recibir un push: una escritura más vieja no pisa la guardada y se responde `stale`. Se compara el reloj del cliente que hizo el cambio, no el del servidor: interesa quién editó después, no quién sincronizó después.
 
 ### Configuración por entorno
 

@@ -1,58 +1,127 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { AuthService } from '../../core/auth/auth.service';
+import { OfflineStore } from '../../core/data/offline-store.service';
+import { VehicleContext } from '../../core/data/vehicle-context.service';
+import { db } from '../../core/db/piston-db';
+import { EMPTY, formatLiters, formatMoney, formatNumber, formatShortDate } from '../../core/format';
+import type { FuelEntry, FuelStation } from '../../core/models';
 import { GaugeComponent } from '../../shared/gauge/gauge.component';
 import { IconComponent } from '../../shared/icon/icon.component';
 import { IslandService } from '../../shared/island/island.service';
 
 interface FuelRow {
-  readonly date: string;
-  readonly station: string;
-  readonly liters: string;
-  readonly amount: string;
+  readonly id: string;
+  readonly title: string;
+  readonly sub: string;
   readonly efficiency: string;
-  /** Exacto (tanque lleno) vs estimado por rayitas. Se muestra SIEMPRE. */
-  readonly exact: boolean;
+  /** Procedencia del rendimiento guardado. Se muestra SIEMPRE junto al número. */
+  readonly method: { label: string; tone: string } | null;
 }
 
-/** MAQUETA: nada se guarda. El selector de rayitas solo mueve el medidor. */
+const METHOD: Record<FuelEntry['efficiency_method'], { label: string; tone: string } | null> = {
+  full_to_full: { label: 'Exacto', tone: 'good' },
+  gauge_estimate: { label: 'Estimado', tone: 'idle' },
+  none: null,
+};
+
+/**
+ * Combustible: el historial real de cargas del vehículo activo. El rendimiento
+ * que se muestra es el que trae cada carga guardada; sin cálculos todavía.
+ */
 @Component({
   selector: 'pst-fuel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, GaugeComponent],
+  imports: [IconComponent, GaugeComponent, RouterLink],
   templateUrl: './fuel.component.html',
   styleUrl: './fuel.component.scss',
 })
 export class FuelComponent {
   private readonly island = inject(IslandService);
+  private readonly store = inject(OfflineStore);
+  private readonly context = inject(VehicleContext);
+  private readonly auth = inject(AuthService);
 
-  /** Único estado interactivo de toda la maqueta, y existe solo para poder
-   *  ver la animación del medidor al tocar una rayita. */
-  protected readonly gaugeValue = signal(5);
-  protected readonly segments = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+  protected readonly vehicle = this.context.vehicle;
+  private readonly currency = computed(() => this.auth.user()?.currency ?? 'MXN');
+
+  private readonly data = this.store.liveFrom(
+    this.context.vehicleId,
+    async (vehicleId) => {
+      if (!vehicleId) return { entries: [] as FuelEntry[], stations: new Map<string, FuelStation>() };
+      const [entries, stations] = await Promise.all([
+        db.fuel_entries.where('vehicle_id').equals(vehicleId).toArray(),
+        db.fuel_stations.toArray(),
+      ]);
+      return {
+        entries: entries.filter((entry) => !entry.deleted_at).sort((a, b) => b.filled_at.localeCompare(a.filled_at)),
+        stations: new Map(stations.map((station) => [station.id, station])),
+      };
+    },
+    { entries: [] as FuelEntry[], stations: new Map<string, FuelStation>() },
+  );
+
+  private readonly last = computed(() => this.data().entries[0] ?? null);
+
+  protected readonly segments = computed(() => this.vehicle()?.gauge_total_segments ?? 8);
+  protected readonly gaugeValue = computed(() => this.last()?.gauge_after ?? null);
+
+  protected readonly headline = computed(() => {
+    const value = this.last()?.km_per_liter;
+    return value === null || value === undefined ? EMPTY : `${formatNumber(value)} km/L`;
+  });
+
+  protected readonly stats = computed(() => {
+    const entries = this.data().entries;
+    const exact = entries.find((entry) => entry.efficiency_method === 'full_to_full' && entry.km_per_liter !== null);
+    const estimate = entries.find((entry) => entry.efficiency_method === 'gauge_estimate' && entry.km_per_liter !== null);
+    const priced = entries.find((entry) => entry.price_per_liter !== null);
+    return {
+      exact: formatNumber(exact?.km_per_liter ?? null),
+      estimate: formatNumber(estimate?.km_per_liter ?? null),
+      lastPrice: formatMoney(priced?.price_per_liter ?? null, this.currency()),
+      count: String(entries.length),
+    };
+  });
+
+  protected readonly rows = computed<FuelRow[]>(() =>
+    this.data().entries.map((entry) => ({
+      id: entry.id,
+      title: (entry.station_id && this.data().stations.get(entry.station_id)?.name) || 'Carga de combustible',
+      sub: [
+        formatShortDate(entry.filled_at),
+        entry.liters !== null ? formatLiters(entry.liters) : null,
+        entry.amount_paid !== null ? formatMoney(entry.amount_paid, this.currency()) : null,
+        entry.is_full_tank ? 'Tanque lleno' : null,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      efficiency: entry.km_per_liter !== null ? `${formatNumber(entry.km_per_liter)} km/L` : EMPTY,
+      method: METHOD[entry.efficiency_method],
+    })),
+  );
 
   constructor() {
-    this.island.present({
-      icon: 'gauge',
-      label: 'Rendimiento',
-      value: '13.1 km/L',
-      tone: 'brand',
-      title: 'Rendimiento actual',
-      subtitle: 'Promedio de las últimas 5 cargas',
-      details: [
-        { label: 'Mejor', value: '14.2' },
-        { label: 'Peor', value: '11.8' },
-        { label: 'Costo/km', value: '$1.83' },
-      ],
+    effect(() => {
+      const last = this.last();
+      this.island.present({
+        icon: 'gauge',
+        label: 'Rendimiento',
+        value: this.headline(),
+        tone: last?.km_per_liter ? 'brand' : 'idle',
+        title: 'Rendimiento de la última carga',
+        subtitle: last ? `Carga del ${formatShortDate(last.filled_at)}` : 'Registra tu primera carga',
+        details: [
+          { label: 'Exacto', value: this.stats().exact },
+          { label: 'Estimado', value: this.stats().estimate },
+          { label: 'Cargas', value: this.stats().count },
+        ],
+      });
     });
   }
 
-  protected select(value: number): void {
-    this.gaugeValue.set(value);
+  protected gaugeCaption(): string {
+    const value = this.gaugeValue();
+    return value === null ? EMPTY : `${formatNumber(value)}/${this.segments()}`;
   }
-
-  protected readonly rows: readonly FuelRow[] = [
-    { date: '8 sep', station: 'Shell Constitución', liters: '38.41 L', amount: '$920.00', efficiency: '13.1 km/L', exact: true },
-    { date: '2 sep', station: 'Mobil Universidad', liters: '24.89 L', amount: '$600.00', efficiency: '12.8 km/L', exact: false },
-    { date: '24 ago', station: 'Pemex Central', liters: '31.20 L', amount: '$745.00', efficiency: '13.4 km/L', exact: false },
-    { date: '16 ago', station: 'Shell Constitución', liters: '42.05 L', amount: '$1,010.00', efficiency: '14.2 km/L', exact: true },
-  ];
 }

@@ -270,7 +270,7 @@ Ninguna espera a la red: leen signals e IndexedDB.
 | `authGuard` | hay sesión (`authenticated` o `expired`) | `/login` |
 | `guestGuard` | no hay sesión viva (`anonymous` o `expired`) | `/` |
 | `onboardingGuard` | el wizard no está terminado | `/` |
-| `onboardedGuard` | el wizard está terminado | `/bienvenida` |
+| `onboardedGuard` | el wizard está terminado | `/welcome` |
 
 ### Cambio de cuenta
 
@@ -341,7 +341,7 @@ dispositivo el catálogo que ya existe en el servidor.
 
 ## Wizard de bienvenida
 
-`/bienvenida`, cinco pasos: `account`, `vehicle`, `tank`, `purchase`,
+`/welcome`, cinco pasos: `account`, `vehicle`, `tank`, `purchase`,
 `review` (y `done` al terminar).
 
 **Persistencia en dos niveles.** Cada cambio se escribe al instante en la

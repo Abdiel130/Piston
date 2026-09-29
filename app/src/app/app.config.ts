@@ -25,7 +25,7 @@ export const appConfig: ApplicationConfig = {
     // ngsw no aplica.
     provideHttpClient(withFetch(), withInterceptors([authInterceptor])),
 
-    provideServiceWorker('ngsw-worker.js', {
+    provideServiceWorker('piston-sw.js', {
       // En `ng serve` no hay worker: cachearía el bundle y el hot reload
       // dejaría de reflejar los cambios.
       enabled: !isDevMode(),

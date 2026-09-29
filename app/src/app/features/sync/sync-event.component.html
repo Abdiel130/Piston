@@ -1,0 +1,51 @@
+<div class="pst-stack detail">
+  <header class="top">
+    <a class="top__back" routerLink="/settings/sync" [queryParams]="{ view: 'history' }" aria-label="Volver al historial">
+      <pst-icon name="chevronLeft" [size]="20" />
+      <span>Historial</span>
+    </a>
+  </header>
+
+  @if (event(); as event) {
+    <section class="head">
+      <p class="head__eyebrow">
+        {{ opLabel[event.op] }} · {{ tableLabel[event.table_name] }}
+        <span [class]="'pst-badge pst-badge--' + outcome()!.tone">{{ outcome()!.label }}</span>
+      </p>
+      <h1 class="head__title">{{ event.label }}</h1>
+      <p class="head__detail">{{ outcome()!.explain }}</p>
+    </section>
+
+    @if (event.attempt; as attempt) {
+      <pst-sync-attempt [attempt]="attempt" />
+    } @else {
+      <section class="pst-card pst-card--flush">
+        <dl class="data__list">
+          <div class="data__row">
+            <dt>Fecha y hora</dt>
+            <dd class="pst-numeric">{{ exactLocal(event.at) }}</dd>
+          </div>
+          <div class="data__row">
+            <dt>En UTC (logs)</dt>
+            <dd class="pst-numeric">{{ exactUtc(event.at) }}</dd>
+          </div>
+          <div class="data__row">
+            <dt>ID de solicitud</dt>
+            <dd><code>{{ event.request_id ?? '—' }}</code></dd>
+          </div>
+        </dl>
+      </section>
+    }
+
+    @if (run(); as run) {
+      <p class="small">
+        Parte del ciclo "{{ triggerLabel[run.trigger] }}" de las {{ exactLocal(run.started_at) }}.
+      </p>
+    }
+  } @else {
+    <div class="empty">
+      <pst-icon name="clock" [size]="40" />
+      <p class="empty__title">Este evento ya no está en el historial</p>
+    </div>
+  }
+</div>

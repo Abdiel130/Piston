@@ -1,0 +1,74 @@
+// Estilos compartidos por las pantallas de captura.
+.capture-page {
+  padding-bottom: var(--pst-space-6);
+}
+
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-1);
+  padding-top: var(--pst-space-2);
+}
+
+.top__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pst-space-1);
+  align-self: flex-start;
+  margin-left: calc(-1 * var(--pst-space-2));
+  padding: var(--pst-space-1) var(--pst-space-2);
+  color: var(--pst-ignition);
+  font-size: var(--pst-callout);
+}
+
+.top__title {
+  font-size: var(--pst-title-1);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.top__sub {
+  font-size: var(--pst-subhead);
+  color: var(--pst-label-2);
+}
+
+.error {
+  font-size: var(--pst-footnote);
+  color: var(--pst-bad);
+}
+
+.pst-input.is-invalid {
+  box-shadow: inset 0 0 0 1.5px var(--pst-bad);
+}
+
+.ticks {
+  display: flex;
+  gap: var(--pst-space-1);
+  padding: var(--pst-space-1);
+  border-radius: var(--pst-r-pill);
+  background: var(--pst-surface-2);
+}
+
+.tick {
+  flex: 1;
+  padding: var(--pst-space-2) 0;
+  border-radius: var(--pst-r-pill);
+  font-size: var(--pst-footnote);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--pst-label-3);
+  transition:
+    background-color var(--pst-dur-base) var(--pst-spring),
+    color var(--pst-dur-fast) var(--pst-snap);
+
+  &.is-active {
+    background: var(--pst-ignition);
+    color: #fff;
+  }
+}
+
+.saved-note {
+  font-size: var(--pst-footnote);
+  color: var(--pst-label-3);
+  text-align: center;
+}

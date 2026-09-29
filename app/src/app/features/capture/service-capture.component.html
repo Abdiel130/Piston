@@ -1,0 +1,80 @@
+<div class="pst-stack capture-page">
+  <header class="top">
+    <a class="top__back" routerLink="/services"><pst-icon name="chevronLeft" [size]="20" /> Servicios</a>
+    <h1 class="top__title">Nuevo servicio</h1>
+    <p class="top__sub">{{ name() }}</p>
+  </header>
+
+  <form class="pst-form" (submit)="$event.preventDefault(); save()">
+    <div class="pst-field-row">
+      <label class="pst-field">
+        <span class="pst-field__label">Fecha</span>
+        <input class="pst-input" type="date" [value]="performedAt()" (input)="performedAt.set(readText($event))" />
+      </label>
+      <label class="pst-field">
+        <span class="pst-field__label">Odómetro (km)</span>
+        <input
+          class="pst-input pst-numeric"
+          inputmode="numeric"
+          [class.is-invalid]="submitted() && errors().odometer_km"
+          [placeholder]="vehicle()?.current_odometer_km ?? ''"
+          [value]="odometer() ?? ''"
+          (input)="odometer.set(readNumber($event))"
+        />
+      </label>
+    </div>
+    @if (submitted() && errors().odometer_km; as message) {
+      <p class="error">{{ message }}</p>
+    }
+
+    <div class="pst-field">
+      <span class="pst-field__label">¿Qué se hizo?</span>
+      <div class="pst-chips" role="group" aria-label="Conceptos del servicio">
+        @for (type of types(); track type.id) {
+          <button type="button" class="pst-chip" [class.is-active]="selected().has(type.id)" [attr.aria-pressed]="selected().has(type.id)" (click)="toggle(type.id)">
+            {{ type.name }}
+          </button>
+        } @empty {
+          <p class="pst-field__hint">El catálogo de servicios todavía no está en este dispositivo.</p>
+        }
+      </div>
+    </div>
+
+    <div class="pst-field">
+      <span class="pst-field__label">¿Quién lo hizo?</span>
+      <div class="pst-chips">
+        <button type="button" class="pst-chip" [class.is-active]="!diy()" (click)="diy.set(false)">Taller</button>
+        <button type="button" class="pst-chip" [class.is-active]="diy()" (click)="diy.set(true)">Yo mismo</button>
+      </div>
+    </div>
+
+    @if (!diy()) {
+      <label class="pst-field">
+        <span class="pst-field__label">Taller</span>
+        <input class="pst-input" maxlength="120" [value]="shop()" (input)="shop.set(readText($event))" />
+      </label>
+    }
+
+    <label class="pst-field">
+      <span class="pst-field__label">Costo total</span>
+      <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().total_cost" [value]="cost() ?? ''" (input)="cost.set(readNumber($event))" />
+    </label>
+    @if (submitted() && errors().total_cost; as message) {
+      <p class="error">{{ message }}</p>
+    }
+
+    <label class="pst-field">
+      <span class="pst-field__label">Notas</span>
+      <input class="pst-input" [value]="notes()" (input)="notes.set(readText($event))" />
+    </label>
+
+    @if (saveError(); as message) {
+      <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+    }
+
+    <button type="submit" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="saving() || !vehicle()">
+      {{ saving() ? 'Guardando…' : 'Guardar servicio' }}
+    </button>
+    <p class="saved-note">Se guarda en este dispositivo y se sincroniza solo.</p>
+  </form>
+</div>

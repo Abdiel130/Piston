@@ -22,6 +22,7 @@ import type {
   VehicleStatus,
   VehicleType,
 } from './enums';
+import type { SyncAttempt } from './sync';
 
 /** UUIDv7 en texto. Lo genera el cliente, nunca el servidor. */
 export type Uuid = string;
@@ -355,4 +356,6 @@ export interface AttachmentBlob {
   attachment_id: Uuid;
   blob: Blob;
   created_at: IsoDateTime;
+  /** Último intento fallido de subir el binario. */
+  last_attempt?: SyncAttempt | null;
 }

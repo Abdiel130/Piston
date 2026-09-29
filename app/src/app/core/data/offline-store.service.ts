@@ -1,7 +1,7 @@
 import { Injectable, type Signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { liveQuery } from 'dexie';
-import { from, type Observable } from 'rxjs';
+import { from, switchMap, type Observable } from 'rxjs';
 import { db } from '../db/piston-db';
 import { uuidV7 } from '../db/uuid';
 import type { DomainTable, SyncFields, Uuid } from '../models';
@@ -98,9 +98,21 @@ export class OfflineStore {
         return;
       }
 
-      await db.table(table).put({ ...current, deleted_at: now, client_updated_at: now, updated_at: now });
-      await this.enqueue(table, id, 'delete', null);
+      const tombstone = { ...current, deleted_at: now, client_updated_at: now, updated_at: now };
+      await db.table(table).put(tombstone);
+      // El tombstone completo viaja como payload: con su `client_updated_at`
+      // el servidor decide si el borrado es más nuevo que su versión.
+      await this.enqueue(table, id, 'delete', tombstone);
     });
+  }
+
+  /**
+   * Varias escrituras como una sola: o quedan todas (con sus entradas del
+   * outbox) o ninguna. Para capturas que crean más de una fila, como una
+   * carga de combustible y su lectura de odómetro.
+   */
+  async transaction<R>(tables: readonly DomainTable[], work: () => Promise<R>): Promise<R> {
+    return db.transaction('rw', [...tables.map((table) => db.table(table)), db.sync_outbox], work);
   }
 
   /** Lee una fila viva. Un tombstone se comporta como "no existe". */
@@ -136,6 +148,19 @@ export class OfflineStore {
   /** Igual que `live$`, pero como signal para consumir directo en plantillas. */
   liveSignal<R>(query: () => Promise<R>, initial: R): Signal<R> {
     return toSignal(this.live$(query), { initialValue: initial });
+  }
+
+  /**
+   * Consulta reactiva que además depende de un signal (un parámetro de ruta,
+   * el vehículo activo): al cambiar el signal se rehace la consulta.
+   *
+   * `liveSignal` no sirve para eso: liveQuery solo observa IndexedDB, no los
+   * signals que se lean dentro. Debe llamarse en contexto de inyección.
+   */
+  liveFrom<S, R>(source: Signal<S>, query: (value: S) => Promise<R>, initial: R): Signal<R> {
+    return toSignal(toObservable(source).pipe(switchMap((value) => this.live$(() => query(value)))), {
+      initialValue: initial,
+    });
   }
 
   /**
@@ -180,7 +205,8 @@ export class OfflineStore {
       payload: row ? JSON.stringify(row) : null,
       status: 'pending',
       attempts: 0,
-      last_error: null,
+      last_attempt: null,
+      blocked_by: null,
       next_retry_at: now,
       created_at: now,
     });

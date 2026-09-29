@@ -21,6 +21,8 @@ import type {
   ServiceRecord,
   ServiceRecordItem,
   ServiceType,
+  SyncLogEntry,
+  SyncRun,
   SyncState,
   Trip,
   Uuid,
@@ -71,6 +73,8 @@ export class PistonDb extends Dexie {
   attachment_blobs!: Table<AttachmentBlob, string>;
   session!: Table<LocalSession, string>;
   onboarding!: Table<LocalOnboarding, string>;
+  sync_runs!: Table<SyncRun, Uuid>;
+  sync_log!: Table<SyncLogEntry, Uuid>;
 
   constructor() {
     super('piston');
@@ -107,6 +111,40 @@ export class PistonDb extends Dexie {
       session: 'key',
       onboarding: 'key',
     });
+
+    // Centro de sincronización: diagnóstico por intento e historial local.
+    // `last_error` (texto suelto) pasa a `last_attempt` (estructurado); lo que
+    // ya estaba en cola conserva su mensaje, aunque sin request id.
+    this.version(3)
+      .stores({
+        sync_outbox: 'id, status, [status+next_retry_at], [table_name+row_id], created_at',
+        sync_runs: 'id, started_at',
+        sync_log: 'id, at, run_id, [table_name+row_id]',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('sync_outbox')
+          .toCollection()
+          .modify((entry: Record<string, unknown>) => {
+            const message = entry['last_error'];
+            delete entry['last_error'];
+            entry['blocked_by'] = null;
+            entry['last_attempt'] =
+              typeof message === 'string'
+                ? {
+                    at: entry['created_at'],
+                    kind: entry['status'] === 'failed' ? 'validation' : 'server_unreachable',
+                    http_status: null,
+                    code: null,
+                    message,
+                    request_id: null,
+                    field_errors: null,
+                    duration_ms: null,
+                    retry_after_s: null,
+                  }
+                : null;
+          });
+      });
   }
 }
 

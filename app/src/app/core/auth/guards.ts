@@ -23,7 +23,7 @@ export const guestGuard: CanActivateFn = () => {
 /** Las pestañas exigen haber terminado el wizard. */
 export const onboardedGuard: CanActivateFn = async () => {
   const step = await inject(OnboardingService).currentStep();
-  return step === 'done' ? true : inject(Router).parseUrl('/bienvenida');
+  return step === 'done' ? true : inject(Router).parseUrl('/welcome');
 };
 
 /** Y el wizard deja de estar disponible una vez terminado. */

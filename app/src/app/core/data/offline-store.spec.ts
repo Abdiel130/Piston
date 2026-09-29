@@ -112,7 +112,8 @@ describe('OfflineStore', () => {
     expect(row!.deleted_at).not.toBeNull();
 
     const queued = await db.sync_outbox.toArray();
-    expect(queued[0]).toMatchObject({ op: 'delete', payload: null });
+    expect(queued[0]).toMatchObject({ op: 'delete' });
+    expect(JSON.parse(queued[0].payload!).deleted_at).not.toBeNull();
   });
 
   it('un tombstone no aparece en las lecturas', async () => {

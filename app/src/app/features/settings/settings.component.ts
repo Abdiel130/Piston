@@ -4,7 +4,8 @@ import { AuthService } from '../../core/auth/auth.service';
 import { db } from '../../core/db/piston-db';
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { PwaService } from '../../core/pwa/pwa.service';
-import { SyncService, type LogoutBlocker } from '../../core/sync/sync.service';
+import { SyncService, type LogoutBlocker, type SyncSummary } from '../../core/sync/sync.service';
+import { relative } from '../sync/sync-format';
 import { IconComponent, type IconName } from '../../shared/icon/icon.component';
 import { IslandService } from '../../shared/island/island.service';
 
@@ -12,6 +13,8 @@ interface SettingRow {
   readonly icon: IconName;
   readonly title: string;
   readonly value?: string;
+  /** Tono del valor: para que un error de sync se note desde la lista. */
+  readonly tone?: 'good' | 'warn' | 'bad';
   readonly action?: () => void;
 }
 
@@ -32,12 +35,14 @@ interface SettingGroup {
   readonly rows: readonly SettingRow[];
 }
 
+const DISTANCE: Record<string, string> = { km: 'Kilómetros', mi: 'Millas' };
+const VOLUME: Record<string, string> = { L: 'Litros', gal: 'Galones' };
+
 /**
- * Ajustes.
+ * Ajustes. Todo lo que muestra es real.
  *
- * El grupo "Datos y sincronización" es real: lee el estado del motor offline y
- * el botón de sincronizar dispara un ciclo de verdad. El resto de los grupos
- * siguen siendo maqueta.
+ * La sincronización es UNA fila con el estado resumido; el detalle (qué falta,
+ * por qué falló, historial) vive en el centro de sincronización.
  */
 @Component({
   selector: 'pst-settings',
@@ -68,11 +73,7 @@ export class SettingsComponent {
   protected readonly canDiscard = computed(() => this.discardText().trim() === DISCARD_CONFIRMATION);
   private readonly pwa = inject(PwaService);
 
-  protected readonly pending = this.sync.pendingCount;
-  protected readonly failed = this.sync.failedCount;
-  protected readonly uploads = this.sync.pendingUploads;
-  protected readonly online = this.sync.online;
-  protected readonly status = this.sync.status;
+  protected readonly summary = this.sync.summary;
 
   /** Vehículos vivos en IndexedDB. Se reemite solo cuando cambian. */
   private readonly vehicles = this.store.liveSignal(
@@ -80,29 +81,27 @@ export class SettingsComponent {
     [],
   );
 
-  private readonly serviceTypes = this.store.liveSignal(() => db.service_types.count(), 0);
-
   constructor() {
     // La isla publica el estado real de la cola, no un número inventado. Va en
     // un effect y no en el constructor porque el estado cambia solo: al vaciarse
     // la cola o al caerse la red, la píldora tiene que reflejarlo sin que nadie
     // vuelva a entrar a la pantalla.
     effect(() => {
+      const s = this.summary();
+      const open = openCount(s);
       this.island.present({
-        icon: this.online() ? 'cloudCheck' : 'cloudOff',
-        label: this.online() ? 'Sincronizado' : 'Sin conexión',
-        value: String(this.pending()),
-        tone: this.pending() > 0 ? 'warn' : 'good',
-        title: this.pending() > 0 ? 'Cambios sin sincronizar' : 'Todo sincronizado',
-        subtitle: this.online()
-          ? 'La cola se vacía en segundo plano'
-          : 'Se enviarán al recuperar la señal',
+        icon: s.health === 'offline' || s.health === 'expired' ? 'cloudOff' : 'cloudCheck',
+        label: syncLabel(s),
+        value: String(open),
+        tone: s.health === 'error' ? 'bad' : open > 0 ? 'warn' : 'good',
+        title: open > 0 ? 'Cambios sin sincronizar' : 'Todo sincronizado',
+        subtitle: s.health === 'offline' ? 'Se enviarán al recuperar la señal' : 'La cola se vacía en segundo plano',
         details: [
-          { label: 'En cola', value: String(this.pending()) },
-          { label: 'Fotos', value: String(this.uploads()) },
-          { label: 'Último sync', value: this.relativeLastSync() },
+          { label: 'En cola', value: String(s.pending + s.blocked) },
+          { label: 'Con error', value: String(s.failed + s.failedUploads) },
+          { label: 'Último sync', value: relative(s.lastSyncedAt) },
         ],
-        pulsing: this.status() === 'syncing',
+        pulsing: s.health === 'syncing',
       });
     });
   }
@@ -113,61 +112,23 @@ export class SettingsComponent {
       rows: [this.installRow(), this.updateRow()],
     },
     {
+      title: 'Datos',
+      rows: [this.syncRow()],
+    },
+    {
       title: 'Vehículos',
-      rows: [
-        ...this.vehicles().map((vehicle): SettingRow => ({
-          icon: 'car',
-          title: vehicle.nickname ?? `${vehicle.make} ${vehicle.model}`,
-          value: vehicle.is_primary ? 'Principal' : undefined,
-        })),
-        { icon: 'plus', title: 'Agregar vehículo' },
-        {
-          icon: 'garage',
-          title: 'Vehículos archivados',
-          value: String(this.vehicles().filter((vehicle) => vehicle.status !== 'active').length),
-        },
-      ],
-    },
-    {
-      title: 'Datos y sincronización',
-      rows: [
-        {
-          icon: this.online() ? 'cloudCheck' : 'cloudOff',
-          title: 'Conexión',
-          value: this.online() ? 'En línea' : 'Sin conexión',
-        },
-        {
-          icon: 'sync',
-          title: 'Sincronizar ahora',
-          value: this.statusLabel(),
-          action: () => void this.sync.sync(),
-        },
-        { icon: 'clock', title: 'Cambios en cola', value: String(this.pending()) },
-        { icon: 'camera', title: 'Fotos por subir', value: String(this.uploads()) },
-        {
-          icon: 'alert',
-          title: 'Mutaciones fallidas',
-          value: String(this.failed()),
-          action: this.failed() > 0 ? () => void this.sync.retryFailed() : undefined,
-        },
-        { icon: 'cloudCheck', title: 'Último sync', value: this.relativeLastSync() },
-        { icon: 'wrench', title: 'Catálogo de servicios', value: String(this.serviceTypes()) },
-      ],
-    },
-    {
-      title: 'Recordatorios',
-      rows: [
-        { icon: 'bell', title: 'Notificaciones', value: 'Activadas' },
-        { icon: 'calendar', title: 'Avisar antes de', value: '15 días' },
-        { icon: 'road', title: 'Avisar antes de', value: '500 km' },
-      ],
+      rows: this.vehicles().map((vehicle): SettingRow => ({
+        icon: 'car',
+        title: vehicle.nickname ?? `${vehicle.make} ${vehicle.model}`,
+        value: vehicle.is_primary ? 'Principal' : vehicle.status === 'active' ? undefined : 'Archivado',
+      })),
     },
     {
       title: 'Unidades',
       rows: [
-        { icon: 'road', title: 'Distancia', value: 'Kilómetros' },
-        { icon: 'droplet', title: 'Volumen', value: 'Litros' },
-        { icon: 'receipt', title: 'Moneda', value: 'MXN' },
+        { icon: 'road', title: 'Distancia', value: DISTANCE[this.user()?.distance_unit ?? 'km'] },
+        { icon: 'droplet', title: 'Volumen', value: VOLUME[this.user()?.volume_unit ?? 'L'] },
+        { icon: 'receipt', title: 'Moneda', value: this.user()?.currency ?? 'MXN' },
       ],
     },
   ]);
@@ -245,6 +206,10 @@ export class SettingsComponent {
     }
   }
 
+  protected openSync(): void {
+    void this.router.navigateByUrl('/settings/sync');
+  }
+
   protected relogin(): void {
     void this.router.navigateByUrl('/login');
   }
@@ -262,34 +227,37 @@ export class SettingsComponent {
     return (event.target as HTMLInputElement).value;
   }
 
-  private statusLabel(): string {
-    switch (this.status()) {
-      case 'syncing':
-        return 'Sincronizando…';
-      case 'offline':
-        return 'Sin conexión';
-      case 'error':
-        return 'Con errores';
-      case 'unauthorized':
-        return 'Sesión expirada';
-      default:
-        return this.pending() > 0 ? 'Pendiente' : 'Al día';
-    }
+  private syncRow(): SettingRow {
+    const s = this.summary();
+    return {
+      icon: s.health === 'offline' || s.health === 'expired' ? 'cloudOff' : 'sync',
+      title: 'Sincronización',
+      value: syncLabel(s),
+      tone: s.health === 'error' ? 'bad' : s.health === 'ok' ? 'good' : 'warn',
+      action: () => this.openSync(),
+    };
   }
+}
 
-  private relativeLastSync(): string {
-    const last = this.sync.lastSyncedAt();
-    if (!last) {
-      return 'nunca';
-    }
+function openCount(s: SyncSummary): number {
+  return s.pending + s.blocked + s.failed + s.uploads + s.failedUploads;
+}
 
-    const minutes = Math.floor((Date.now() - new Date(last).getTime()) / 60_000);
-    if (minutes < 1) {
-      return 'hace un momento';
-    }
-    if (minutes < 60) {
-      return `hace ${minutes} min`;
-    }
-    return `hace ${Math.floor(minutes / 60)} h`;
+/** Estado de una línea: lo que se ve en la fila de Ajustes y en la isla. */
+function syncLabel(s: SyncSummary): string {
+  const open = openCount(s);
+  switch (s.health) {
+    case 'expired':
+      return 'Sesión expirada';
+    case 'offline':
+      return open > 0 ? `Sin conexión · ${open} en cola` : 'Sin conexión';
+    case 'syncing':
+      return 'Sincronizando…';
+    case 'error':
+      return `${s.failed + s.failedUploads} con error`;
+    case 'pending':
+      return `${open} por subir`;
+    default:
+      return `Al día · ${relative(s.lastSyncedAt)}`;
   }
 }

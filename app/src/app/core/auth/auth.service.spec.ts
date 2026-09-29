@@ -147,7 +147,8 @@ describe('AuthService', () => {
       payload: '{}',
       status: 'pending',
       attempts: 0,
-      last_error: null,
+      last_attempt: null,
+      blocked_by: null,
       next_retry_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
     });

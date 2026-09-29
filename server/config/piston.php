@@ -47,4 +47,15 @@ return [
         'client_header' => 'X-Piston-Client',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Sincronización
+    |--------------------------------------------------------------------------
+    */
+
+    'sync' => [
+        // Tamaño máximo de un adjunto (foto, factura) en KB.
+        'attachment_max_kb' => (int) env('SYNC_ATTACHMENT_MAX_KB', 15 * 1024),
+    ],
+
 ];
