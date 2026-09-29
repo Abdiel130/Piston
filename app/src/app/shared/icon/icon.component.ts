@@ -165,6 +165,13 @@ const ICONS: Readonly<Record<string, IconShape>> = {
       'M6.8 21.4v-4h4',
     ],
   },
+  download: {
+    paths: [
+      'M12 3.5v11.5',
+      'M7.5 10.5l4.5 4.5 4.5-4.5',
+      'M4.5 16.5v2a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2',
+    ],
+  },
 
   // --- Controles ------------------------------------------------------------
   chevronRight: { paths: ['M9.2 5.2l6.9 6.8-6.9 6.8'] },

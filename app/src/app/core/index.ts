@@ -7,3 +7,4 @@ export { AttachmentService } from './data/attachment.service';
 export { ApiService, PermanentApiError, RetriableApiError, type BackendHealth } from './api/api.service';
 export { SyncService, type SyncStatus } from './sync/sync.service';
 export { MAX_ATTEMPTS, backoffDelayMs, nextRetryAt } from './sync/backoff';
+export { PwaService, type UpdateStatus } from './pwa/pwa.service';
