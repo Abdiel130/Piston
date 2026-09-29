@@ -3,7 +3,8 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { liveQuery } from 'dexie';
 import { from } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { ApiService, PermanentApiError } from '../api/api.service';
+import { ApiService, AuthRequiredError, PermanentApiError } from '../api/api.service';
+import { AuthService } from '../auth/auth.service';
 import { db } from '../db/piston-db';
 import {
   GLOBAL_CURSOR,
@@ -21,7 +22,18 @@ const PUSH_BATCH_SIZE = 200;
 /** Vueltas máximas del pull paginado, por si el servidor nunca baja `has_more`. */
 const MAX_PULL_PAGES = 50;
 
-export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error';
+export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error' | 'unauthorized';
+
+/** Fase del ciclo en curso. Lo que muestra la ventana de sincronización. */
+export interface SyncProgress {
+  readonly phase: 'push' | 'pull' | 'uploads' | null;
+  /** Filas recibidas en el pull del ciclo actual. */
+  readonly pulled: number;
+}
+
+/** Por qué no se puede cerrar sesión todavía. `null` = se puede. */
+export type LogoutBlocker =
+  'offline' | 'syncing' | 'pending' | 'failed' | 'uploads' | 'expired' | null;
 
 /**
  * El motor de sincronización.
@@ -33,16 +45,19 @@ export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error';
 @Injectable({ providedIn: 'root' })
 export class SyncService {
   private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
 
   private readonly _status = signal<SyncStatus>('idle');
   private readonly _lastError = signal<string | null>(null);
   private readonly _lastSyncedAt = signal<string | null>(null);
   private readonly _online = signal(navigator.onLine);
+  private readonly _progress = signal<SyncProgress>({ phase: null, pulled: 0 });
 
   readonly status = this._status.asReadonly();
   readonly lastError = this._lastError.asReadonly();
   readonly lastSyncedAt = this._lastSyncedAt.asReadonly();
   readonly online = this._online.asReadonly();
+  readonly progress = this._progress.asReadonly();
 
   /** Mutaciones esperando. Se reemite sola: es lo que ve la Dynamic Island. */
   readonly pendingCount = toSignal(
@@ -63,6 +78,22 @@ export class SyncService {
   );
 
   readonly hasPendingWork = computed(() => this.pendingCount() > 0 || this.pendingUploads() > 0);
+
+  /**
+   * Cerrar sesión borra la base local, así que solo se permite cuando no queda
+   * NADA que el servidor no tenga. Incluye las mutaciones fallidas: borrarlas
+   * sería perder datos que el usuario dio por guardados.
+   */
+  readonly logoutBlocker = computed<LogoutBlocker>(() => {
+    if (this.auth.state() === 'expired') return 'expired';
+    if (!this._online()) return 'offline';
+    if (this._status() === 'syncing') return 'syncing';
+    if (this.failedCount() > 0) return 'failed';
+    if (this.pendingCount() > 0) return 'pending';
+    if (this.pendingUploads() > 0) return 'uploads';
+    return null;
+  });
+  readonly canLogout = computed(() => this.logoutBlocker() === null);
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
@@ -105,13 +136,23 @@ export class SyncService {
       return;
     }
 
+    // Sin sesión viva no hay a quién mandarle nada. La cola se queda intacta
+    // hasta el siguiente login.
+    if (this.auth.state() !== 'authenticated') {
+      this._status.set(this.auth.state() === 'expired' ? 'unauthorized' : 'idle');
+      return;
+    }
+
     this.running = true;
     this._online.set(true);
     this._status.set('syncing');
+    this._progress.set({ phase: 'push', pulled: 0 });
 
     try {
       await this.push();
+      this._progress.update((progress) => ({ ...progress, phase: 'pull' }));
       await this.pull();
+      this._progress.update((progress) => ({ ...progress, phase: 'uploads' }));
       await this.uploadAttachments();
 
       this._lastSyncedAt.set(new Date().toISOString());
@@ -119,8 +160,15 @@ export class SyncService {
       this._status.set('idle');
     } catch (error) {
       this._lastError.set(error instanceof Error ? error.message : String(error));
-      this._status.set(navigator.onLine ? 'error' : 'offline');
+      this._status.set(
+        error instanceof AuthRequiredError
+          ? 'unauthorized'
+          : navigator.onLine
+            ? 'error'
+            : 'offline',
+      );
     } finally {
+      this._progress.update((progress) => ({ ...progress, phase: null }));
       this.running = false;
     }
   }
@@ -200,6 +248,11 @@ export class SyncService {
 
       await this.bumpCursor(response.server_rev);
     } catch (error) {
+      // Sesión caída: el lote es válido, solo falta quien lo firme. No cuenta
+      // como intento, no se marca como fallido y se reintenta tras el login.
+      if (error instanceof AuthRequiredError) {
+        throw error;
+      }
       if (error instanceof PermanentApiError) {
         // Reintentar un 4xx solo repite el mismo rechazo. Se saca de la cola
         // activa para que una fila mal formada no bloquee todo lo que viene
@@ -255,6 +308,10 @@ export class SyncService {
 
       for (const [table, rows] of Object.entries(response.changes)) {
         await this.applyRows(table as DomainTable, rows ?? []);
+        this._progress.update((progress) => ({
+          ...progress,
+          pulled: progress.pulled + (rows?.length ?? 0),
+        }));
       }
 
       await this.bumpCursor(response.server_rev);
@@ -336,10 +393,11 @@ export class SyncService {
         await this.api.uploadAttachment(attachment.id, stored.blob, attachment.file_name);
         await db.attachments.update(attachment.id, { upload_status: 'uploaded' });
       } catch (error) {
+        const permanent = error instanceof PermanentApiError;
         await db.attachments.update(attachment.id, {
-          upload_status: error instanceof PermanentApiError ? 'failed' : 'pending',
+          upload_status: permanent ? 'failed' : 'pending',
         });
-        if (!(error instanceof PermanentApiError)) {
+        if (!permanent) {
           throw error;
         }
       }

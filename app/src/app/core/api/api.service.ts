@@ -1,21 +1,29 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, map, type Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import type { SyncPullResponse, SyncPushMutation, SyncPushResponse } from '../models';
+import {
+  isApiErrorBody,
+  type ApiCode,
+  type ApiEnvelope,
+  type AuthUser,
+  type OnboardingDraft,
+  type OnboardingStep,
+  type SyncPullResponse,
+  type SyncPushMutation,
+  type SyncPushResponse,
+} from '../models';
+
+/** Campos de perfil editables con `PATCH /api/me`. */
+export type ProfilePatch = Partial<
+  Pick<AuthUser, 'name' | 'locale' | 'currency' | 'distance_unit' | 'volume_unit'>
+>;
 
 export interface BackendHealth {
-  readonly status: string;
-  readonly project: string;
+  readonly status: 'ok' | 'degraded';
+  readonly service: string;
   readonly version: string;
-  readonly laravel_version: string;
-  readonly php_version: string;
-  readonly database: {
-    readonly status: string;
-    readonly driver: string;
-    readonly error: string | null;
-  };
-  readonly timestamp: string;
+  readonly database: 'connected' | 'disconnected';
 }
 
 /**
@@ -29,6 +37,7 @@ export class RetriableApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code: ApiCode | null = null,
   ) {
     super(message);
     this.name = 'RetriableApiError';
@@ -40,9 +49,26 @@ export class PermanentApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code: ApiCode | null = null,
+    /** Mensajes por campo cuando el servidor rechazó la validación. */
+    readonly errors: Readonly<Record<string, readonly string[]>> | null = null,
   ) {
     super(message);
     this.name = 'PermanentApiError';
+  }
+}
+
+/**
+ * El servidor no reconoce la sesión (401).
+ *
+ * NO es un rechazo de la fila ni un fallo transitorio: la mutación es válida y
+ * el servidor está bien, solo falta volver a iniciar sesión. Por eso no cuenta
+ * como intento ni la saca de la cola; el sync se pausa hasta que haya sesión.
+ */
+export class AuthRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuthRequiredError';
   }
 }
 
@@ -52,20 +78,20 @@ export class ApiService {
   private readonly base = `${environment.apiBaseUrl}/api`;
 
   async health(): Promise<BackendHealth> {
-    return this.request(this.http.get<BackendHealth>(`${this.base}/health`));
+    return this.request(this.http.get<ApiEnvelope<BackendHealth>>(`${this.base}/health`));
   }
 
   /** Sync delta: todo lo cambiado después de `since`, tombstones incluidos. */
   async pull(since: number): Promise<SyncPullResponse> {
     return this.request(
-      this.http.get<SyncPullResponse>(`${this.base}/sync`, { params: { since } }),
+      this.http.get<ApiEnvelope<SyncPullResponse>>(`${this.base}/sync`, { params: { since } }),
     );
   }
 
   /** Empuja un lote de mutaciones. El servidor responde qué aplicó y qué rechazó. */
   async push(mutations: readonly SyncPushMutation[]): Promise<SyncPushResponse> {
     return this.request(
-      this.http.post<SyncPushResponse>(`${this.base}/sync`, { mutations }),
+      this.http.post<ApiEnvelope<SyncPushResponse>>(`${this.base}/sync`, { mutations }),
     );
   }
 
@@ -74,25 +100,75 @@ export class ApiService {
     const form = new FormData();
     form.append('file', file, fileName);
     await this.request(
-      this.http.post<void>(`${this.base}/attachments/${attachmentId}/file`, form),
+      this.http.post<ApiEnvelope<void>>(`${this.base}/attachments/${attachmentId}/file`, form),
     );
   }
 
+  // ── Cuenta ────────────────────────────────────────────────────────────
+
+  async me(): Promise<AuthUser> {
+    return this.request(this.http.get<ApiEnvelope<AuthUser>>(`${this.base}/me`));
+  }
+
+  async updateProfile(patch: ProfilePatch): Promise<AuthUser> {
+    return this.request(this.http.patch<ApiEnvelope<AuthUser>>(`${this.base}/me`, patch));
+  }
+
+  async updatePassword(currentPassword: string, password: string): Promise<void> {
+    await this.request(
+      this.http.put<ApiEnvelope<void>>(`${this.base}/me/password`, {
+        current_password: currentPassword,
+        password,
+      }),
+    );
+  }
+
+  /** Sube el progreso del wizard. El servidor responde el estado vigente (puede ganar el suyo). */
+  async saveOnboarding(
+    step: Exclude<OnboardingStep, 'done'>,
+    draft: OnboardingDraft | null,
+    updatedAt: string,
+  ): Promise<AuthUser> {
+    return this.request(
+      this.http.put<ApiEnvelope<AuthUser>>(`${this.base}/me/onboarding`, {
+        step,
+        draft,
+        updated_at: updatedAt,
+      }),
+    );
+  }
+
+  async completeOnboarding(): Promise<AuthUser> {
+    return this.request(this.http.post<ApiEnvelope<AuthUser>>(`${this.base}/me/onboarding/complete`, {}));
+  }
+
   /**
-   * Traduce el error de Angular a la dicotomía reintentable / definitivo.
+   * Desenvuelve el sobre estándar y traduce el error de Angular a la
+   * dicotomía reintentable / definitivo.
    *
    * `status === 0` es el caso importante: no hubo respuesta (sin red, CORS,
    * servidor caído). Siempre reintentable.
    */
-  private async request<T>(observable: Parameters<typeof firstValueFrom<T>>[0]): Promise<T> {
+  private async request<T>(observable: Observable<ApiEnvelope<T>>): Promise<T> {
     try {
-      return await firstValueFrom(observable);
+      return await firstValueFrom(observable.pipe(map((envelope) => envelope.data)));
     } catch (error) {
       if (!(error instanceof HttpErrorResponse)) {
         throw new RetriableApiError(String(error), 0);
       }
 
-      const detail = error.error?.message ?? error.message;
+      // Si respondió la API, su sobre trae un mensaje pensado para humanos y
+      // un código estable. Si respondió otra cosa (proxy, HTML), solo queda
+      // el status.
+      const body = isApiErrorBody(error.error) ? error.error : null;
+      const detail = body?.message ?? error.message;
+      const code = body?.code ?? null;
+
+      // El interceptor ya intentó renovar el access token. Si aun así llega un
+      // 401, la sesión murió de verdad.
+      if (error.status === 401) {
+        throw new AuthRequiredError(detail);
+      }
 
       // 404/501 = el endpoint todavía no existe (backend a medio construir,
       // deploy en curso). Eso NO es culpa de la fila: marcarla como rechazada
@@ -106,11 +182,11 @@ export class ApiService {
         error.status >= 500;
 
       if (retriable) {
-        throw new RetriableApiError(detail, error.status);
+        throw new RetriableApiError(detail, error.status, code);
       }
 
-      // 400 / 409 / 422 sí son del payload: reintentar repite el mismo rechazo.
-      throw new PermanentApiError(detail, error.status);
+      // 400 / 403 / 409 / 422 sí son del payload: reintentar repite el mismo rechazo.
+      throw new PermanentApiError(detail, error.status, code, body?.errors ?? null);
     }
   }
 }

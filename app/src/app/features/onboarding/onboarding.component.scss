@@ -1,0 +1,110 @@
+.wizard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-6);
+}
+
+.wizard__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-1);
+}
+
+.wizard__progress {
+  display: flex;
+  gap: var(--pst-space-1);
+  margin-bottom: var(--pst-space-4);
+}
+
+.wizard__dot {
+  flex: 1;
+  height: 0.25rem;
+  border-radius: var(--pst-r-pill);
+  background: var(--pst-surface-3);
+  transition: background-color var(--pst-dur-base) var(--pst-snap);
+}
+
+.wizard__dot.is-done {
+  background: color-mix(in srgb, var(--pst-ignition) 55%, transparent);
+}
+
+.wizard__dot.is-current {
+  background: var(--pst-ignition);
+}
+
+.wizard__sub {
+  font-size: var(--pst-subhead);
+  color: var(--pst-label-2);
+}
+
+.wizard__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-4);
+  animation: pst-rise var(--pst-dur-slow) var(--pst-spring) both;
+}
+
+.wizard__optional {
+  font-weight: 400;
+  color: var(--pst-label-3);
+}
+
+.wizard__gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pst-space-3);
+}
+
+.wizard__stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--pst-space-5);
+  font-size: var(--pst-title-2);
+  font-weight: 700;
+}
+
+.wizard__stepper .pst-btn {
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  font-size: var(--pst-title-3);
+}
+
+.wizard__center {
+  max-width: 20rem;
+  text-align: center;
+}
+
+.wizard__password {
+  padding: var(--pst-space-3) var(--pst-space-4);
+  border-radius: var(--pst-r-md);
+  background: var(--pst-surface-1);
+}
+
+.wizard__password summary {
+  cursor: pointer;
+  font-size: var(--pst-subhead);
+  font-weight: 600;
+  color: var(--pst-label-2);
+}
+
+.wizard__password[open] summary {
+  margin-bottom: var(--pst-space-3);
+}
+
+.wizard__actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-2);
+  padding-top: var(--pst-space-3);
+  background: linear-gradient(to top, var(--pst-bg) 70%, transparent);
+}
+
+.wizard__secondary {
+  display: flex;
+  justify-content: space-between;
+}

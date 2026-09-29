@@ -67,10 +67,61 @@ Table users {
   distance_unit varchar(4)   [not null, default: 'km']
   volume_unit   varchar(4)   [not null, default: 'L']
   email_verified_at timestamptz
+
+  // Wizard de bienvenida. Vive aquí además del dispositivo para poder
+  // retomarlo en otro. Nada del wizard toca tablas de dominio hasta `done`.
+  onboarding_step         varchar(20) [not null, default: 'account', note: 'account | vehicle | tank | purchase | review | done']
+  onboarding_draft        jsonb       [note: 'Borrador del formulario; NULL al terminar']
+  onboarding_updated_at   timestamptz [note: 'Reloj del cliente; base del last-write-wins']
+  onboarding_completed_at timestamptz
+
   created_at    timestamptz
   updated_at    timestamptz
-  Note: 'Uso personal/familiar. Sanctum para tokens de API.'
+  Note: 'Uso personal/familiar. Sin registro público: las cuentas se crean con `php artisan piston:user:create`.'
 }
+
+// ─────────────────────────────── SESIONES ───────────────────────────────
+// Access token corto (Sanctum, en memoria del cliente) + refresh rotativo
+// (cookie HttpOnly). Ninguno protege los datos locales: esos ya están en el
+// dispositivo. Los tokens protegen el servidor.
+
+Table refresh_tokens {
+  id           uuid [pk]
+  user_id      uuid [not null]
+  family_id    uuid [not null, note: 'Una familia por login; cada refresh rota dentro de ella']
+  token_hash   varchar(64) [not null, unique, note: 'SHA-256; el valor en claro solo existe en la cookie']
+  device_name  varchar(120)
+  user_agent   text
+  ip_address   varchar(45)
+  expires_at   timestamptz [not null, note: 'Deslizante: cada refresh reinicia el plazo (60 días)']
+  last_used_at timestamptz
+  revoked_at   timestamptz
+  replaced_at  timestamptz [note: 'No-nulo = revocado por rotación. Reusarlo fuera de la gracia revoca la familia']
+  created_at   timestamptz
+  updated_at   timestamptz
+
+  indexes {
+    family_id
+    (user_id, revoked_at)
+    expires_at
+  }
+}
+
+Table personal_access_tokens {
+  id                bigint [pk, increment]
+  tokenable_type    varchar [not null]
+  tokenable_id      uuid [not null]
+  name              text [not null]
+  token             varchar(64) [not null, unique]
+  abilities         text
+  refresh_family_id uuid [note: 'Revocar la familia borra también sus access tokens']
+  last_used_at      timestamptz
+  expires_at        timestamptz [note: '15 minutos']
+  created_at        timestamptz
+  updated_at        timestamptz
+}
+
+Ref: refresh_tokens.user_id > users.id
 
 Table vehicles {
   id            uuid [pk]

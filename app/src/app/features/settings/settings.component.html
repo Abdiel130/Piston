@@ -6,6 +6,77 @@
     <h1 class="pst-header__title">Configuración</h1>
   </header>
 
+  <section>
+    <h2 class="pst-section-title">Cuenta</h2>
+    <div class="pst-card account">
+      <div class="account__who">
+        <span class="pst-row__icon"><pst-icon name="shield" [size]="18" /></span>
+        <span class="pst-row__body">
+          <span class="pst-row__title">{{ user()?.name }}</span>
+          <span class="pst-row__sub">{{ user()?.email }}</span>
+        </span>
+        @if (authState() === 'expired') {
+          <span class="pst-badge pst-badge--warn">Sesión expirada</span>
+        } @else {
+          <span class="pst-badge pst-badge--good">Activa</span>
+        }
+      </div>
+
+      @if (authState() === 'expired') {
+        <button type="button" class="pst-btn pst-btn--primary pst-btn--block" (click)="relogin()">
+          Iniciar sesión para sincronizar
+        </button>
+      }
+
+      @if (blockerText(); as reason) {
+        <p class="pst-field__hint">{{ reason }}</p>
+      }
+      @if (logoutError(); as message) {
+        <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+      }
+
+      <button
+        type="button"
+        class="pst-btn pst-btn--block"
+        [disabled]="blocker() !== null || loggingOut()"
+        (click)="logout()"
+      >
+        {{ loggingOut() ? 'Cerrando sesión…' : 'Cerrar sesión' }}
+      </button>
+      <p class="pst-field__hint">
+        Al cerrar sesión se borran los datos de este dispositivo. Solo se permite cuando todo
+        está en el servidor.
+      </p>
+
+      @if (blocker() !== null) {
+        @if (!discardOpen()) {
+          <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" (click)="discardOpen.set(true)">
+            No puedo sincronizar, descartar datos y salir
+          </button>
+        } @else {
+          <div class="pst-form">
+            <p class="pst-note pst-note--bad">
+              Esto borra de este dispositivo todo lo que no llegó al servidor, sin forma de
+              recuperarlo. Escribe {{ discardConfirmation }} para confirmar.
+            </p>
+            <input
+              class="pst-input"
+              autocapitalize="characters"
+              [value]="discardText()"
+              (input)="discardText.set(value($event))"
+            />
+            <button type="button" class="pst-btn pst-btn--danger pst-btn--block" [disabled]="!canDiscard()" (click)="discard()">
+              Descartar datos y salir
+            </button>
+            <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" (click)="discardOpen.set(false); discardText.set('')">
+              Cancelar
+            </button>
+          </div>
+        }
+      }
+    </div>
+  </section>
+
   @for (group of groups(); track group.title) {
     <section>
       <h2 class="pst-section-title">{{ group.title }}</h2>

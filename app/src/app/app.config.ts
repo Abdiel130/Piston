@@ -1,4 +1,4 @@
-import { HttpClient, provideHttpClient, withFetch } from '@angular/common/http';
+import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import {
   ApplicationConfig,
   inject,
@@ -8,7 +8,9 @@ import {
 } from '@angular/core';
 import { provideRouter, withComponentInputBinding, withViewTransitions } from '@angular/router';
 import { provideServiceWorker } from '@angular/service-worker';
-import { CatalogSeeder } from './core/db/seed';
+import { authInterceptor } from './core/auth/auth.interceptor';
+import { AuthService } from './core/auth/auth.service';
+import { OnboardingService } from './core/auth/onboarding.service';
 import { SyncService } from './core/sync/sync.service';
 import { routes } from './app.routes';
 
@@ -20,7 +22,7 @@ export const appConfig: ApplicationConfig = {
     // withFetch: el service worker intercepta `fetch`, no XHR. Sin esto las
     // peticiones de la API se le escapan al worker y la política de red de
     // ngsw no aplica.
-    provideHttpClient(withFetch()),
+    provideHttpClient(withFetch(), withInterceptors([authInterceptor])),
 
     provideServiceWorker('ngsw-worker.js', {
       // En `ng serve` no hay worker: cachearía el bundle y el hot reload
@@ -30,19 +32,24 @@ export const appConfig: ApplicationConfig = {
     }),
 
     /**
-     * Arranque de la capa offline.
+     * Arranque.
      *
-     * No se espera al resultado a propósito: si se devolviera la promesa,
-     * Angular retrasaría el primer render hasta que terminara el primer sync,
-     * y una app offline-first que se queda en blanco esperando a la red es
-     * justo lo que se intenta evitar.
+     * Solo se espera a leer la sesión local de IndexedDB, que es inmediato y
+     * no toca la red: las guardas de ruta la necesitan para decidir entre
+     * login, wizard o pestañas. El sync NO se espera: una app offline-first
+     * que se queda en blanco esperando a la red es justo lo que se evita.
+     *
+     * El catálogo ya no se siembra aquí sino en la ventana de sincronización,
+     * DESPUÉS del primer pull: sembrar antes haría que un segundo dispositivo
+     * duplicara el catálogo que ya existe en el servidor.
      */
-    provideAppInitializer(() => {
-      const seeder = inject(CatalogSeeder);
+    provideAppInitializer(async () => {
+      const auth = inject(AuthService);
       const sync = inject(SyncService);
-      inject(HttpClient); // fuerza la construcción del cliente antes del primer sync
+      inject(OnboardingService); // empieza a escuchar el onboarding del servidor
 
-      void seeder.seedIfEmpty().then(() => sync.start());
+      await auth.restore();
+      sync.start();
     }),
   ],
 };

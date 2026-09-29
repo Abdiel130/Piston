@@ -54,17 +54,33 @@ Para desactivar las migraciones automáticas, añade `RUN_MIGRATIONS=false` al e
 ### 4. Verificar que Todo Está Arriba
 ```bash
 ./piston ps          # los tres contenedores en estado "Up"
-./piston health      # respuesta JSON con database.status = "connected"
+./piston health      # data.database = "connected" (solo responde desde el contenedor)
 ```
 
 Salida esperada del health check:
 ```json
-{"status":"ok","project":"Piston API","laravel_version":"13.31.0","php_version":"8.5.10","database":{"status":"connected","driver":"pgsql","error":null}}
+{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.2.0","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
 ```
 
-Después abre [http://localhost:4300](http://localhost:4300).
+### 5. Crear tu Cuenta
 
-### 5. Si Algo Falla
+No hay registro público: las cuentas se crean desde el servidor.
+
+```bash
+./artisan piston:user:create tu@correo.com --name="Tu Nombre"   # pide la contraseña sin eco
+```
+
+Después abre [http://localhost:4300](http://localhost:4300), inicia sesión y
+sigue el wizard de bienvenida (cuenta + primer vehículo).
+
+| Comando | Qué hace |
+|---|---|
+| `./artisan piston:user:create <email> [--name=] [--password=]` | Crea una cuenta |
+| `./artisan piston:user:password <email>` | Cambia la contraseña y cierra todas sus sesiones |
+| `./artisan piston:user:revoke <email>` | Cierra todas las sesiones (p. ej. un teléfono perdido) |
+| `./artisan piston:auth:prune` | Limpia refresh tokens viejos (también corre a diario con el scheduler) |
+
+### 6. Si Algo Falla
 ```bash
 ./piston logs server     # logs del backend
 ./piston logs app        # logs del frontend
@@ -74,7 +90,7 @@ Después abre [http://localhost:4300](http://localhost:4300).
 | Síntoma | Causa y solución |
 | :--- | :--- |
 | `piston-server` en `Restarting (255)` | Falta `vendor/`. `./piston rebuild` o `./piston composer install`. |
-| `database.status: "disconnected"` | PostgreSQL aún inicializando. Espera y repite `./piston health`. |
+| `data.database: "disconnected"` | PostgreSQL aún inicializando. Espera y repite `./piston health`. |
 | Error CORS en el navegador | El origen del front debe estar en `FRONTEND_URL` (`.env`) y en `server/config/cors.php`. |
 | Puerto ocupado | Cambia `APP_PORT`, `SERVER_PORT` o `DB_PORT` en `.env` y `./piston up`. |
 | Archivos nuevos con dueño `root` | Los generó un contenedor. `./piston own`. |
@@ -95,7 +111,7 @@ Todos los comandos se ejecutan dentro de los contenedores, así que no necesitas
 | `./piston up` / `down` / `restart [svc]` | Ciclo de vida del stack |
 | `./piston rebuild` | Reconstruye imágenes sin caché |
 | `./piston ps` / `logs [svc]` | Estado y logs (`svc` = `server`, `app`, `db`) |
-| `./piston health` | `curl` al endpoint `/api/health` |
+| `./piston health` | Consulta `/api/health` desde el contenedor (la ruta solo acepta localhost) |
 | `./piston artisan <cmd>` | Cualquier comando Artisan |
 | `./piston composer <cmd>` | Composer en el backend |
 | `./piston npm <cmd>` / `ng <cmd>` | npm o Angular CLI en el frontend |
@@ -103,7 +119,7 @@ Todos los comandos se ejecutan dentro de los contenedores, así que no necesitas
 | `./piston sh <server\|app\|db>` | Shell interactiva en el contenedor |
 | `./piston migrate` / `fresh` | Migrar / recrear el esquema (⚠️ `fresh` borra datos) |
 | `./piston routes` | `route:list --path=api` |
-| `./piston test` | Suite de PHPUnit (backend) |
+| `./piston test` | Suite de PHPUnit (backend), contra la base `piston_test` de Postgres (el entrypoint la crea) |
 | `./piston npm test` | Suite de Vitest (frontend) |
 | `./piston key` | Regenera `APP_KEY` |
 | `./piston own` | Devuelve al usuario del host los archivos que generó un contenedor |
@@ -120,7 +136,7 @@ Hay dos atajos para lo que más se usa:
 ## Puntos de Acceso
 
 - **Frontend (Angular 22)**: [http://localhost:4300](http://localhost:4300)
-- **Backend Health Check**: [http://localhost:8088/api/health](http://localhost:8088/api/health)
+- **Backend Health Check**: `./piston health` (la ruta solo responde a localhost; desde el navegador da 404)
 - **PWA**: instalable desde una build de producción (`./npm run build` → servir `app/dist/app/browser`). En `ng serve` el service worker está desactivado a propósito.
 - **Base de Datos PostgreSQL 18**: Conexión externa en `localhost:5438` (Usuario: `piston_user`, Contraseña: `piston_secret_password`, DB: `piston`).
 
@@ -326,6 +342,23 @@ igual desde `localhost` que desde el celular apuntando a la IP de tu red.
 
 Lo único acoplado es el puerto `8088`. Si cambias `SERVER_PORT` en el `.env`
 raíz, ajusta también esa línea de `environment.development.ts`.
+
+### Sesión y autenticación
+
+**Los tokens protegen el servidor, no los datos locales**: la app abre sin
+red y sin token, y una sesión vencida pausa el sync pero nunca bloquea la app
+ni borra nada. Access token de 15 min en memoria, refresh rotativo de 60 días
+en una cookie `HttpOnly` con detección de robo, y cierre de sesión solo cuando
+todo está en el servidor.
+
+Todo el detalle (endpoints, estados, rotación, defensas, wizard, operación y
+decisiones descartadas) está en **[docs/auth.md](docs/auth.md)**.
+
+### Respuestas de la API
+
+Toda respuesta JSON usa el mismo sobre
+(`success` / `code` / `message` / `data` / `errors` / `meta`), con códigos de
+un enum y sin exponer nada del servidor. Ver **[docs/api.md](docs/api.md)**.
 
 ### Adjuntos diferidos
 

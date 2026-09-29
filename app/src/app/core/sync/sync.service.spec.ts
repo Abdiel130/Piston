@@ -1,6 +1,8 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiService, PermanentApiError, RetriableApiError } from '../api/api.service';
+import { ApiService, AuthRequiredError, PermanentApiError, RetriableApiError } from '../api/api.service';
+import { AuthService, type AuthState } from '../auth/auth.service';
 import { OfflineStore, type NewRow } from '../data/offline-store.service';
 import { db } from '../db/piston-db';
 import { GLOBAL_CURSOR, type FuelEntry, type SyncPullResponse, type SyncPushResponse, type Vehicle } from '../models';
@@ -36,6 +38,11 @@ class FakeApi {
   async uploadAttachment(): Promise<void> {}
 }
 
+/** Sesión de mentira: el sync solo lee su estado. */
+class FakeAuth {
+  readonly state = signal<AuthState>('authenticated');
+}
+
 function newVehicle(): NewRow<Vehicle> {
   return {
     user_id: null, nickname: null, make: 'Mazda', model: '3', year: 2022, trim: null,
@@ -54,10 +61,17 @@ describe('SyncService', () => {
   let sync: SyncService;
   let store: OfflineStore;
   let api: FakeApi;
+  let auth: FakeAuth;
 
   beforeEach(async () => {
     api = new FakeApi();
-    TestBed.configureTestingModule({ providers: [{ provide: ApiService, useValue: api }] });
+    auth = new FakeAuth();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ApiService, useValue: api },
+        { provide: AuthService, useValue: auth },
+      ],
+    });
     sync = TestBed.inject(SyncService);
     store = TestBed.inject(OfflineStore);
 
@@ -242,5 +256,49 @@ describe('SyncService', () => {
     expect(api.pushed).toHaveLength(0);
     expect(sync.status()).toBe('offline');
     expect(await db.sync_outbox.count()).toBe(1);
+  });
+
+  // ── Sesión ──────────────────────────────────────────────────────────────
+
+  it('un 401 pausa el sync sin gastar intentos ni marcar fallidos', async () => {
+    await store.create<Vehicle>('vehicles', newVehicle());
+    api.pushImpl = async () => {
+      throw new AuthRequiredError('Sesión no válida o expirada.');
+    };
+
+    await sync.sync();
+
+    // La mutación es válida; solo falta quien la firme. Tiene que seguir
+    // exactamente como estaba para salir en cuanto haya login.
+    const [entry] = await db.sync_outbox.toArray();
+    expect(entry.status).toBe('pending');
+    expect(entry.attempts).toBe(0);
+    expect(sync.status()).toBe('unauthorized');
+  });
+
+  it('con la sesión expirada no manda nada', async () => {
+    auth.state.set('expired');
+    await store.create<Vehicle>('vehicles', newVehicle());
+
+    await sync.sync();
+
+    expect(api.pushed).toHaveLength(0);
+    expect(sync.status()).toBe('unauthorized');
+    expect(await db.sync_outbox.count()).toBe(1);
+  });
+
+  it('solo deja cerrar sesión cuando no queda nada por enviar', async () => {
+    // El outbox de las pruebas anteriores ya se vació en el beforeEach.
+    TestBed.tick();
+    await vi.waitFor(() => expect(sync.canLogout()).toBe(true));
+
+    await store.create<Vehicle>('vehicles', newVehicle());
+    await vi.waitFor(() => expect(sync.logoutBlocker()).toBe('pending'));
+
+    await sync.sync();
+    await vi.waitFor(() => expect(sync.canLogout()).toBe(true));
+
+    auth.state.set('expired');
+    expect(sync.logoutBlocker()).toBe('expired');
   });
 });

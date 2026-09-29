@@ -8,7 +8,7 @@
 #   ./piston rebuild                  Reconstruye imágenes desde cero
 #   ./piston ps                       Estado de contenedores
 #   ./piston logs [servicio]          Logs en vivo
-#   ./piston health                   Consulta /api/health
+#   ./piston health                   Consulta /api/health (desde el contenedor)
 #
 #   ./piston artisan <cmd>            php artisan ... en piston-server
 #   ./piston composer <cmd>           composer ... en piston-server
@@ -102,8 +102,9 @@ case "$cmd" in
     ;;
 
   health)
-    port="$(grep -E '^SERVER_PORT=' .env 2>/dev/null | cut -d= -f2)"
-    curl -fsS "http://localhost:${port:-8088}/api/health" && echo
+    # Desde DENTRO del contenedor: /api/health solo responde a loopback, y
+    # desde el host la petición llegaría con la IP del bridge de Docker.
+    dc exec -T "$SERVER" curl -sS http://127.0.0.1:8000/api/health && echo
     ;;
 
   help|-h|--help)
