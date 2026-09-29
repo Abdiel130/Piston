@@ -6,6 +6,7 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 ## [Unreleased]
 
+## [1.2.1] - 2026-09-29
 ### Added
 - **Instalar la aplicación desde Ajustes**: un botón lanza la instalación
   nativa del navegador, sin depender de encontrarla escondida en su menú. En
@@ -22,7 +23,6 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
   en lugar de quedarse rota.
 
 ## [1.2.0] - 2026-09-20
-
 El proyecto pasa de maqueta a aplicación que funciona. El stack arranca solo
 desde un clon limpio, y detrás de la interfaz ya hay una base de datos local
 real con un motor de sincronización que sobrevive a quedarse sin señal.
