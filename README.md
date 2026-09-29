@@ -59,7 +59,7 @@ Para desactivar las migraciones automáticas, añade `RUN_MIGRATIONS=false` al e
 
 Salida esperada del health check:
 ```json
-{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.2.0","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
+{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.3.0","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
 ```
 
 ### 5. Crear tu Cuenta
@@ -421,7 +421,7 @@ Todos tienen su equivalente directo en `docker compose` por si prefieres no usar
 ```
 
 ### Control de Versiones
-Para actualizar la versión del proyecto de forma consistente en todos los archivos (`app/package.json`, `app/package-lock.json`, `server/routes/api.php`, `CHANGELOG.md` y `README.md`):
+Para actualizar la versión del proyecto de forma consistente en todos los archivos (`app/package.json`, `app/package-lock.json`, `server/config/piston.php` —la que anuncia `/api/health`—, `CHANGELOG.md` y `README.md`):
 
 ```bash
 ./up-version.sh 1.2.2          # pasando la versión como argumento
@@ -429,9 +429,11 @@ Para actualizar la versión del proyecto de forma consistente en todos los archi
 ./up-version.sh                # solicitará la versión de forma interactiva
 ```
 
-> **Nota obligatoria:** Cada cambio final debe utilizar este script para asegurar que la versión esté sincronizada en todo el proyecto y que `CHANGELOG.md` mantenga su sección `[Unreleased]` intacta para futuros cambios.
+> **Nota obligatoria:** Cada cambio final debe utilizar este script para asegurar que la versión esté sincronizada en todo el proyecto.
+
+El script es **todo o nada**: si algo no cuadra no toca ningún archivo. Se niega si la versión no es mayor que la actual, si ya existe en el changelog o si `[Unreleased]` está vacío. Lo escrito en `[Unreleased]` pasa tal cual a `## [X.Y.Z] - AAAA-MM-DD` y `[Unreleased]` queda vacío para lo siguiente.
 
 ---
 
 ## 📄 Licencia y Versión
-- Versión actual: **1.2.1** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).
+- Versión actual: **1.3.0** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).

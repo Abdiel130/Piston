@@ -2,8 +2,8 @@
 
 return [
 
-    /** Versión de la API que se anuncia en /api/health. */
-    'version' => '1.2.0',
+    /** Versión que anuncia /api/health. La mantiene ./up-version.sh; no editar a mano. */
+    'version' => '1.3.0',
 
     /*
     |--------------------------------------------------------------------------

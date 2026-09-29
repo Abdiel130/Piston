@@ -3,15 +3,25 @@
 # up-version.sh — Actualizador centralizado de versiones para Piston
 #
 # Uso:
-#   ./up-version.sh 1.2.2          # Pasando la versión por parámetro
-#   ./up-version.sh                # Solicita la versión por CLI de forma interactiva
+#   ./up-version.sh 1.3.0          # Pasando la versión por parámetro
+#   ./up-version.sh                # Solicita la versión de forma interactiva
 #
 # Archivos actualizados:
-#   - app/package.json
-#   - app/package-lock.json
-#   - server/routes/api.php (/health)
-#   - README.md
-#   - CHANGELOG.md (preserva [Unreleased] e inserta la nueva versión)
+#   - app/package.json             versión del frontend
+#   - app/package-lock.json        raíz del lockfile (dos entradas)
+#   - server/config/piston.php     versión que anuncia /api/health
+#   - README.md                    "Versión actual" y el ejemplo de /api/health
+#   - CHANGELOG.md                 versiona lo escrito en [Unreleased]
+#
+# Es todo o nada: primero calcula el contenido nuevo de TODOS los archivos y
+# solo si ninguno falla los escribe. Una subida a medias (el frontend en una
+# versión y el backend en otra) es peor que no subir.
+#
+# Reglas:
+#   - La versión debe ser SemVer y mayor que la actual (app/package.json).
+#   - [Unreleased] debe tener contenido: sin notas no hay nada que liberar.
+#   - En CHANGELOG, el contenido de [Unreleased] pasa tal cual a
+#     "## [X.Y.Z] - AAAA-MM-DD" y [Unreleased] queda vacío para lo siguiente.
 # =============================================================================
 set -euo pipefail
 
@@ -19,7 +29,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NEW_VERSION="${1:-}"
 
 if [[ -z "$NEW_VERSION" ]]; then
-  echo -n "Ingresa la nueva versión (ej. 1.2.2): "
+  echo -n "Ingresa la nueva versión (ej. 1.3.0): "
   read -r NEW_VERSION
 fi
 
@@ -28,133 +38,125 @@ NEW_VERSION="${NEW_VERSION#v}"
 NEW_VERSION="${NEW_VERSION#V}"
 NEW_VERSION="$(echo -e "${NEW_VERSION}" | tr -d '[:space:]')"
 
-# Validar formato SemVer (ej. 1.2.2 o 1.2.2-rc1)
+# Validar formato SemVer (ej. 1.3.0 o 1.3.0-rc.1)
 if [[ ! "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
-  echo "❌ Error: La versión '$NEW_VERSION' no cumple con el formato SemVer (ej. 1.2.2 o 1.2.2-rc.1)." >&2
+  echo "❌ Error: La versión '$NEW_VERSION' no cumple con el formato SemVer (ej. 1.3.0 o 1.3.0-rc.1)." >&2
   exit 1
 fi
 
 echo "🚀 Actualizando Piston a la versión $NEW_VERSION..."
 
 python3 - "$ROOT_DIR" "$NEW_VERSION" << 'EOF'
-import sys
+import json
 import re
-from pathlib import Path
+import sys
 from datetime import date
+from pathlib import Path
 
-root_dir = Path(sys.argv[1]).resolve()
+root = Path(sys.argv[1]).resolve()
 new_version = sys.argv[2]
 today = date.today().isoformat()
 
-# 1. app/package.json
-pkg_file = root_dir / "app" / "package.json"
-if pkg_file.is_file():
-    content = pkg_file.read_text(encoding="utf-8")
-    new_content, count = re.subn(
-        r'("name":\s*"piston-app",\s*\n\s*"version":\s*")[^"]*(")',
-        rf'\g<1>{new_version}\g<2>',
-        content,
-        count=1
-    )
-    if count > 0:
-        pkg_file.write_text(new_content, encoding="utf-8")
-        print(f"  ✓ {pkg_file.relative_to(root_dir)} -> {new_version}")
-    else:
-        print(f"  ⚠️  No se encontró 'version' en {pkg_file.relative_to(root_dir)}", file=sys.stderr)
+pending: dict[Path, str] = {}   # archivo -> contenido nuevo
+problems: list[str] = []
 
-# 2. app/package-lock.json
-lock_file = root_dir / "app" / "package-lock.json"
-if lock_file.is_file():
-    content = lock_file.read_text(encoding="utf-8")
-    content, c1 = re.subn(
-        r'(^{\s*\n\s*"name":\s*"piston-app",\s*\n\s*"version":\s*")[^"]*(")',
-        rf'\g<1>{new_version}\g<2>',
-        content,
-        count=1
-    )
-    content, c2 = re.subn(
-        r'("":\s*{\s*\n\s*"name":\s*"piston-app",\s*\n\s*"version":\s*")[^"]*(")',
-        rf'\g<1>{new_version}\g<2>',
-        content,
-        count=1
-    )
-    if c1 > 0 or c2 > 0:
-        lock_file.write_text(content, encoding="utf-8")
-        print(f"  ✓ {lock_file.relative_to(root_dir)} -> {new_version}")
-    else:
-        print(f"  ⚠️  No se encontró versión de piston-app en {lock_file.relative_to(root_dir)}", file=sys.stderr)
 
-# 3. server/routes/api.php
-api_file = root_dir / "server" / "routes" / "api.php"
-if api_file.is_file():
-    content = api_file.read_text(encoding="utf-8")
-    new_content, count = re.subn(
-        r"('project'\s*=>\s*'Piston API',\s*\n\s*'version'\s*=>\s*')[^']*(',)",
-        rf"\g<1>{new_version}\g<2>",
-        content,
-        count=1
-    )
-    if count == 0:
-        new_content, count = re.subn(
-            r"('version'\s*=>\s*')[^']*(',)",
-            rf"\g<1>{new_version}\g<2>",
-            content,
-            count=1
-        )
-    if count > 0:
-        api_file.write_text(new_content, encoding="utf-8")
-        print(f"  ✓ {api_file.relative_to(root_dir)} -> {new_version}")
-    else:
-        print(f"  ⚠️  No se encontró 'version' en {api_file.relative_to(root_dir)}", file=sys.stderr)
+def rel(path: Path) -> str:
+    return str(path.relative_to(root))
 
-# 4. README.md
-readme_file = root_dir / "README.md"
-if readme_file.is_file():
-    content = readme_file.read_text(encoding="utf-8")
-    new_content, count = re.subn(
-        r"(- Versión actual:\s*\*\*)[^*]+(\*\*)",
-        rf"\g<1>{new_version}\g<2>",
-        content
-    )
-    if count > 0:
-        readme_file.write_text(new_content, encoding="utf-8")
-        print(f"  ✓ {readme_file.relative_to(root_dir)} -> {new_version}")
-    else:
-        print(f"  ⚠️  No se encontró 'Versión actual' en {readme_file.relative_to(root_dir)}", file=sys.stderr)
 
-# 5. CHANGELOG.md
-changelog_file = root_dir / "CHANGELOG.md"
-if changelog_file.is_file():
-    content = changelog_file.read_text(encoding="utf-8")
-    
-    if re.search(rf"^##\s*\[{re.escape(new_version)}\]", content, re.MULTILINE):
-        print(f"  ✓ {changelog_file.relative_to(root_dir)} -> [{new_version}] ya presente (sin cambios)")
+def core(version: str) -> tuple[int, int, int]:
+    return tuple(int(part) for part in version.split("-", 1)[0].split("."))
+
+
+def replace(path: Path, pattern: str, replacement: str, expected: int, flags: int = 0) -> None:
+    """Sustituye en `path` y exige encontrar exactamente `expected` coincidencias."""
+    if not path.is_file():
+        problems.append(f"No existe {rel(path)}")
+        return
+    content = pending.get(path, path.read_text(encoding="utf-8"))
+    new_content, count = re.subn(pattern, replacement, content, flags=flags)
+    if count != expected:
+        problems.append(f"{rel(path)}: se esperaban {expected} coincidencia(s) y hubo {count}")
+        return
+    pending[path] = new_content
+
+
+# ── Versión actual ──────────────────────────────────────────────────────────
+package_file = root / "app" / "package.json"
+current = json.loads(package_file.read_text(encoding="utf-8"))["version"]
+
+if new_version == current:
+    problems.append(f"La versión {new_version} ya es la actual")
+elif core(new_version) < core(current):
+    problems.append(f"La versión {new_version} es menor que la actual ({current})")
+
+# ── 1. app/package.json ─────────────────────────────────────────────────────
+replace(
+    package_file,
+    r'("name":\s*"piston-app",\s*\n\s*"version":\s*")[^"]*(")',
+    rf"\g<1>{new_version}\g<2>",
+    expected=1,
+)
+
+# ── 2. app/package-lock.json (raíz y paquete "") ────────────────────────────
+replace(
+    root / "app" / "package-lock.json",
+    r'("name":\s*"piston-app",\s*\n\s*"version":\s*")[^"]*(")',
+    rf"\g<1>{new_version}\g<2>",
+    expected=2,
+)
+
+# ── 3. server/config/piston.php (lo que anuncia /api/health) ────────────────
+replace(
+    root / "server" / "config" / "piston.php",
+    r"('version'\s*=>\s*')[^']*(')",
+    rf"\g<1>{new_version}\g<2>",
+    expected=1,
+)
+
+# ── 4. README.md ────────────────────────────────────────────────────────────
+readme = root / "README.md"
+replace(readme, r"(- Versión actual:\s*\*\*)[^*]+(\*\*)", rf"\g<1>{new_version}\g<2>", expected=1)
+replace(
+    readme,
+    r'("service":"Piston API","version":")[^"]*(")',
+    rf"\g<1>{new_version}\g<2>",
+    expected=1,
+)
+
+# ── 5. CHANGELOG.md ─────────────────────────────────────────────────────────
+changelog = root / "CHANGELOG.md"
+content = changelog.read_text(encoding="utf-8")
+
+if re.search(rf"^##\s*\[{re.escape(new_version)}\]", content, re.MULTILINE):
+    problems.append(f"CHANGELOG.md ya tiene una sección [{new_version}]")
+else:
+    # Desde "## [Unreleased]" hasta el siguiente "## [" (o el final).
+    unreleased = re.search(r"^##\s*\[Unreleased\][ \t]*\n(.*?)(?=^##\s*\[|\Z)", content, re.MULTILINE | re.DOTALL)
+    if not unreleased:
+        problems.append("CHANGELOG.md no tiene sección ## [Unreleased]")
+    elif not unreleased.group(1).strip():
+        problems.append("[Unreleased] está vacío: escribe las notas del release antes de versionar")
     else:
-        unreleased_pattern = re.compile(r"(##\s*\[Unreleased\])(.*?)(\n##\s*\[\d+\.\d+\.\d+)", re.DOTALL)
-        m = unreleased_pattern.search(content)
-        if m:
-            unreleased_header = m.group(1)
-            between = m.group(2).strip()
-            next_header = m.group(3)
-            
-            if between:
-                replacement = f"{unreleased_header}\n\n## [{new_version}] - {today}\n{between}\n{next_header}"
-            else:
-                replacement = f"{unreleased_header}\n\n## [{new_version}] - {today}\n{next_header}"
-                
-            new_content = content[:m.start()] + replacement + content[m.end():]
-            changelog_file.write_text(new_content, encoding="utf-8")
-            print(f"  ✓ {changelog_file.relative_to(root_dir)} -> añadido [{new_version}] y [Unreleased] preparado")
-        else:
-            first_version_pattern = re.compile(r"(\n##\s*\[\d+\.\d+\.\d+)")
-            m_fv = first_version_pattern.search(content)
-            if m_fv:
-                replacement = f"\n## [Unreleased]\n\n## [{new_version}] - {today}\n{m_fv.group(1)}"
-                new_content = content[:m_fv.start()] + replacement + content[m_fv.end():]
-                changelog_file.write_text(new_content, encoding="utf-8")
-                print(f"  ✓ {changelog_file.relative_to(root_dir)} -> añadido [Unreleased] y [{new_version}]")
-            else:
-                print(f"  ⚠️  No se encontró estructura de versión en {changelog_file.relative_to(root_dir)}", file=sys.stderr)
+        body = unreleased.group(1).strip("\n")
+        # Mismo formato que el resto de secciones: encabezado, línea en blanco,
+        # contenido, línea en blanco antes de la siguiente sección.
+        section = f"## [Unreleased]\n\n## [{new_version}] - {today}\n\n{body}\n\n"
+        pending[changelog] = content[: unreleased.start()] + section + content[unreleased.end():]
+
+# ── Escribir todo o nada ────────────────────────────────────────────────────
+if problems:
+    print("❌ No se modificó ningún archivo:", file=sys.stderr)
+    for problem in problems:
+        print(f"   - {problem}", file=sys.stderr)
+    sys.exit(1)
+
+for path, new_content in pending.items():
+    path.write_text(new_content, encoding="utf-8")
+    print(f"  ✓ {rel(path)}")
+
+print(f"\n  {current} → {new_version}")
 EOF
 
 echo ""
