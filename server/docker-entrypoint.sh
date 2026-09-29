@@ -36,6 +36,16 @@ until php -r "new PDO('pgsql:host='.getenv('DB_HOST').';port='.getenv('DB_PORT')
 done
 echo "[piston] Base de datos lista."
 
+# 4b. Base de pruebas. PHPUnit corre contra Postgres (el sync depende de
+# triggers de pg) pero en su propia base, para no vaciar la de desarrollo.
+php -r "
+  \$pdo = new PDO('pgsql:host='.getenv('DB_HOST').';port='.getenv('DB_PORT').';dbname='.getenv('DB_DATABASE'), getenv('DB_USERNAME'), getenv('DB_PASSWORD'));
+  if (!\$pdo->query(\"SELECT 1 FROM pg_database WHERE datname = 'piston_test'\")->fetchColumn()) {
+    \$pdo->exec('CREATE DATABASE piston_test');
+    echo \"[piston] Base piston_test creada.\n\";
+  }
+" || echo "[piston] No se pudo crear piston_test; los tests del backend fallarán."
+
 # 5. Migraciones automáticas (desactívalo con RUN_MIGRATIONS=false)
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
   php artisan migrate --force --no-interaction

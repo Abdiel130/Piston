@@ -25,11 +25,17 @@ return [
         env('FRONTEND_URL', 'http://localhost:4300'),
     ],
 
-    'allowed_origins_patterns' => [],
+    // Solo en desarrollo: el front servido por la IP de la PC en la red local
+    // (probar desde el celular). Rangos privados RFC 1918, puerto 4300. En
+    // producción la app y la API comparten origen y esto queda vacío.
+    'allowed_origins_patterns' => env('APP_ENV') === 'local' ? [
+        '#^http://(10(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}):4300$#',
+    ] : [],
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    // El id de la petición, para que la app pueda mostrarlo al reportar un error.
+    'exposed_headers' => ['X-Request-Id'],
 
     'max_age' => 0,
 

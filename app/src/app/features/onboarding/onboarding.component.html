@@ -1,0 +1,465 @@
+@if (hydrated()) {
+  <div class="pst-bare wizard">
+    <header class="wizard__head">
+      <div
+        class="wizard__progress"
+        role="progressbar"
+        [attr.aria-valuenow]="index() + 1"
+        aria-valuemin="1"
+        [attr.aria-valuemax]="steps.length"
+      >
+        @for (s of steps; track s.id; let i = $index) {
+          <span
+            class="wizard__dot"
+            [class.is-done]="i < index()"
+            [class.is-current]="i === index()"
+          ></span>
+        }
+      </div>
+      <p class="pst-header__eyebrow">Paso {{ index() + 1 }} de {{ steps.length }}</p>
+      <h1 class="pst-header__title">{{ current().title }}</h1>
+      <p class="wizard__sub">{{ current().sub }}</p>
+    </header>
+
+    <section class="wizard__body">
+      @switch (step()) {
+        @case ('account') {
+          <div class="pst-form">
+            <label class="pst-field">
+              <span class="pst-field__label">Nombre</span>
+              <input
+                class="pst-input"
+                autocomplete="name"
+                [value]="account().name ?? ''"
+                (input)="setAccount('name', text($event))"
+              />
+            </label>
+
+            <label class="pst-field">
+              <span class="pst-field__label">Correo</span>
+              <input class="pst-input" [value]="email()" disabled />
+            </label>
+
+            <div class="pst-field">
+              <span class="pst-field__label">Moneda</span>
+              <div class="pst-chips">
+                @for (option of currencies; track option.value) {
+                  <button
+                    type="button"
+                    class="pst-chip"
+                    [class.is-active]="account().currency === option.value"
+                    (click)="setAccount('currency', option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="pst-field">
+              <span class="pst-field__label">Distancia</span>
+              <div class="pst-chips">
+                @for (option of distanceUnits; track option.value) {
+                  <button
+                    type="button"
+                    class="pst-chip"
+                    [class.is-active]="account().distance_unit === option.value"
+                    (click)="setAccount('distance_unit', option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="pst-field">
+              <span class="pst-field__label">Volumen</span>
+              <div class="pst-chips">
+                @for (option of volumeUnits; track option.value) {
+                  <button
+                    type="button"
+                    class="pst-chip"
+                    [class.is-active]="account().volume_unit === option.value"
+                    (click)="setAccount('volume_unit', option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <details class="wizard__password">
+              <summary>Cambiar la contraseña temporal</summary>
+              <div class="pst-form">
+                <p class="pst-field__hint">
+                  Si tu cuenta la creó alguien más, cámbiala ahora. Necesita conexión.
+                </p>
+                <input
+                  class="pst-input"
+                  type="password"
+                  placeholder="Contraseña actual"
+                  autocomplete="current-password"
+                  [value]="currentPassword()"
+                  (input)="currentPassword.set(text($event))"
+                />
+                <input
+                  class="pst-input"
+                  type="password"
+                  placeholder="Nueva (mínimo 8 caracteres)"
+                  autocomplete="new-password"
+                  [value]="newPassword()"
+                  (input)="newPassword.set(text($event))"
+                />
+                @if (passwordMessage(); as message) {
+                  <p
+                    class="pst-note"
+                    [class.pst-note--good]="message.tone === 'good'"
+                    [class.pst-note--bad]="message.tone === 'bad'"
+                  >
+                    {{ message.text }}
+                  </p>
+                }
+                <button
+                  type="button"
+                  class="pst-btn"
+                  [disabled]="
+                    !online() || passwordBusy() || !currentPassword() || newPassword().length < 8
+                  "
+                  (click)="changePassword()"
+                >
+                  {{ passwordBusy() ? 'Cambiando…' : 'Cambiar contraseña' }}
+                </button>
+              </div>
+            </details>
+          </div>
+        }
+
+        @case ('vehicle') {
+          <div class="pst-form">
+            <div class="pst-field-row">
+              <label class="pst-field">
+                <span class="pst-field__label">Marca</span>
+                <input
+                  class="pst-input"
+                  placeholder="Mazda"
+                  [value]="vehicle().make ?? ''"
+                  (input)="setVehicle('make', text($event))"
+                />
+              </label>
+              <label class="pst-field">
+                <span class="pst-field__label">Modelo</span>
+                <input
+                  class="pst-input"
+                  placeholder="3 Sedán"
+                  [value]="vehicle().model ?? ''"
+                  (input)="setVehicle('model', text($event))"
+                />
+              </label>
+            </div>
+
+            <div class="pst-field-row">
+              <label class="pst-field">
+                <span class="pst-field__label">Año</span>
+                <input
+                  class="pst-input pst-numeric"
+                  inputmode="numeric"
+                  placeholder="2022"
+                  [value]="vehicle().year ?? ''"
+                  (input)="setVehicle('year', num($event))"
+                />
+              </label>
+              <label class="pst-field">
+                <span class="pst-field__label"
+                  >Apodo <span class="wizard__optional">opcional</span></span
+                >
+                <input
+                  class="pst-input"
+                  placeholder="El rojo"
+                  [value]="vehicle().nickname ?? ''"
+                  (input)="setVehicle('nickname', text($event))"
+                />
+              </label>
+            </div>
+
+            <div class="pst-field">
+              <span class="pst-field__label">Tipo</span>
+              <div class="pst-chips">
+                @for (option of vehicleTypes; track option.value) {
+                  <button
+                    type="button"
+                    class="pst-chip"
+                    [class.is-active]="vehicle().vehicle_type === option.value"
+                    (click)="setVehicle('vehicle_type', option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="pst-field">
+              <span class="pst-field__label">Transmisión</span>
+              <div class="pst-chips">
+                @for (option of transmissions; track option.value) {
+                  <button
+                    type="button"
+                    class="pst-chip"
+                    [class.is-active]="vehicle().transmission === option.value"
+                    (click)="setVehicle('transmission', option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <label class="pst-field">
+              <span class="pst-field__label"
+                >Placa <span class="wizard__optional">opcional</span></span
+              >
+              <input
+                class="pst-input"
+                autocapitalize="characters"
+                placeholder="ABC-123-D"
+                [value]="vehicle().license_plate ?? ''"
+                (input)="setVehicle('license_plate', text($event))"
+              />
+              <span class="pst-field__hint"
+                >La terminación decide tu calendario de verificación.</span
+              >
+            </label>
+
+            <div class="pst-field">
+              <span class="pst-field__label">Engomado</span>
+              <div class="pst-chips">
+                @for (option of stickers; track option.value) {
+                  <button
+                    type="button"
+                    class="pst-chip"
+                    [class.is-active]="vehicle().emissions_sticker === option.value"
+                    (click)="setVehicle('emissions_sticker', option.value)"
+                  >
+                    <span class="pst-chip__swatch" [style.background]="option.swatch"></span>
+                    {{ option.label }}
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        @case ('tank') {
+          <div class="pst-form">
+            <div class="wizard__gauge">
+              <pst-gauge
+                [segments]="segments()"
+                [value]="segments()"
+                [size]="190"
+                [caption]="'' + segments()"
+                hint="rayitas"
+              />
+              <div class="wizard__stepper">
+                <button
+                  type="button"
+                  class="pst-btn"
+                  aria-label="Una rayita menos"
+                  (click)="bumpSegments(-1)"
+                >
+                  −
+                </button>
+                <span class="pst-numeric">{{ segments() }}</span>
+                <button
+                  type="button"
+                  class="pst-btn"
+                  aria-label="Una rayita más"
+                  (click)="bumpSegments(1)"
+                >
+                  +
+                </button>
+              </div>
+              <p class="pst-field__hint wizard__center">
+                Cuenta las marcas del indicador de gasolina, de vacío a lleno. Si no las recuerdas,
+                sal a revisarlas: esto queda guardado.
+              </p>
+            </div>
+
+            <label class="pst-field">
+              <span class="pst-field__label">Capacidad del tanque (L)</span>
+              <input
+                class="pst-input pst-numeric"
+                inputmode="decimal"
+                placeholder="51"
+                [value]="vehicle().tank_capacity_l ?? ''"
+                (input)="setVehicle('tank_capacity_l', num($event))"
+              />
+              @if (litersPerSegment(); as liters) {
+                <span class="pst-field__hint"
+                  >≈ {{ liters }} L por rayita. Se afina solo con tus cargas a tanque lleno.</span
+                >
+              } @else {
+                <span class="pst-field__hint">Viene en el manual o en la tapa del tanque.</span>
+              }
+            </label>
+
+            <div class="pst-field">
+              <span class="pst-field__label">Combustible</span>
+              <div class="pst-chips">
+                @for (option of fuelGrades; track option.value) {
+                  <button
+                    type="button"
+                    class="pst-chip"
+                    [class.is-active]="vehicle().default_fuel_grade === option.value"
+                    (click)="setVehicle('default_fuel_grade', option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            @if (savedLater()) {
+              <p class="pst-note pst-note--good">
+                Guardado. Puedes cerrar la app; al volver seguirás en este paso.
+              </p>
+            }
+          </div>
+        }
+
+        @case ('purchase') {
+          <div class="pst-form">
+            <label class="pst-field">
+              <span class="pst-field__label">Kilometraje actual</span>
+              <input
+                class="pst-input pst-numeric"
+                inputmode="numeric"
+                placeholder="48 250"
+                [value]="vehicle().current_odometer_km ?? ''"
+                (input)="setVehicle('current_odometer_km', num($event))"
+              />
+              <span class="pst-field__hint">El que marca el tablero hoy.</span>
+            </label>
+
+            <label class="pst-field">
+              <span class="pst-field__label"
+                >Fecha de compra <span class="wizard__optional">opcional</span></span
+              >
+              <input
+                class="pst-input"
+                type="date"
+                [value]="vehicle().purchase_date ?? ''"
+                (input)="setVehicle('purchase_date', text($event) || null)"
+              />
+            </label>
+
+            <div class="pst-field-row">
+              <label class="pst-field">
+                <span class="pst-field__label"
+                  >Km al comprarlo <span class="wizard__optional">opcional</span></span
+                >
+                <input
+                  class="pst-input pst-numeric"
+                  inputmode="numeric"
+                  placeholder="0"
+                  [value]="vehicle().purchase_odometer_km ?? ''"
+                  (input)="setVehicle('purchase_odometer_km', num($event))"
+                />
+              </label>
+              <label class="pst-field">
+                <span class="pst-field__label"
+                  >Precio <span class="wizard__optional">opcional</span></span
+                >
+                <input
+                  class="pst-input pst-numeric"
+                  inputmode="decimal"
+                  placeholder="350 000"
+                  [value]="vehicle().purchase_price ?? ''"
+                  (input)="setVehicle('purchase_price', num($event))"
+                />
+              </label>
+            </div>
+
+            @if (
+              vehicle().purchase_odometer_km != null &&
+              vehicle().current_odometer_km != null &&
+              vehicle().purchase_odometer_km! > vehicle().current_odometer_km!
+            ) {
+              <p class="pst-note pst-note--warn">
+                El kilometraje de compra no puede ser mayor que el actual.
+              </p>
+            }
+          </div>
+        }
+
+        @case ('review') {
+          <div class="pst-card pst-card--flush">
+            <div class="pst-list">
+              <div class="pst-row">
+                <span class="pst-row__icon"><pst-icon name="car" [size]="18" /></span>
+                <span class="pst-row__body">
+                  <span class="pst-row__title"
+                    >{{ vehicle().make }} {{ vehicle().model }} {{ vehicle().year }}</span
+                  >
+                  @if (vehicle().nickname) {
+                    <span class="pst-row__sub">{{ vehicle().nickname }}</span>
+                  }
+                </span>
+              </div>
+              <div class="pst-row">
+                <span class="pst-row__icon"><pst-icon name="gauge" [size]="18" /></span>
+                <span class="pst-row__body"><span class="pst-row__title">Medidor</span></span>
+                <span class="pst-row__trail"
+                  >{{ segments() }} rayitas · {{ vehicle().tank_capacity_l }} L</span
+                >
+              </div>
+              <div class="pst-row">
+                <span class="pst-row__icon"><pst-icon name="road" [size]="18" /></span>
+                <span class="pst-row__body"><span class="pst-row__title">Kilometraje</span></span>
+                <span class="pst-row__trail pst-numeric"
+                  >{{ vehicle().current_odometer_km }} km</span
+                >
+              </div>
+              @if (vehicle().license_plate) {
+                <div class="pst-row">
+                  <span class="pst-row__icon"><pst-icon name="document" [size]="18" /></span>
+                  <span class="pst-row__body"><span class="pst-row__title">Placa</span></span>
+                  <span class="pst-row__trail">{{ vehicle().license_plate }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      }
+
+      @if (error(); as message) {
+        <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+      }
+    </section>
+
+    <footer class="wizard__actions">
+      <button
+        type="button"
+        class="pst-btn pst-btn--primary pst-btn--block"
+        [disabled]="!canAdvance()"
+        (click)="next()"
+      >
+        @if (step() === 'review') {
+          {{ finishing() ? 'Guardando…' : 'Empezar a usar Piston' }}
+        } @else {
+          Siguiente
+        }
+      </button>
+      <div class="wizard__secondary">
+        @if (index() > 0) {
+          <button type="button" class="pst-btn pst-btn--ghost" (click)="back()">
+            <pst-icon name="chevronLeft" [size]="16" /> Atrás
+          </button>
+        }
+        @if (step() === 'tank') {
+          <button type="button" class="pst-btn pst-btn--ghost" (click)="later()">
+            Lo confirmo después
+          </button>
+        }
+      </div>
+    </footer>
+  </div>
+}

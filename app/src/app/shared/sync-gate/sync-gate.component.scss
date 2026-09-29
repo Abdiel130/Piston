@@ -1,0 +1,102 @@
+.gate {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: var(--pst-gutter);
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: var(--pst-blur);
+  -webkit-backdrop-filter: var(--pst-blur);
+  animation: gate-in var(--pst-dur-base) var(--pst-snap) both;
+}
+
+.gate__card {
+  width: 100%;
+  max-width: 22rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pst-space-4);
+  padding: var(--pst-space-8) var(--pst-space-6) var(--pst-space-6);
+  border-radius: var(--pst-r-2xl);
+  background: var(--pst-material-thick);
+  box-shadow: var(--pst-shadow-float);
+  text-align: center;
+  animation: pst-rise var(--pst-dur-slow) var(--pst-spring) both;
+}
+
+.gate__icon {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--pst-r-pill);
+  background: color-mix(in srgb, var(--pst-ignition) 18%, transparent);
+  color: var(--pst-ignition);
+}
+
+/* Gira la caja entera: el fondo es un círculo, así que no se nota, y evita
+   depender de cómo pinta su host el componente de icono. */
+.gate__icon.is-spinning {
+  animation: gate-spin 1.1s linear infinite;
+}
+
+.gate__title {
+  font-size: var(--pst-title-2);
+  font-weight: 700;
+}
+
+.gate__sub {
+  font-size: var(--pst-subhead);
+  color: var(--pst-label-2);
+}
+
+.gate__steps {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-1);
+}
+
+.gate__steps li {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--pst-space-2) var(--pst-space-3);
+  border-radius: var(--pst-r-sm);
+  font-size: var(--pst-subhead);
+  color: var(--pst-label-3);
+  transition:
+    color var(--pst-dur-fast) var(--pst-snap),
+    background-color var(--pst-dur-fast) var(--pst-snap);
+}
+
+.gate__steps li.is-active {
+  color: var(--pst-label);
+  background: var(--pst-surface-2);
+}
+
+.gate__actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-2);
+}
+
+@keyframes gate-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes gate-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gate__icon.is-spinning {
+    animation: none;
+  }
+}

@@ -4,9 +4,75 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
+
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-28
+
+La aplicación ya sabe de quién es. Cada dispositivo tiene un dueño con una
+sesión que dura meses sin pedir contraseña, que nunca bloquea los datos
+locales aunque no haya señal, y que deja todo listo para que la
+sincronización con el servidor funcione de verdad.
+
+### Added
+- **Cuentas e inicio de sesión**: la app pide iniciar sesión la primera vez y
+  después funciona sin red de forma indefinida. La sesión se renueva sola en
+  segundo plano; quien abre la app al menos una vez cada dos meses no vuelve a
+  escribir su contraseña. No hay registro público: las cuentas las crea quien
+  administra el servidor.
+- **Sesiones seguras por dispositivo**: cada teléfono o computadora tiene su
+  propia sesión, que se puede cerrar sin afectar a las demás. La credencial de
+  larga duración nunca queda al alcance del código de la página, y si alguien
+  llegara a copiarla, el sistema lo detecta y cierra esa sesión.
+- **Una sesión vencida no detiene la app**: si la sesión expira, la aplicación
+  sigue abriendo y guardando con normalidad; solo la sincronización espera a
+  que el usuario vuelva a entrar, y nada de lo pendiente se pierde ni se da por
+  fallido.
+- **Cierre de sesión sin pérdida de datos**: cerrar sesión solo se permite
+  cuando todo lo capturado ya está en el servidor, y la pantalla explica qué
+  falta cuando no se puede. Para el caso extremo de una cuenta irrecuperable
+  existe una salida explícita que exige confirmación escrita.
+- **Ventana de sincronización al entrar**: después de cada inicio de sesión el
+  dispositivo se pone al día con la cuenta antes de mostrar nada, con el avance
+  a la vista. Si el servidor no responde, se puede seguir sin esperar.
+- **Wizard de bienvenida**: la primera vez se configura la cuenta y el primer
+  vehículo, incluidas las rayitas del medidor de gasolina con una vista previa
+  en vivo. Todo se guarda al instante, así que se puede cerrar la app a medias
+  —por ejemplo, para ir a contar las rayitas— y retomarla en el mismo paso,
+  incluso desde otro dispositivo.
+- **Administración de cuentas desde la terminal**: crear cuentas, cambiar
+  contraseñas y cerrar todas las sesiones de alguien (por ejemplo, ante un
+  teléfono perdido), con asistentes interactivos cuando no se pasan datos.
+- **Documentación de sesiones y de la API**: cómo funciona la autenticación de
+  punta a punta, qué decisiones se tomaron y cuáles se descartaron, y el
+  contrato común de todas las respuestas del servidor.
+
+### Changed
+- **Respuestas del servidor uniformes**: toda respuesta, de éxito o de error,
+  tiene la misma forma y un código estable que la app puede interpretar sin
+  depender del texto. Cada respuesta lleva un identificador que permite rastrear
+  un error reportado sin que el servidor revele nada de su funcionamiento
+  interno.
+- **Ajustes muestra la cuenta**: quién es el dueño del dispositivo, el estado de
+  la sesión y el cierre de sesión con sus condiciones.
+- **El catálogo inicial se siembra después de la primera sincronización**, para
+  que un segundo dispositivo no duplique los tipos de servicio y las categorías
+  que la cuenta ya tiene.
+- **Las pruebas del backend corren contra su propia base de datos**, igual a la
+  de producción, y se niegan a ejecutarse si apuntan a cualquier otra.
+
+### Removed
+- **La verificación de salud pública**: el estado del servidor solo se puede
+  consultar desde el propio servidor, y ya no informa versiones ni detalles
+  internos. Para cualquier otro, la ruta no existe.
+
+### Fixed
+- **Usar la app desde el celular en la red local**: al abrirla por la IP de la
+  computadora, el servidor rechazaba todas sus peticiones. Ahora se aceptan en
+  desarrollo, como ya prometía la documentación.
+
 ## [1.2.1] - 2026-09-29
+
 ### Added
 - **Instalar la aplicación desde Ajustes**: un botón lanza la instalación
   nativa del navegador, sin depender de encontrarla escondida en su menú. En
@@ -23,6 +89,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
   en lugar de quedarse rota.
 
 ## [1.2.0] - 2026-09-20
+
 El proyecto pasa de maqueta a aplicación que funciona. El stack arranca solo
 desde un clon limpio, y detrás de la interfaz ya hay una base de datos local
 real con un motor de sincronización que sobrevive a quedarse sin señal.

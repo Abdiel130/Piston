@@ -1,0 +1,57 @@
+<div class="pst-bare login pst-stagger">
+  <header class="login__brand">
+    <span class="login__mark"><pst-icon name="gauge" [size]="32" /></span>
+    <h1 class="login__title">{{ reauth() ? 'Tu sesión expiró' : 'Piston' }}</h1>
+    <p class="login__sub">
+      @if (reauth()) {
+        Tus datos siguen en este dispositivo. Vuelve a entrar para sincronizarlos.
+      } @else {
+        Inicia sesión para empezar. Después, la app funciona aunque no tengas señal.
+      }
+    </p>
+  </header>
+
+  <form class="pst-form" (submit)="submit($event)" novalidate>
+    <label class="pst-field">
+      <span class="pst-field__label">Correo</span>
+      <input
+        class="pst-input"
+        type="email"
+        autocomplete="username"
+        inputmode="email"
+        autocapitalize="off"
+        spellcheck="false"
+        [value]="email()"
+        [disabled]="reauth()"
+        (input)="email.set(value($event))"
+      />
+    </label>
+
+    <label class="pst-field">
+      <span class="pst-field__label">Contraseña</span>
+      <input
+        class="pst-input"
+        type="password"
+        autocomplete="current-password"
+        [value]="password()"
+        (input)="password.set(value($event))"
+      />
+    </label>
+
+    @if (!online()) {
+      <p class="pst-note pst-note--warn">
+        Sin conexión. Iniciar sesión necesita internet una sola vez.
+      </p>
+    }
+
+    @if (error(); as message) {
+      <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+    }
+
+    <button type="submit" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="!canSubmit()">
+      {{ busy() ? 'Entrando…' : 'Iniciar sesión' }}
+    </button>
+  </form>
+
+  <p class="login__foot">¿Sin cuenta? Pídela a quien administra tu servidor de Piston.</p>
+</div>

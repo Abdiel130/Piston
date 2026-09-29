@@ -1,16 +1,31 @@
-<pst-dynamic-island />
+@if (chrome()) {
+  <pst-dynamic-island />
 
-<!-- Velo al expandir la isla. Tocar fuera cierra, que es lo que espera
-     cualquiera que haya usado una hoja modal en iOS. -->
-<div
-  class="scrim"
-  [class.is-visible]="islandExpanded()"
-  (click)="collapseIsland()"
-  aria-hidden="true"
-></div>
+  <!-- Velo al expandir la isla. Tocar fuera cierra, que es lo que espera
+       cualquiera que haya usado una hoja modal en iOS. -->
+  <div
+    class="scrim"
+    [class.is-visible]="islandExpanded()"
+    (click)="collapseIsland()"
+    aria-hidden="true"
+  ></div>
 
-<main class="shell pst-scroll-area">
-  <router-outlet />
-</main>
+  @if (sessionExpired()) {
+    <a class="expired" routerLink="/login">
+      <pst-icon name="cloudOff" [size]="14" />
+      <span>Sesión expirada · Inicia sesión para sincronizar</span>
+    </a>
+  }
 
-<pst-tab-bar />
+  <main class="shell pst-scroll-area">
+    <router-outlet />
+  </main>
+
+  <pst-tab-bar />
+} @else {
+  <main class="pst-scroll-area bare-shell">
+    <router-outlet />
+  </main>
+}
+
+<pst-sync-gate />

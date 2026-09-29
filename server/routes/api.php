@@ -1,35 +1,37 @@
 <?php
 
-use Illuminate\Http\Request;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\Auth\RefreshController;
+use App\Http\Controllers\HealthController;
+use App\Http\Controllers\MeController;
+use App\Http\Controllers\OnboardingController;
+use App\Http\Middleware\EnsurePistonClient;
+use App\Http\Middleware\LocalOnly;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
-
-Route::get('/health', function () {
-    $dbStatus = 'disconnected';
-    $dbError = null;
-
-    try {
-        \Illuminate\Support\Facades\DB::connection()->getPdo();
-        $dbStatus = 'connected';
-    } catch (\Throwable $e) {
-        $dbError = $e->getMessage();
-    }
-
-    return response()->json([
-        'status' => 'ok',
-        'project' => 'Piston API',
-        'version' => '1.2.1',
-        'laravel_version' => app()->version(),
-        'php_version' => PHP_VERSION,
-        'database' => [
-            'status' => $dbStatus,
-            'driver' => config('database.default'),
-            'error' => $dbError,
-        ],
-        'timestamp' => now()->toIso8601String(),
-    ]);
+/*
+| Auth. Estas rutas son las únicas que reciben la cookie del refresh (su Path
+| es /api/auth), así que todas exigen el header del cliente como defensa CSRF.
+| No hay registro: las cuentas se crean con `php artisan piston:user:create`.
+*/
+Route::prefix('auth')->middleware(EnsurePistonClient::class)->group(function () {
+    Route::post('login', LoginController::class)->middleware('throttle:login');
+    Route::post('refresh', RefreshController::class)->middleware('throttle:refresh');
+    Route::post('logout', LogoutController::class)->middleware('auth:sanctum');
 });
 
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('me', [MeController::class, 'show']);
+    Route::patch('me', [MeController::class, 'update']);
+    Route::put('me/password', [MeController::class, 'password'])->middleware('throttle:login');
+    Route::put('me/onboarding', [OnboardingController::class, 'update']);
+    Route::post('me/onboarding/complete', [OnboardingController::class, 'complete']);
+});
+
+/*
+| Salud del servicio. SOLO desde el propio servidor (loopback, sin proxy de por
+| medio); para cualquier otro no existe. Desde el host: `./piston health`, que
+| consulta desde dentro del contenedor.
+*/
+Route::get('health', HealthController::class)->middleware(LocalOnly::class);

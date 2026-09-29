@@ -1,0 +1,49 @@
+@if (phase() !== 'hidden') {
+  <div class="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+    <div class="gate__card">
+      <span class="gate__icon" [class.is-spinning]="phase() === 'running'">
+        <pst-icon [name]="phase() === 'failed' ? 'cloudOff' : 'sync'" [size]="28" />
+      </span>
+
+      @if (phase() === 'running') {
+        <h2 id="gate-title" class="gate__title">Hola{{ name() ? ', ' + name() : '' }}</h2>
+        <p class="gate__sub">Poniendo este dispositivo al día con tu cuenta.</p>
+      } @else {
+        <h2 id="gate-title" class="gate__title">No se pudo sincronizar</h2>
+        <p class="gate__sub">
+          Tus datos están a salvo en este dispositivo. Se sincronizarán solos en cuanto el servidor
+          responda.
+        </p>
+      }
+
+      <ul class="gate__steps">
+        <li [class.is-active]="progress().phase === 'push'">
+          <span>Enviando cambios</span>
+          <span class="pst-numeric">{{ pending() }}</span>
+        </li>
+        <li [class.is-active]="progress().phase === 'pull'">
+          <span>Recibiendo datos</span>
+          <span class="pst-numeric">{{ progress().pulled }}</span>
+        </li>
+        <li [class.is-active]="progress().phase === 'uploads'">
+          <span>Subiendo fotos</span>
+          <span class="pst-numeric">{{ uploads() }}</span>
+        </li>
+      </ul>
+
+      @if (phase() === 'failed') {
+        @if (error()) {
+          <p class="pst-note pst-note--warn">{{ error() }}</p>
+        }
+        <div class="gate__actions">
+          <button type="button" class="pst-btn pst-btn--primary pst-btn--block" (click)="run()">
+            Reintentar
+          </button>
+          <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" (click)="finish()">
+            Continuar sin sincronizar
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+}

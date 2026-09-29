@@ -29,3 +29,31 @@
   opacity: 1;
   pointer-events: auto;
 }
+
+.bare-shell {
+  height: 100dvh;
+}
+
+/* Aviso de sesión vencida. Va justo bajo el carril de la isla y no la tapa:
+   la isla sigue siendo del contexto de cada pantalla. */
+.expired {
+  position: fixed;
+  top: calc(var(--pst-safe-top) + var(--pst-island-lane));
+  left: 50%;
+  z-index: 90;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pst-space-2);
+  max-width: calc(100% - 2 * var(--pst-gutter));
+  padding: var(--pst-space-2) var(--pst-space-4);
+  border-radius: var(--pst-r-pill);
+  background: color-mix(in srgb, var(--pst-warn) 18%, var(--pst-surface-1));
+  color: var(--pst-warn);
+  font-size: var(--pst-footnote);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: var(--pst-shadow-float);
+}

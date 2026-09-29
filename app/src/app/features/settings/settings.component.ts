@@ -1,8 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
+import { AuthService } from '../../core/auth/auth.service';
 import { db } from '../../core/db/piston-db';
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { PwaService } from '../../core/pwa/pwa.service';
-import { SyncService } from '../../core/sync/sync.service';
+import { SyncService, type LogoutBlocker } from '../../core/sync/sync.service';
 import { IconComponent, type IconName } from '../../shared/icon/icon.component';
 import { IslandService } from '../../shared/island/island.service';
 
@@ -12,6 +14,18 @@ interface SettingRow {
   readonly value?: string;
   readonly action?: () => void;
 }
+
+/** Lo que hay que escribir para confirmar la salida de emergencia. */
+const DISCARD_CONFIRMATION = 'BORRAR';
+
+const BLOCKER_TEXT: Record<Exclude<LogoutBlocker, null>, string> = {
+  expired: 'Tu sesión expiró. Vuelve a iniciarla para enviar lo pendiente.',
+  offline: 'Sin conexión. Hace falta para confirmar que todo se envió.',
+  syncing: 'Sincronizando…',
+  pending: 'Hay cambios sin enviar al servidor.',
+  failed: 'Hay cambios que el servidor rechazó. Reintenta antes de salir.',
+  uploads: 'Hay fotos sin subir.',
+};
 
 interface SettingGroup {
   readonly title: string;
@@ -30,11 +44,28 @@ interface SettingGroup {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [IconComponent],
   templateUrl: './settings.component.html',
+  styleUrl: './settings.component.scss',
 })
 export class SettingsComponent {
   private readonly island = inject(IslandService);
   private readonly sync = inject(SyncService);
   private readonly store = inject(OfflineStore);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+
+  protected readonly user = this.auth.user;
+  protected readonly authState = this.auth.state;
+  protected readonly blocker = this.sync.logoutBlocker;
+  protected readonly blockerText = computed(() => {
+    const blocker = this.blocker();
+    return blocker ? BLOCKER_TEXT[blocker] : null;
+  });
+  protected readonly loggingOut = signal(false);
+  protected readonly logoutError = signal<string | null>(null);
+  protected readonly discardOpen = signal(false);
+  protected readonly discardText = signal('');
+  protected readonly discardConfirmation = DISCARD_CONFIRMATION;
+  protected readonly canDiscard = computed(() => this.discardText().trim() === DISCARD_CONFIRMATION);
   private readonly pwa = inject(PwaService);
 
   protected readonly pending = this.sync.pendingCount;
@@ -188,6 +219,49 @@ export class SettingsComponent {
     }
   }
 
+  /**
+   * Cerrar sesión BORRA la base local. Por eso primero se sincroniza y se
+   * vuelve a comprobar: el botón pudo habilitarse con la cola vacía y que otra
+   * pestaña haya encolado algo justo después.
+   */
+  protected async logout(): Promise<void> {
+    if (this.loggingOut()) {
+      return;
+    }
+    this.loggingOut.set(true);
+    this.logoutError.set(null);
+    try {
+      await this.sync.sync();
+      if (!this.sync.canLogout()) {
+        this.logoutError.set(this.blockerText() ?? 'Todavía hay datos sin enviar.');
+        return;
+      }
+      await this.auth.logout();
+      await this.router.navigateByUrl('/login');
+    } catch {
+      this.logoutError.set('No se pudo cerrar la sesión. Revisa la conexión e inténtalo de nuevo.');
+    } finally {
+      this.loggingOut.set(false);
+    }
+  }
+
+  protected relogin(): void {
+    void this.router.navigateByUrl('/login');
+  }
+
+  /** Salida de emergencia: pierde lo que no se haya enviado. Exige escribir la confirmación. */
+  protected async discard(): Promise<void> {
+    if (!this.canDiscard()) {
+      return;
+    }
+    await this.auth.discardLocal();
+    await this.router.navigateByUrl('/login');
+  }
+
+  protected value(event: Event): string {
+    return (event.target as HTMLInputElement).value;
+  }
+
   private statusLabel(): string {
     switch (this.status()) {
       case 'syncing':
@@ -196,6 +270,8 @@ export class SettingsComponent {
         return 'Sin conexión';
       case 'error':
         return 'Con errores';
+      case 'unauthorized':
+        return 'Sesión expirada';
       default:
         return this.pending() > 0 ? 'Pendiente' : 'Al día';
     }

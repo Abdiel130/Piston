@@ -10,6 +10,8 @@ import type {
   GaugeCalibrationPoint,
   Issue,
   IssueServiceLink,
+  LocalOnboarding,
+  LocalSession,
   MaintenanceSchedule,
   OdometerReading,
   OutboxEntry,
@@ -67,6 +69,8 @@ export class PistonDb extends Dexie {
   sync_outbox!: Table<OutboxEntry, Uuid>;
   sync_state!: Table<SyncState, string>;
   attachment_blobs!: Table<AttachmentBlob, string>;
+  session!: Table<LocalSession, string>;
+  onboarding!: Table<LocalOnboarding, string>;
 
   constructor() {
     super('piston');
@@ -96,6 +100,12 @@ export class PistonDb extends Dexie {
       sync_outbox: 'id, status, [status+next_retry_at], [table_name+row_id], created_at',
       sync_state: 'table_name',
       attachment_blobs: 'key, attachment_id',
+    });
+
+    // Identidad local y progreso del wizard. Una fila cada una (key 'current').
+    this.version(2).stores({
+      session: 'key',
+      onboarding: 'key',
     });
   }
 }
