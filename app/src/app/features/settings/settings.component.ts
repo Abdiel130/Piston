@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { db } from '../../core/db/piston-db';
 import { OfflineStore } from '../../core/data/offline-store.service';
+import { PwaService } from '../../core/pwa/pwa.service';
 import { SyncService, type LogoutBlocker } from '../../core/sync/sync.service';
 import { IconComponent, type IconName } from '../../shared/icon/icon.component';
 import { IslandService } from '../../shared/island/island.service';
@@ -65,6 +66,7 @@ export class SettingsComponent {
   protected readonly discardText = signal('');
   protected readonly discardConfirmation = DISCARD_CONFIRMATION;
   protected readonly canDiscard = computed(() => this.discardText().trim() === DISCARD_CONFIRMATION);
+  private readonly pwa = inject(PwaService);
 
   protected readonly pending = this.sync.pendingCount;
   protected readonly failed = this.sync.failedCount;
@@ -107,15 +109,17 @@ export class SettingsComponent {
 
   protected readonly groups = computed<readonly SettingGroup[]>(() => [
     {
+      title: 'Aplicación',
+      rows: [this.installRow(), this.updateRow()],
+    },
+    {
       title: 'Vehículos',
       rows: [
-        ...this.vehicles().map(
-          (vehicle): SettingRow => ({
-            icon: 'car',
-            title: vehicle.nickname ?? `${vehicle.make} ${vehicle.model}`,
-            value: vehicle.is_primary ? 'Principal' : undefined,
-          }),
-        ),
+        ...this.vehicles().map((vehicle): SettingRow => ({
+          icon: 'car',
+          title: vehicle.nickname ?? `${vehicle.make} ${vehicle.model}`,
+          value: vehicle.is_primary ? 'Principal' : undefined,
+        })),
         { icon: 'plus', title: 'Agregar vehículo' },
         {
           icon: 'garage',
@@ -170,6 +174,49 @@ export class SettingsComponent {
 
   protected run(row: SettingRow): void {
     row.action?.();
+  }
+
+  private installRow(): SettingRow {
+    if (this.pwa.installed()) {
+      return { icon: 'checkCircle', title: 'Instalar app', value: 'Instalada' };
+    }
+    if (this.pwa.canInstall()) {
+      return {
+        icon: 'download',
+        title: 'Instalar app',
+        value: 'Disponible',
+        action: () => void this.pwa.install(),
+      };
+    }
+    // iOS no expone un prompt: solo se puede indicar el camino manual.
+    return {
+      icon: 'download',
+      title: 'Instalar app',
+      value: this.pwa.isIos ? 'Compartir › Agregar a inicio' : 'Menú del navegador › Instalar',
+    };
+  }
+
+  private updateRow(): SettingRow {
+    switch (this.pwa.updateStatus()) {
+      case 'ready':
+        return {
+          icon: 'sync',
+          title: 'Actualizar ahora',
+          value: 'Nueva versión',
+          action: () => void this.pwa.applyUpdate(),
+        };
+      case 'checking':
+        return { icon: 'sync', title: 'Buscar actualizaciones', value: 'Buscando…' };
+      case 'unavailable':
+        return { icon: 'sync', title: 'Buscar actualizaciones', value: 'No disponible' };
+      default:
+        return {
+          icon: 'sync',
+          title: 'Buscar actualizaciones',
+          value: this.pwa.updateStatus() === 'latest' ? 'Al día' : undefined,
+          action: () => void this.pwa.checkForUpdate(),
+        };
+    }
   }
 
   /**

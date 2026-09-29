@@ -420,7 +420,18 @@ Todos tienen su equivalente directo en `docker compose` por si prefieres no usar
 ./piston ps                          # docker compose ps
 ```
 
+### Control de Versiones
+Para actualizar la versión del proyecto de forma consistente en todos los archivos (`app/package.json`, `app/package-lock.json`, `server/routes/api.php`, `CHANGELOG.md` y `README.md`):
+
+```bash
+./up-version.sh 1.2.2          # pasando la versión como argumento
+# o bien
+./up-version.sh                # solicitará la versión de forma interactiva
+```
+
+> **Nota obligatoria:** Cada cambio final debe utilizar este script para asegurar que la versión esté sincronizada en todo el proyecto y que `CHANGELOG.md` mantenga su sección `[Unreleased]` intacta para futuros cambios.
+
 ---
 
 ## 📄 Licencia y Versión
-- Versión actual: **1.2.0** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).
+- Versión actual: **1.2.1** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).

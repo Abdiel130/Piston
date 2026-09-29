@@ -11,3 +11,4 @@ export { authInterceptor } from './auth/auth.interceptor';
 export { OnboardingService } from './auth/onboarding.service';
 export { MAX_ATTEMPTS, backoffDelayMs, nextRetryAt } from './sync/backoff';
 export { authGuard, guestGuard, onboardedGuard, onboardingGuard } from './auth/guards';
+export { PwaService, type UpdateStatus } from './pwa/pwa.service';
