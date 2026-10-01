@@ -7,6 +7,40 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-30
+
+Registrar una carga pide menos y adivina más. El formulario sigue el orden
+real en la gasolinera: primero si se llenó el tanque y cuánto se pagó, al
+final la cantidad, que ahora se calcula sola. El precio se sugiere con la
+última carga del mismo combustible, con tanque lleno se deduce con cuánto se
+arrancó, y el ticket o la factura se adjuntan en la misma captura.
+
+### Added
+- **Cantidad, monto o precio calculados**: de los tres basta con anotar dos;
+  el tercero se calcula y se marca como "calculado". Lo que se escribe a mano
+  siempre manda, y se guardan los tres completos.
+- **Precio sugerido por combustible**: el precio por litro se propone con la
+  última carga del mismo tipo (regular, premium o diésel), de cualquier
+  vehículo, e indica de qué fecha es. Basta con escribir encima si cambió.
+- **Rayitas de arranque deducidas**: con tanque lleno, la app calcula con
+  cuántas rayitas se llegó a partir de lo que cupo y la capacidad del tanque,
+  y lo marca en el selector. Si no cuadra, se toca la rayita correcta.
+- **Comprobantes en la carga**: se puede tomar una foto del ticket o adjuntar
+  imágenes y PDF (hasta 15 MB cada uno), con vista previa y opción de quitarlos
+  antes de guardar. Se guardan junto con la carga, se ven sin conexión y se
+  suben solos cuando hay señal.
+- **Avisos de posibles dedazos**: el formulario avisa, sin impedir guardar,
+  cuando el odómetro es menor que el último registrado o cuando la cantidad
+  supera claramente la capacidad del tanque.
+
+### Changed
+- **Nuevo orden del formulario de carga**: *Tanque lleno* va antes de los
+  montos, y la cantidad queda al final, después de monto y precio.
+- **Con tanque lleno se pide monto o cantidad**: ya no se exigen las rayitas
+  después de cargar, que en ese caso no se muestran porque el tanque quedó
+  lleno.
+- **Notas más cómodas**: el campo de notas admite varias líneas.
+
 ## [1.5.0] - 2026-09-30
 
 La configuración deja de ser una maqueta. Desde Ajustes se agregan más

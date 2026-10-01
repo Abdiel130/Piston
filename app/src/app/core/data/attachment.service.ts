@@ -4,6 +4,12 @@ import { uuidV7 } from '../db/uuid';
 import type { Attachment, AttachmentKind, AttachmentOwner, Uuid } from '../models';
 import { OfflineStore } from './offline-store.service';
 
+/** Un archivo listo para guardarse como adjunto. */
+export interface PreparedFile {
+  readonly file: File;
+  readonly checksum: string;
+}
+
 /**
  * Adjuntos con subida diferida.
  *
@@ -22,33 +28,60 @@ export class AttachmentService {
     file: File,
     kind: AttachmentKind = 'photo',
   ): Promise<Attachment> {
+    return this.attachPrepared(ownerType, ownerId, await this.prepare(file), kind);
+  }
+
+  /**
+   * Lo que no es de IndexedDB (leer el archivo y su checksum). Va aparte
+   * porque una promesa ajena a Dexie cierra la transacción en curso: hay que
+   * hacerlo ANTES de abrirla.
+   */
+  async prepare(file: File): Promise<PreparedFile> {
+    return { file, checksum: await sha256(file) };
+  }
+
+  /**
+   * La fila y su binario en una sola transacción. Solo toca IndexedDB, así que
+   * se puede llamar dentro de otra que incluya `attachments` (ver
+   * `OfflineStore.transaction`), por ejemplo junto con la fila dueña.
+   */
+  async attachPrepared(
+    ownerType: AttachmentOwner,
+    ownerId: Uuid,
+    prepared: PreparedFile,
+    kind: AttachmentKind = 'photo',
+    sortOrder = 0,
+  ): Promise<Attachment> {
+    const { file, checksum } = prepared;
     const blobKey = uuidV7();
 
-    const attachment = await this.store.create<Attachment>('attachments', {
-      user_id: null,
-      owner_type: ownerType,
-      owner_id: ownerId,
-      kind,
-      file_name: file.name,
-      mime_type: file.type || null,
-      size_bytes: file.size,
-      width: null,
-      height: null,
-      checksum: await sha256(file),
-      storage_path: null,
-      local_blob_key: blobKey,
-      upload_status: 'pending',
-      sort_order: 0,
-    });
+    return db.transaction('rw', db.attachments, db.attachment_blobs, db.sync_outbox, async () => {
+      const attachment = await this.store.create<Attachment>('attachments', {
+        user_id: null,
+        owner_type: ownerType,
+        owner_id: ownerId,
+        kind,
+        file_name: file.name,
+        mime_type: file.type || null,
+        size_bytes: file.size,
+        width: null,
+        height: null,
+        checksum,
+        storage_path: null,
+        local_blob_key: blobKey,
+        upload_status: 'pending',
+        sort_order: sortOrder,
+      });
 
-    await db.attachment_blobs.add({
-      key: blobKey,
-      attachment_id: attachment.id,
-      blob: file,
-      created_at: new Date().toISOString(),
-    });
+      await db.attachment_blobs.add({
+        key: blobKey,
+        attachment_id: attachment.id,
+        blob: file,
+        created_at: new Date().toISOString(),
+      });
 
-    return attachment;
+      return attachment;
+    });
   }
 
   /** URL local para pintar el adjunto sin pasar por la red. */

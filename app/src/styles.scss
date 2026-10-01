@@ -581,7 +581,8 @@ svg {
 }
 
 /* Fechas: el control nativo trae su propio esquema de color. */
-.pst-input[type='date'] {
+.pst-input[type='date'],
+.pst-input[type='datetime-local'] {
   color-scheme: dark;
 }
 

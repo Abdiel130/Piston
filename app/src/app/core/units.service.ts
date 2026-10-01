@@ -113,6 +113,11 @@ export class UnitsService {
     return round(fromBaseVolume(liters, this.preferences().volume), 2);
   }
 
+  /** Precio por litro guardado → precio por unidad de volumen del usuario. */
+  inputPricePerVolume(pricePerLiter: number | null): number | null {
+    return round(fromBasePricePerVolume(pricePerLiter, this.preferences().volume), 3);
+  }
+
   inputEfficiency(kmPerLiter: number | null): number | null {
     return round(fromBaseEfficiency(kmPerLiter, this.preferences()), 2);
   }

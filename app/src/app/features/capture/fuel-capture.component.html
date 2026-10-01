@@ -25,6 +25,10 @@
     </div>
     @if (submitted() && errors().odometer_km; as message) {
       <p class="error">{{ message }}</p>
+    } @else if (odometerBehind()) {
+      <p class="pst-note pst-note--warn">
+        Es menos que el último registrado ({{ units.formatDistance(vehicle()?.current_odometer_km) }}). Revisa que no sea un dedazo.
+      </p>
     }
 
     <div class="pst-field">
@@ -38,26 +42,6 @@
       </div>
     </div>
 
-    <div class="pst-field-row">
-      <label class="pst-field">
-        <span class="pst-field__label">Cantidad ({{ units.volumeSymbol() }})</span>
-        <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().liters" [value]="liters() ?? ''" (input)="liters.set(readNumber($event))" />
-      </label>
-      <label class="pst-field">
-        <span class="pst-field__label">Monto pagado</span>
-        <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().amount_paid" [value]="amount() ?? ''" (input)="amount.set(readNumber($event))" />
-      </label>
-      <label class="pst-field">
-        <span class="pst-field__label">Precio por {{ units.volumeSymbol() }}</span>
-        <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().price_per_liter" [value]="price() ?? ''" (input)="price.set(readNumber($event))" />
-      </label>
-    </div>
-    @for (key of ['quantity', 'liters', 'amount_paid', 'price_per_liter']; track key) {
-      @if (submitted() && $any(errors())[key]; as message) {
-        <p class="error">{{ message }}</p>
-      }
-    }
-
     <div class="pst-field">
       <span class="pst-field__label">Tanque lleno</span>
       <div class="pst-chips">
@@ -66,13 +50,104 @@
       </div>
     </div>
 
+    <div class="pst-field-row">
+      <label class="pst-field">
+        <span class="pst-field__label">
+          Monto pagado
+          @if (trio().sources.amount === 'derived') {
+            <span class="auto">calculado</span>
+          }
+        </span>
+        <input
+          class="pst-input pst-numeric"
+          inputmode="decimal"
+          [class.is-invalid]="submitted() && errors().amount_paid"
+          [placeholder]="plain(trio().sources.amount === 'derived' ? trio().values.amount : null, 2)"
+          [value]="amount() ?? ''"
+          (input)="amount.set(readNumber($event))"
+        />
+      </label>
+      <label class="pst-field">
+        <span class="pst-field__label">
+          Precio por {{ units.volumeSymbol() }}
+          @switch (trio().sources.price) {
+            @case ('derived') {
+              <span class="auto">calculado</span>
+            }
+            @case ('suggested') {
+              <span class="auto">sugerido</span>
+            }
+          }
+        </span>
+        <input
+          class="pst-input pst-numeric"
+          inputmode="decimal"
+          [class.is-invalid]="submitted() && errors().price_per_liter"
+          [placeholder]="plain(trio().sources.price === 'typed' ? null : trio().values.price, 3)"
+          [value]="price() ?? ''"
+          (input)="price.set(readNumber($event))"
+        />
+      </label>
+    </div>
+    @if (trio().sources.price === 'suggested' && suggestedPrice(); as suggested) {
+      <p class="pst-field__hint">Precio de tu última carga de {{ gradeLabel() }}, el {{ suggested.date }}. Escribe encima si cambió.</p>
+    }
+
+    <label class="pst-field">
+      <span class="pst-field__label">
+        Cantidad ({{ units.volumeSymbol() }})
+        @if (trio().sources.liters === 'derived') {
+          <span class="auto">calculada</span>
+        }
+      </span>
+      <input
+        class="pst-input pst-numeric"
+        inputmode="decimal"
+        [class.is-invalid]="submitted() && errors().liters"
+        [placeholder]="plain(trio().sources.liters === 'derived' ? trio().values.liters : null, 2)"
+        [value]="liters() ?? ''"
+        (input)="liters.set(readNumber($event))"
+      />
+    </label>
+    @for (key of ['quantity', 'liters', 'amount_paid', 'price_per_liter']; track key) {
+      @if (submitted() && $any(errors())[key]; as message) {
+        <p class="error">{{ message }}</p>
+      }
+    }
+    @if (overfilled()) {
+      <p class="pst-note pst-note--warn">
+        Es más de lo que cabe en el tanque ({{ units.formatVolume(vehicle()?.tank_capacity_l) }}). Revisa la cantidad o la capacidad en
+        Ajustes.
+      </p>
+    }
+
     <div class="pst-field">
-      <span class="pst-field__label">Rayitas antes de cargar</span>
+      <span class="pst-field__label">
+        Rayitas antes de cargar
+        @if (suggestedTick() !== null) {
+          <span class="auto">deducidas</span>
+        }
+      </span>
       <div class="ticks" role="group" aria-label="Rayitas antes">
         @for (tick of ticks(); track tick) {
-          <button type="button" class="tick" [class.is-active]="gaugeBefore() === tick" [attr.aria-pressed]="gaugeBefore() === tick" (click)="setGauge('before', tick)">{{ tick }}</button>
+          <button
+            type="button"
+            class="tick"
+            [class.is-active]="gaugeBefore() === tick"
+            [class.is-suggested]="suggestedTick() === tick"
+            [attr.aria-pressed]="gaugeBefore() === tick"
+            (click)="setGauge('before', tick)"
+          >
+            {{ tick }}
+          </button>
         }
       </div>
+      @if (suggestedTick() !== null && deduction(); as deduction) {
+        <span class="pst-field__hint">
+          Arrancaste con ≈ {{ plain(deduction.gauge, 1) }} de {{ segments() }} ({{ units.formatVolume(deduction.litersBefore) }} en el
+          tanque), según lo que cupo. Toca una rayita si no cuadra.
+        </span>
+      }
     </div>
 
     @if (!fullTank()) {
@@ -86,17 +161,53 @@
       </div>
     }
 
+    <div class="pst-field">
+      <span class="pst-field__label">Comprobantes</span>
+      @if (files().length) {
+        <ul class="files">
+          @for (file of files(); track file.id) {
+            <li class="file">
+              @if (file.url) {
+                <img class="file__thumb" [src]="file.url" [alt]="file.prepared.file.name" />
+              } @else {
+                <span class="file__thumb file__thumb--doc"><pst-icon name="document" [size]="24" /></span>
+              }
+              <span class="file__name">{{ file.prepared.file.name }}</span>
+              <button type="button" class="file__remove" [attr.aria-label]="'Quitar ' + file.prepared.file.name" (click)="removeFile(file.id)">
+                <pst-icon name="close" [size]="14" />
+              </button>
+            </li>
+          }
+        </ul>
+      }
+      <div class="pst-chips">
+        <label class="pst-chip file-pick">
+          <pst-icon name="camera" [size]="16" /> Tomar foto
+          <input type="file" accept="image/*" capture="environment" (change)="pickFiles($event)" />
+        </label>
+        <label class="pst-chip file-pick">
+          <pst-icon name="document" [size]="16" /> Adjuntar archivo
+          <input type="file" accept="image/*,application/pdf" multiple (change)="pickFiles($event)" />
+        </label>
+      </div>
+      @if (fileError(); as message) {
+        <p class="error">{{ message }}</p>
+      } @else {
+        <span class="pst-field__hint">Ticket, factura o lo que quieras guardar. Se suben solos cuando hay señal.</span>
+      }
+    </div>
+
     <label class="pst-field">
       <span class="pst-field__label">Notas</span>
-      <input class="pst-input" [value]="notes()" (input)="notes.set(readText($event))" />
+      <textarea class="pst-input notes" rows="2" [value]="notes()" (input)="notes.set(readText($event))"></textarea>
     </label>
 
     @if (saveError(); as message) {
       <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
     }
 
-    <button type="submit" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="saving() || !vehicle()">
-      {{ saving() ? 'Guardando…' : 'Guardar carga' }}
+    <button type="submit" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="saving() || preparing() > 0 || !vehicle()">
+      {{ saving() ? 'Guardando…' : preparing() > 0 ? 'Leyendo archivos…' : 'Guardar carga' }}
     </button>
     <p class="saved-note">Se guarda en este dispositivo y se sincroniza sola.</p>
   </form>

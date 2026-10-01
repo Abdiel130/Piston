@@ -37,6 +37,8 @@ export const LIMITS = {
   liters: 99_999.999,
   money10: 99_999_999.99,
   price: 99_999.999,
+  /** `SYNC_ATTACHMENT_MAX_KB` del servidor (15 MB por defecto). */
+  attachmentBytes: 15 * 1024 * 1024,
 } as const;
 
 export type Errors<K extends string> = Partial<Record<K, string>>;
