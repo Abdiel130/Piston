@@ -29,9 +29,13 @@
 
     @if (blockedBy(); as blocker) {
       <p class="pst-note pst-note--warn">
-        Espera a que suba <strong>{{ blocker.label }}</strong>.
-        @if (blocker.entryId) {
-          <a class="link" [routerLink]="['/settings/sync/change', blocker.entryId]">Ver ese cambio</a>
+        @if (blocker.conflict) {
+          Espera a que resuelvas el conflicto de <strong>{{ blocker.label }}</strong>.
+        } @else {
+          Espera a que suba <strong>{{ blocker.label }}</strong>.
+        }
+        @if (blocker.link) {
+          <a class="link" [routerLink]="blocker.link">{{ blocker.conflict ? 'Ver el conflicto' : 'Ver ese cambio' }}</a>
         }
       </p>
     }

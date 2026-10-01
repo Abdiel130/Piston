@@ -72,9 +72,13 @@ export class SyncChangeComponent {
       if (!ref) return null;
       const entry = await db.sync_outbox.where('[table_name+row_id]').equals([ref.table, ref.id]).first();
       const row = (await db.table(ref.table).get(ref.id)) as Record<string, unknown> | undefined;
-      return { entryId: entry?.id ?? null, label: rowLabel(ref.table, row ?? null) };
+      return {
+        link: entry ? ['/settings/sync', entry.status === 'conflict' ? 'conflict' : 'change', entry.id] : null,
+        label: rowLabel(ref.table, row ?? null),
+        conflict: entry?.status === 'conflict',
+      };
     },
-    null as { entryId: string | null; label: string } | null,
+    null as { link: string[] | null; label: string; conflict: boolean } | null,
   );
 
 

@@ -1,9 +1,10 @@
 /*
  * Subida de pendientes con la app cerrada.
  *
- * SOLO sube el outbox: no jala ni resuelve conflictos. Eso lo hace el motor
- * de la app (core/sync/sync.service.ts) en cuanto se abre. Aquí se mantiene a
- * propósito lo mínimo para que las dos copias no se desalineen:
+ * SOLO sube el outbox: no jala ni resuelve conflictos. Un conflicto se marca
+ * y espera a que el usuario decida en la app (core/sync/sync.service.ts).
+ * Aquí se mantiene a propósito lo mínimo para que las dos copias no se
+ * desalineen:
  *
  * - `sync` (Background Sync): el navegador lo dispara al volver la red, aunque
  *   la app esté cerrada. La app lo registra cada vez que queda algo en cola.
@@ -117,7 +118,7 @@ async function pushBatch(db, batch, token, run) {
       'X-Request-Id': requestId,
     },
     body: JSON.stringify({
-      mutations: batch.map((e) => ({ table: e.table_name, id: e.row_id, op: e.op, payload: e.payload ? JSON.parse(e.payload) : null })),
+      mutations: batch.map(toMutation),
     }),
   });
   const body = await response.json().catch(() => null);
@@ -139,20 +140,61 @@ async function pushBatch(db, batch, token, run) {
     for (const item of applied) {
       const entry = byRow.get(`${item.table}/${item.id}`);
       if (!entry) continue;
+      // Solo el rev: si hubo mezcla, la fila combinada llega con el pull de la app.
       if (item.rev > 0 && !item.stale) await db.table(item.table).update(item.id, { rev: item.rev });
       await db.table('sync_outbox').delete(entry.id);
-      await db.table('sync_log').add(log(run.id, entry, item.stale ? 'stale' : 'applied', requestId, null));
+      const outcome = item.stale ? 'stale' : item.merged && item.merged.length ? 'merged' : 'applied';
+      await db.table('sync_log').add(log(run.id, entry, outcome, requestId, null));
       if (item.stale) run.stale += 1; else run.applied += 1;
     }
     for (const item of rejected) {
       const entry = byRow.get(`${item.table}/${item.id}`);
       // parent_missing: el padre sigue en cola; la app decide si queda bloqueado.
       if (!entry || item.code === 'parent_missing') continue;
+      if (item.conflict) {
+        await markConflict(db, entry, item, requestId, durationMs);
+        await db.table('sync_log').add(log(run.id, entry, 'conflict', requestId, null));
+        run.rejected += 1;
+        continue;
+      }
       const failure = attempt(kindOf(item.code), 200, item.code, item.message, requestId, durationMs, item.errors);
       await db.table('sync_outbox').update(entry.id, { status: 'failed', attempts: entry.attempts + 1, last_attempt: failure });
       await db.table('sync_log').add(log(run.id, entry, 'rejected', requestId, failure));
       run.rejected += 1;
     }
+  });
+}
+
+/** Igual que `toMutation` en sync.service.ts: sin `base_rev` (entrada vieja), last-write-wins. */
+function toMutation(e) {
+  const mutation = { table: e.table_name, id: e.row_id, op: e.op, payload: e.payload ? JSON.parse(e.payload) : null };
+  if (e.base_rev === null || e.base_rev === undefined) return mutation;
+  mutation.base_rev = e.base_rev;
+  mutation.base = e.base ? JSON.parse(e.base) : null;
+  if (e.resolve) mutation.resolve = e.resolve;
+  return mutation;
+}
+
+/**
+ * Igual que `markConflict` en sync.service.ts. Nunca resuelve: un hijo de un
+ * padre borrado queda detrás del padre si este también está en cola.
+ */
+async function markConflict(db, entry, item, requestId, durationMs) {
+  const detail = item.conflict;
+  const parent = detail.parent || null;
+  const parentQueued = parent
+    ? (await db.table('sync_outbox').where('[table_name+row_id]').equals([parent.table, parent.id]).count()) > 0
+    : false;
+  const failure = attempt(
+    item.code === 'parent_deleted' ? 'parent_deleted' : 'edit_conflict',
+    200, item.code, item.message, requestId, durationMs, item.errors,
+  );
+  await db.table('sync_outbox').update(entry.id, {
+    status: parentQueued ? 'blocked' : 'conflict',
+    blocked_by: parentQueued ? parent : null,
+    attempts: entry.attempts + 1,
+    last_attempt: failure,
+    conflict: parentQueued ? null : { ...detail, detected_at: failure.at, request_id: requestId },
   });
 }
 

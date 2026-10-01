@@ -1,6 +1,6 @@
 import type { SyncFailureKind } from '../models';
 
-export type DiagnosisAction = 'retry' | 'relogin' | 'discard' | 'wait';
+export type DiagnosisAction = 'retry' | 'relogin' | 'discard' | 'wait' | 'resolve';
 
 export interface Diagnosis {
   /** Causa en pocas palabras, para la fila de la lista. */
@@ -134,6 +134,24 @@ export const DIAGNOSIS: Readonly<Record<SyncFailureKind, Diagnosis>> = {
     selfHealing: true,
     actions: ['retry', 'discard'],
     tone: 'warn',
+  },
+  edit_conflict: {
+    short: 'Conflicto',
+    title: 'Se cambió en otro dispositivo',
+    what: 'Otro dispositivo cambió este mismo registro y las dos versiones chocan. Ninguna se descartó.',
+    fix: 'Abre el conflicto y elige qué versión conservar, campo por campo si quieres.',
+    selfHealing: false,
+    actions: ['resolve'],
+    tone: 'bad',
+  },
+  parent_deleted: {
+    short: 'Su registro se borró',
+    title: 'Lo registraste dentro de algo que se borró',
+    what: 'El registro del que depende (por ejemplo, el vehículo de una carga) se borró en otro dispositivo.',
+    fix: 'Restaura el registro del que depende o descarta este.',
+    selfHealing: false,
+    actions: ['resolve'],
+    tone: 'bad',
   },
   payload_too_large: {
     short: 'Demasiado grande',

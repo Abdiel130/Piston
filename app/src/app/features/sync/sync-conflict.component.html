@@ -1,0 +1,239 @@
+<div class="pst-stack detail">
+  <header class="top">
+    <a class="top__back" routerLink="/settings/sync" aria-label="Volver a Sincronización">
+      <pst-icon name="chevronLeft" [size]="20" />
+      <span>Sincronización</span>
+    </a>
+  </header>
+
+  @if (gone()) {
+    <div class="empty">
+      <pst-icon name="checkCircle" [size]="40" />
+      <p class="empty__title">Este conflicto ya se resolvió</p>
+      <p class="empty__sub">Lo encuentras en el Historial.</p>
+      <a class="pst-btn" routerLink="/settings/sync" [queryParams]="{ view: 'history' }">Ver historial</a>
+    </div>
+  } @else if (view(); as view) {
+    <section class="head">
+      <p class="head__eyebrow">
+        {{ heading().title }}
+        <span class="pst-badge pst-badge--bad">Conflicto</span>
+      </p>
+      <h1 class="head__title">{{ heading().headline }}</h1>
+      @if (heading().detail) {
+        <p class="head__detail">{{ heading().detail }}</p>
+      }
+    </section>
+
+    @switch (kind()) {
+      @case ('edit_edit') {
+        <p class="muted">
+          Los dos dispositivos cambiaron {{ compare().length === 1 ? 'el mismo campo' : 'los mismos campos' }} con
+          valores distintos. Elige qué valor se queda en cada uno; nada se descarta hasta que confirmes.
+        </p>
+      }
+      @case ('edit_delete') {
+        <p class="muted">
+          Otro dispositivo borró este registro, pero aquí tenías cambios sin enviar. Puedes restaurarlo con tus
+          cambios o aceptar el borrado.
+        </p>
+      }
+      @case ('delete_edit') {
+        <p class="muted">
+          Lo borraste en este dispositivo, pero en otro se editó después de la versión que tenías. Puedes borrarlo de
+          todos modos o conservar la versión editada.
+        </p>
+      }
+      @case ('create_in_deleted_parent') {
+        <p class="muted">
+          Este registro depende de <strong>{{ parentLabel() }}</strong>, que se borró en otro dispositivo. Restaura
+          ese {{ parentTable() }} o descarta este registro.
+        </p>
+      }
+    }
+
+    @if (compare().length > 0) {
+      <section>
+        <h2 class="pst-section-title">En conflicto · {{ compare().length }}</h2>
+        <div class="pst-card pst-card--flush compare">
+          <div class="compare__head">
+            <span></span>
+            <span>Tu versión</span>
+            <span>{{ kind() === 'delete_edit' ? 'Versión editada' : 'Versión del servidor' }}</span>
+          </div>
+          @for (row of compare(); track row.field) {
+            <div class="compare__row" role="radiogroup" [attr.aria-label]="row.label">
+              <span class="compare__label">{{ row.label }}</span>
+              @if (kind() === 'edit_edit') {
+                <button
+                  type="button"
+                  role="radio"
+                  class="compare__value"
+                  [class.is-picked]="side(row.field) === 'mine'"
+                  [attr.aria-checked]="side(row.field) === 'mine'"
+                  (click)="pick(row.field, 'mine')"
+                >
+                  {{ row.mine }}
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  class="compare__value"
+                  [class.is-picked]="side(row.field) === 'theirs'"
+                  [attr.aria-checked]="side(row.field) === 'theirs'"
+                  (click)="pick(row.field, 'theirs')"
+                >
+                  {{ row.theirs }}
+                </button>
+              } @else {
+                <span class="compare__value is-static">{{ row.mine }}</span>
+                <span class="compare__value is-static">{{ row.theirs }}</span>
+              }
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    @if (merged().length > 0) {
+      <section>
+        <h2 class="pst-section-title">Se combinaron automáticamente · {{ merged().length }}</h2>
+        <div class="pst-card pst-card--flush">
+          <dl class="data__list">
+            @for (row of merged(); track row.label) {
+              <div class="data__row">
+                <dt>{{ row.label }} <span class="small">· {{ row.from }}</span></dt>
+                <dd>{{ row.value }}</dd>
+              </div>
+            }
+          </dl>
+        </div>
+        <p class="small merged-note">No chocaban, así que se conservan sin importar lo que elijas arriba.</p>
+      </section>
+    }
+
+    @if (waiting().length > 0) {
+      <p class="pst-note pst-note--warn">
+        {{ waiting().length === 1 ? 'Un cambio espera' : waiting().length + ' cambios esperan' }} a que resuelvas este:
+        {{ waiting().join(', ') }}.
+      </p>
+    }
+
+    <p class="muted small">
+      Detectado {{ exactLocal(view.conflict.detected_at) }}
+      @if (view.conflict.request_id) {
+        · <code>{{ view.conflict.request_id }}</code>
+      }
+    </p>
+
+    @if (actionError(); as message) {
+      <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+    }
+
+    @if (confirming(); as action) {
+      <div class="pst-card confirm">
+        <p>
+          @switch (action) {
+            @case ('fields') {
+              Se guardará la combinación que elegiste y se enviará al servidor.
+            }
+            @case ('mine') {
+              @if (kind() === 'delete_edit') {
+                Se borrará también en el servidor, con los cambios del otro dispositivo.
+              } @else {
+                Tus valores reemplazarán a los del servidor en los campos en conflicto.
+              }
+            }
+            @case ('theirs') {
+              @if (kind() === 'delete_edit') {
+                No se borrará: te quedas con la versión editada en el otro dispositivo.
+              } @else {
+                Se usarán los valores del servidor en los campos en conflicto. Tus cambios en otros campos se
+                conservan.
+              }
+            }
+            @case ('restore') {
+              El registro volverá a existir con tus cambios, también en los demás dispositivos.
+            }
+            @case ('accept_delete') {
+              El registro queda borrado y tu edición se descarta.
+            }
+            @case ('restore_parent') {
+              {{ parentLabel() }} volverá a existir y este registro subirá detrás de él.
+            }
+            @case ('discard') {
+              Este registro se borrará de este dispositivo; el servidor nunca lo tuvo.
+            }
+          }
+        </p>
+        @if (dependents().length > 0) {
+          <p class="muted">También se descartarán {{ dependents().length }} cambios que dependen de este:</p>
+          <ul class="confirm__list">
+            @for (label of dependents(); track $index) {
+              <li>{{ label }}</li>
+            }
+          </ul>
+        }
+        <button
+          type="button"
+          class="pst-btn pst-btn--block"
+          [class.pst-btn--danger]="action === 'accept_delete' || action === 'discard' || (action === 'mine' && kind() === 'delete_edit')"
+          [class.pst-btn--primary]="!(action === 'accept_delete' || action === 'discard' || (action === 'mine' && kind() === 'delete_edit'))"
+          [disabled]="busy()"
+          (click)="confirm()"
+        >
+          {{ busy() ? 'Resolviendo…' : 'Confirmar' }}
+        </button>
+        <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" (click)="confirming.set(null)">Cancelar</button>
+      </div>
+    } @else {
+      <div class="actions">
+        @switch (kind()) {
+          @case ('edit_edit') {
+            @if (mixedChoice()) {
+              <button type="button" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="busy()" (click)="ask('fields')">
+                Guardar mi selección
+              </button>
+            }
+            <button
+              type="button"
+              class="pst-btn pst-btn--block"
+              [class.pst-btn--primary]="!mixedChoice()"
+              [disabled]="busy()"
+              (click)="ask('mine')"
+            >
+              Conservar la mía
+            </button>
+            <button type="button" class="pst-btn pst-btn--block" [disabled]="busy()" (click)="ask('theirs')">
+              Usar la del servidor
+            </button>
+          }
+          @case ('edit_delete') {
+            <button type="button" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="busy()" (click)="ask('restore')">
+              Restaurar con mis cambios
+            </button>
+            <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" [disabled]="busy()" (click)="ask('accept_delete')">
+              Aceptar el borrado
+            </button>
+          }
+          @case ('delete_edit') {
+            <button type="button" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="busy()" (click)="ask('theirs')">
+              Conservar la versión editada
+            </button>
+            <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" [disabled]="busy()" (click)="ask('mine')">
+              Borrarlo de todos modos
+            </button>
+          }
+          @case ('create_in_deleted_parent') {
+            <button type="button" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="busy()" (click)="ask('restore_parent')">
+              Restaurar {{ parentTable() }}
+            </button>
+            <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" [disabled]="busy()" (click)="ask('discard')">
+              Descartar este registro
+            </button>
+          }
+        }
+      </div>
+    }
+  }
+</div>

@@ -303,7 +303,7 @@ Nunca escribas directo contra `db.vehicles.add(...)`: saltarse el `OfflineStore`
 | **UUIDv7 generado en el cliente** (`core/db/uuid.ts`) | Un registro creado sin conexión necesita su id definitivo desde el primer instante. Si el servidor asignara la clave, habría que reescribir cada relación que ya apunta a ella. Además v7 ordena por tiempo, así que los ids salen cronológicos y Postgres inserta casi secuencialmente en el índice. |
 | **Fila y outbox en una sola transacción** (`core/data/offline-store.service.ts`) | Si fueran dos pasos, cerrar la pestaña en medio dejaría un cambio guardado que nadie va a enviar. |
 | **Sync delta por `rev`, no por timestamp** (`core/sync/sync.service.ts`) | Los relojes se desfasan, empatan dentro del mismo milisegundo y saltan con el horario de verano. Los tres hacen que un sync incremental se salte registros en silencio. `rev` sale de una secuencia global de Postgres. |
-| **Push antes que pull** | Al revés, el servidor mandaría la versión vieja de una fila que este dispositivo acaba de cambiar, y el last-write-wins la pisaría con datos anteriores. |
+| **Push antes que pull** | Al revés, el servidor mandaría la versión vieja de una fila que este dispositivo acaba de cambiar, y la pisaría con datos anteriores. |
 | **Soft delete con tombstones** | Un borrado duro haría que el registro reviva: otro dispositivo desactualizado lo volvería a subir. |
 
 ### El outbox
@@ -312,15 +312,22 @@ Nunca escribas directo contra `db.vehicles.add(...)`: saltarse el `OfflineStore`
 - Un `insert` pendiente que luego se borra **se anula solo**: pedirle al servidor que borre algo que nunca recibió es un 404 garantizado.
 - Los reintentos usan **backoff exponencial con jitter** (5 s → 10 min, ±20%) y **no tienen tope**: un fallo transitorio (sin red, 5xx, servidor caído) se reintenta para siempre. El jitter desalinea a varios dispositivos que recuperaron la red a la vez.
 - Se distingue el error **reintentable** del **rechazo definitivo** del servidor (validación, permiso, duplicado). El rechazo sale de la cola activa (`failed`) para que una fila mal formada no bloquee lo que viene detrás.
-- Un hijo cuyo padre fue rechazado queda **`blocked`** y sale solo cuando el padre suba. El orden de envío respeta las dependencias (`vehicles` antes que `fuel_entries`): el servidor valida llaves foráneas.
+- Un hijo cuyo padre fue rechazado o está en conflicto queda **`blocked`** y sale solo cuando el padre suba. El orden de envío respeta las dependencias (`vehicles` antes que `fuel_entries`): el servidor valida llaves foráneas.
 - Es **reactivo, sin polling a ciegas**: sincroniza al abrir la app y ~300 ms después de cada cambio. Mientras quedan pendientes, reintenta con el backoff (ese es el único "polling", y se apaga al vaciarse la cola). Al volver a la app o recuperar la red solo va al servidor si hay pendientes o el último sync tiene más de 5 min. Una revisión de respaldo cada 10 min atrapa pendientes que ningún evento disparó, sin tocar la red si no hay nada. Un Web Lock hace que solo una pestaña sincronice a la vez.
-- **Con la app cerrada**, el service worker (`public/piston-sw.js`, que envuelve al de Angular) sube el outbox al volver la red (Background Sync) y ~una vez al día (Periodic Background Sync, solo en la PWA instalada; Chrome decide la hora). Solo sube: jalar y resolver conflictos lo hace la app al abrirse.
+- **Con la app cerrada**, el service worker (`public/piston-sw.js`, que envuelve al de Angular) sube el outbox al volver la red (Background Sync) y ~una vez al día (Periodic Background Sync, solo en la PWA instalada; Chrome decide la hora). Solo sube: un conflicto lo marca y espera; jalar y resolver lo hace la app al abrirse.
 - Cada intento guarda su **diagnóstico** (tipo de fallo, HTTP, código, `X-Request-Id` generado por el cliente y hora exacta). El centro de sincronización (`/settings/sync`, Ajustes › Sincronización) lo muestra por cambio, con historial de 30 días.
 
-### Resolución de conflictos al jalar
+### Conflictos
 
-1. Si la fila tiene una mutación en el outbox (pendiente, rechazada o bloqueada), **gana lo local**.
-2. Si no, gana el `client_updated_at` más reciente (comparado como fecha). El servidor aplica la misma regla al recibir un push: una escritura más vieja no pisa la guardada y se responde `stale`. Se compara el reloj del cliente que hizo el cambio, no el del servidor: interesa quién editó después, no quién sincronizó después.
+Ningún cambio se pierde sin que el usuario lo vea. Cada entrada del outbox guarda `base_rev` y `base`: el `rev` y la fila tal como estaban antes del primer cambio local. El servidor los compara con lo que tiene (concurrencia optimista; el reloj de los dispositivos no decide nada):
+
+- **Nadie más la tocó:** se aplica.
+- **Otro dispositivo cambió campos distintos:** se mezcla por campo y se aplica. El servidor devuelve la fila combinada y el Historial lo registra como "Se combinó con otro dispositivo".
+- **Los dos cambiaron el mismo campo con valores distintos** (`edit_edit`), **se editó algo borrado o se borró algo editado** (`edit_delete`), o **se creó algo dentro de un padre borrado** (`create_in_deleted_parent`): la entrada queda en `conflict`. La fila local conserva la versión del usuario, no se reintenta sola, bloquea a sus dependientes y bloquea el logout.
+
+El usuario lo decide en Ajustes › Sincronización › Conflictos (`/settings/sync/conflict/:id`): las dos versiones lado a lado, campo por campo, y lo que se combinó solo aparte. "Usar la del servidor" toma su versión solo en los campos que chocan: los cambios propios que no chocaban se conservan. Restaurar algo borrado exige `resolve: 'restore'` explícito. El contrato completo está en [docs/api.md](docs/api.md#conflictos).
+
+Al jalar: si la fila tiene una mutación en el outbox (pendiente, rechazada, bloqueada o en conflicto), **gana lo local**. Si no, gana el servidor salvo que la copia local sea de un `rev` posterior.
 
 ### Configuración por entorno
 
@@ -378,10 +385,10 @@ Los iconos viven en `app/public/icons/app/` (un archivo por tamaño; ver el
 ### Pruebas
 
 ```bash
-./piston npm test        # Vitest: 29 pruebas sobre UUIDv7, backoff, outbox y sync
+./piston npm test        # Vitest: UUIDv7, backoff, outbox, sync y conflictos
 ```
 
-Cubren el ciclo completo contra un servidor simulado: orden de tablas, backoff sin pérdida de mutaciones, tombstones que no reviven, last-write-wins y modo sin conexión.
+Cubren el ciclo completo contra un servidor simulado: orden de tablas, backoff sin pérdida de mutaciones, tombstones que no reviven, conflictos y su resolución, y modo sin conexión.
 
 ---
 

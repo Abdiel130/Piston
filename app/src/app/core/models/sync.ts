@@ -69,6 +69,18 @@ export interface OutboxEntry {
   op: OutboxOp;
   /** JSON del registro completo (en `delete`, el tombstone). NULL en entradas anteriores a v3. */
   payload: string | null;
+  /**
+   * El `rev` que tenía la fila cuando se empezó a editar (0 si es nueva). Con
+   * él el servidor sabe si alguien más la tocó. `null` en entradas anteriores
+   * a v4: esas suben con el last-write-wins de antes.
+   */
+  base_rev: number | null;
+  /** JSON de la fila tal como estaba antes del primer cambio local. `null` si es nueva. */
+  base: string | null;
+  /** Solo al resolver un `edit_delete` con "Restaurar": permite resucitar el tombstone. */
+  resolve: 'restore' | null;
+  /** Detalle del choque (solo con `status === 'conflict'`). */
+  conflict: SyncConflict | null;
   status: OutboxStatus;
   attempts: number;
   /** Diagnóstico del último intento fallido. Es lo que ve el detalle del cambio. */
@@ -78,6 +90,29 @@ export interface OutboxEntry {
   /** Antes de esta hora no se reintenta. Así funciona el backoff. */
   next_retry_at: IsoDateTime;
   created_at: IsoDateTime;
+}
+
+export type SyncConflictKind = 'edit_edit' | 'edit_delete' | 'create_in_deleted_parent';
+
+/** Lo que el servidor devuelve cuando dos versiones chocan. */
+export interface SyncConflictDetail {
+  readonly kind: SyncConflictKind;
+  /**
+   * `edit_edit`: campos que chocan. `edit_delete`: campos que cambió quien
+   * editó. `create_in_deleted_parent`: la columna que apunta al padre.
+   */
+  readonly fields: readonly string[];
+  /** La fila del servidor. En `create_in_deleted_parent`, el PADRE borrado. */
+  readonly server_row: SyncFields | null;
+  readonly server_rev: number;
+  /** Solo en `create_in_deleted_parent`. */
+  readonly parent?: RowRef;
+}
+
+/** Un conflicto guardado en el outbox, esperando al usuario. CLIENT-ONLY. */
+export interface SyncConflict extends SyncConflictDetail {
+  readonly detected_at: IsoDateTime;
+  readonly request_id: string | null;
 }
 
 export interface RowRef {
@@ -105,6 +140,9 @@ export type SyncFailureKind =
   | 'forbidden'
   | 'conflict'
   | 'parent_missing'
+  // Choques con otro dispositivo: los decide el usuario (ver `SyncConflict`).
+  | 'edit_conflict'
+  | 'parent_deleted'
   | 'payload_too_large'
   | 'client_bug';
 
@@ -152,7 +190,22 @@ export interface SyncRun {
   request_ids: string[];
 }
 
-export type SyncLogOutcome = 'applied' | 'stale' | 'rejected' | 'discarded' | 'uploaded' | 'upload_failed';
+export type SyncLogOutcome =
+  | 'applied'
+  /** Se aplicó combinándolo con cambios de otro dispositivo en otros campos. */
+  | 'merged'
+  | 'stale'
+  | 'rejected'
+  | 'conflict'
+  | 'discarded'
+  | 'uploaded'
+  | 'upload_failed'
+  // Resoluciones de un conflicto.
+  | 'resolved_mine'
+  | 'resolved_theirs'
+  | 'resolved_fields'
+  | 'resolved_restore'
+  | 'resolved_accept_delete';
 
 /** Lo que pasó con un cambio concreto dentro de un ciclo. CLIENT-ONLY. */
 export interface SyncLogEntry {
@@ -194,6 +247,10 @@ export interface SyncPushMutation {
   readonly id: Uuid;
   readonly op: OutboxOp;
   readonly payload: Record<string, unknown> | null;
+  /** Sin él (entradas viejas), el servidor usa last-write-wins. */
+  readonly base_rev?: number;
+  readonly base?: Record<string, unknown> | null;
+  readonly resolve?: 'restore';
 }
 
 /** Lo que el servidor responde a un push. */
@@ -213,6 +270,10 @@ export interface SyncAppliedRow {
   readonly rev: number;
   /** El servidor tenía una versión más reciente y no la pisó; el pull la trae. */
   readonly stale?: boolean;
+  /** La fila como quedó en el servidor (mezclada, si hubo mezcla). `null` si no existe. */
+  readonly row?: SyncFields | null;
+  /** Campos que se conservaron del servidor al mezclar. */
+  readonly merged?: readonly string[];
 }
 
 export interface SyncRejectedRow {
@@ -221,6 +282,8 @@ export interface SyncRejectedRow {
   readonly code: ApiCode;
   readonly message: string;
   readonly errors?: Readonly<Record<string, readonly string[]>> | null;
+  /** En `conflict` por edición concurrente y en `parent_deleted`. */
+  readonly conflict?: SyncConflictDetail;
 }
 
 /** Lo que el servidor responde a `GET /api/sync?since=<rev>`. */

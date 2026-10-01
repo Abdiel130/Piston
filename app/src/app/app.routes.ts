@@ -94,6 +94,12 @@ export const routes: Routes = [
           import('./features/sync/sync-change.component').then((m) => m.SyncChangeComponent),
       },
       {
+        path: 'settings/sync/conflict/:id',
+        title: 'Conflicto · Piston',
+        loadComponent: () =>
+          import('./features/sync/sync-conflict.component').then((m) => m.SyncConflictComponent),
+      },
+      {
         path: 'settings/sync/file/:id',
         title: 'Archivo pendiente · Piston',
         data: { kind: 'upload' },

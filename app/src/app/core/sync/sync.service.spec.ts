@@ -5,13 +5,22 @@ import { ApiService, AuthRequiredError, PermanentApiError, RetriableApiError, ty
 import { AuthService, type AuthState } from '../auth/auth.service';
 import { OfflineStore, type NewRow } from '../data/offline-store.service';
 import { db } from '../db/piston-db';
-import { GLOBAL_CURSOR, type FuelEntry, type SyncPullResponse, type SyncPushResponse, type Vehicle } from '../models';
+import {
+  GLOBAL_CURSOR,
+  type FuelEntry,
+  type SyncConflictDetail,
+  type SyncFields,
+  type SyncPullResponse,
+  type SyncPushMutation,
+  type SyncPushResponse,
+  type Vehicle,
+} from '../models';
 import { SyncService } from './sync.service';
 
 /** Servidor de mentira: guarda lo que recibe y devuelve lo que se le indique. */
 class FakeApi {
-  pushed: { table: string; id: string; op: string; payload: Record<string, unknown> | null }[][] = [];
-  pushImpl: (m: { table: string; id: string }[]) => Promise<SyncPushResponse> = async (mutations) => ({
+  pushed: SyncPushMutation[][] = [];
+  pushImpl: (m: SyncPushMutation[]) => Promise<SyncPushResponse> = async (mutations) => ({
     applied: mutations.map((m, i) => ({ table: m.table as never, id: m.id, rev: 100 + i })),
     rejected: [],
     server_rev: 100 + mutations.length,
@@ -298,7 +307,7 @@ describe('SyncService', () => {
     expect(await store.get('vehicles', remote.id)).toBeUndefined();
   });
 
-  it('no pisa una edición local más reciente (last-write-wins)', async () => {
+  it('no pisa una copia local de una versión posterior (rev mayor)', async () => {
     const vehicle = await store.create<Vehicle>('vehicles', newVehicle());
     await sync.sync();               // vacía el outbox
     await store.update<Vehicle>('vehicles', vehicle.id, { make: 'Editado aquí' });
@@ -522,5 +531,314 @@ describe('SyncService', () => {
 
     auth.state.set('expired');
     expect(sync.logoutBlocker()).toBe('expired');
+  });
+
+  describe('conflictos', () => {
+    /** Un vehículo que ya está en el servidor con rev 100, sin nada en cola. */
+    async function syncedVehicle(overrides: Partial<NewRow<Vehicle>> = {}): Promise<Vehicle> {
+      const vehicle = await store.create<Vehicle>('vehicles', { ...newVehicle(), ...overrides });
+      await sync.sync();
+      api.pushed = [];
+      return (await db.vehicles.get(vehicle.id))!;
+    }
+
+    /** El servidor responde que la fila choca. Solo la primera vez: luego vuelve a aceptar todo. */
+    function conflictOnce(detail: (m: SyncPushMutation) => SyncConflictDetail, code: 'conflict' | 'parent_deleted' = 'conflict'): void {
+      const accept = api.pushImpl;
+      let used = false;
+      api.pushImpl = async (mutations) => {
+        if (used) return accept(mutations);
+        used = true;
+        const [first, ...rest] = mutations;
+        const accepted = rest.length > 0 ? await accept(rest) : { applied: [], rejected: [], server_rev: 0 };
+        return {
+          ...accepted,
+          rejected: [
+            ...accepted.rejected,
+            { table: first.table, id: first.id, code, message: 'choque', conflict: detail(first) },
+          ],
+        };
+      };
+    }
+
+    function serverVersion(vehicle: Vehicle, changes: Partial<Vehicle>): SyncFields {
+      return { ...vehicle, rev: 200, ...changes } as SyncFields;
+    }
+
+    it('manda base_rev y la fila que vio el usuario', async () => {
+      const vehicle = await syncedVehicle();
+      await store.update<Vehicle>('vehicles', vehicle.id, { notes: 'uno' });
+      await store.update<Vehicle>('vehicles', vehicle.id, { notes: 'dos' });
+
+      await sync.sync();
+
+      const [mutation] = api.pushed[0];
+      expect(mutation.base_rev).toBe(100);
+      // La base es la de ANTES del primer cambio, no la de la edición anterior.
+      expect(mutation.base?.['notes']).toBeNull();
+      expect(mutation.payload?.['notes']).toBe('dos');
+    });
+
+    it('una entrada vieja sin base_rev sube con last-write-wins', async () => {
+      const vehicle = await syncedVehicle();
+      await store.update<Vehicle>('vehicles', vehicle.id, { notes: 'x' });
+      await db.sync_outbox.toCollection().modify({ base_rev: null, base: null });
+
+      await sync.sync();
+
+      expect(api.pushed[0][0]).not.toHaveProperty('base_rev');
+    });
+
+    it('aparta el conflicto, conserva mi versión y no lo reintenta', async () => {
+      const vehicle = await syncedVehicle();
+      await store.update<Vehicle>('vehicles', vehicle.id, { license_plate: 'MIA-1' });
+      conflictOnce(() => ({
+        kind: 'edit_edit',
+        fields: ['license_plate'],
+        server_row: serverVersion(vehicle, { license_plate: 'SRV-1' }),
+        server_rev: 200,
+      }));
+      api.pullImpl = async () => ({
+        changes: { vehicles: [serverVersion(vehicle, { license_plate: 'SRV-1' })] },
+        server_rev: 200,
+        has_more: false,
+      });
+
+      await sync.sync();
+
+      const [entry] = await db.sync_outbox.toArray();
+      expect(entry.status).toBe('conflict');
+      expect(entry.conflict).toMatchObject({ kind: 'edit_edit', fields: ['license_plate'], server_rev: 200, request_id: 'req-push' });
+      // El pull no pisa la fila mientras haya conflicto.
+      expect((await db.vehicles.get(vehicle.id))!.license_plate).toBe('MIA-1');
+      expect((await db.sync_log.toArray()).map((e) => e.outcome)).toContain('conflict');
+
+      api.pushed = [];
+      await sync.sync();
+      expect(api.pushed).toHaveLength(0);
+
+      await vi.waitFor(() => expect(sync.logoutBlocker()).toBe('conflict'));
+      expect(sync.summary().conflicts).toBe(1);
+      expect(sync.summary().health).toBe('conflict');
+    });
+
+    it('bloquea lo que depende de un conflicto y lo suelta al resolverlo', async () => {
+      const vehicle = await syncedVehicle();
+      await store.update<Vehicle>('vehicles', vehicle.id, { license_plate: 'MIA-1' });
+      conflictOnce(() => ({
+        kind: 'edit_edit',
+        fields: ['license_plate'],
+        server_row: serverVersion(vehicle, { license_plate: 'SRV-1' }),
+        server_rev: 200,
+      }));
+      await sync.sync();
+
+      await store.create<FuelEntry>('fuel_entries', newFuelEntry(vehicle.id));
+      await sync.sync();
+      const child = (await db.sync_outbox.toArray()).find((e) => e.table_name === 'fuel_entries')!;
+      expect(child.status).toBe('blocked');
+      expect(child.blocked_by).toEqual({ table: 'vehicles', id: vehicle.id });
+
+      const conflict = (await db.sync_outbox.toArray()).find((e) => e.status === 'conflict')!;
+      await sync.resolveKeepMine(conflict.id);
+
+      expect(await db.sync_outbox.count()).toBe(0);
+      const [vehicleMutation] = api.pushed.at(-1)!;
+      expect(vehicleMutation).toMatchObject({ table: 'vehicles', base_rev: 200 });
+      expect(vehicleMutation.payload?.['license_plate']).toBe('MIA-1');
+    });
+
+    it('elegir por campo combina mi versión, la del servidor y lo que no chocaba', async () => {
+      const vehicle = await syncedVehicle();
+      await store.update<Vehicle>('vehicles', vehicle.id, { license_plate: 'MIA-1', color: 'Rojo', notes: 'mía' });
+      const theirs = serverVersion(vehicle, { license_plate: 'SRV-1', color: 'Azul', year: 2023 });
+      conflictOnce(() => ({ kind: 'edit_edit', fields: ['color', 'license_plate'], server_row: theirs, server_rev: 200 }));
+      await sync.sync();
+      const entry = (await db.sync_outbox.toArray())[0];
+
+      // Retiene el push para ver la entrada ya resuelta.
+      api.pushImpl = async () => {
+        throw new RetriableApiError('caído', 503);
+      };
+      await sync.resolveFields(entry.id, { license_plate: 'theirs', color: 'mine' });
+
+      const resolved = (await db.sync_outbox.get(entry.id))!;
+      const payload = JSON.parse(resolved.payload!) as Vehicle;
+      expect(resolved).toMatchObject({ status: 'pending', base_rev: 200, conflict: null });
+      expect(payload.license_plate).toBe('SRV-1');
+      expect(payload.color).toBe('Rojo');
+      expect(payload.notes).toBe('mía');
+      expect(payload.year).toBe(2023);
+      expect(JSON.parse(resolved.base!).license_plate).toBe('SRV-1');
+      expect((await db.vehicles.get(vehicle.id))!.year).toBe(2023);
+      expect((await db.sync_log.toArray()).map((e) => e.outcome)).toContain('resolved_fields');
+    });
+
+    it('usar la del servidor sin otros cambios adopta su versión y vacía la cola', async () => {
+      const vehicle = await syncedVehicle();
+      await store.update<Vehicle>('vehicles', vehicle.id, { license_plate: 'MIA-1' });
+      const theirs = serverVersion(vehicle, { license_plate: 'SRV-1' });
+      conflictOnce(() => ({ kind: 'edit_edit', fields: ['license_plate'], server_row: theirs, server_rev: 200 }));
+      await sync.sync();
+      const entry = (await db.sync_outbox.toArray())[0];
+
+      await sync.resolveTakeServer(entry.id);
+
+      expect(await db.sync_outbox.count()).toBe(0);
+      expect((await db.vehicles.get(vehicle.id))!).toMatchObject({ license_plate: 'SRV-1', rev: 200 });
+      expect((await db.sync_log.toArray()).map((e) => e.outcome)).toContain('resolved_theirs');
+    });
+
+    it('restaurar con mis cambios lo reenvía como insert con resolve restore', async () => {
+      const vehicle = await syncedVehicle();
+      await store.update<Vehicle>('vehicles', vehicle.id, { notes: 'offline' });
+      const tombstone = serverVersion(vehicle, { deleted_at: new Date().toISOString() });
+      conflictOnce(() => ({ kind: 'edit_delete', fields: ['notes'], server_row: tombstone, server_rev: 200 }));
+      await sync.sync();
+      const entry = (await db.sync_outbox.toArray())[0];
+
+      await sync.resolveRestore(entry.id);
+
+      const [mutation] = api.pushed.at(-1)!;
+      expect(mutation).toMatchObject({ op: 'insert', resolve: 'restore', base_rev: 200 });
+      expect(mutation.payload).toMatchObject({ notes: 'offline', deleted_at: null });
+    });
+
+    it('aceptar el borrado aplica el tombstone y descarta lo que dependía', async () => {
+      const vehicle = await syncedVehicle();
+      await store.update<Vehicle>('vehicles', vehicle.id, { notes: 'offline' });
+      const fuel = await store.create<FuelEntry>('fuel_entries', newFuelEntry(vehicle.id));
+      const tombstone = serverVersion(vehicle, { deleted_at: new Date().toISOString() });
+      // El vehículo choca y la carga queda bloqueada detrás sin llegar al servidor.
+      conflictOnce(() => ({ kind: 'edit_delete', fields: ['notes'], server_row: tombstone, server_rev: 200 }));
+      const pushOnlyVehicles = api.pushImpl;
+      api.pushImpl = (mutations) => pushOnlyVehicles(mutations.filter((m) => m.table === 'vehicles'));
+      await sync.sync();
+      const entry = (await db.sync_outbox.toArray()).find((e) => e.status === 'conflict')!;
+
+      expect(await sync.dependentsOf(entry.id)).toHaveLength(1);
+      await sync.resolveAcceptDelete(entry.id);
+
+      expect(await db.sync_outbox.count()).toBe(0);
+      expect((await db.vehicles.get(vehicle.id))!.deleted_at).not.toBeNull();
+      // La carga nunca llegó al servidor: se borra de este dispositivo.
+      expect(await db.fuel_entries.get(fuel.id)).toBeUndefined();
+      expect((await db.sync_log.toArray()).map((e) => e.outcome)).toContain('resolved_accept_delete');
+    });
+
+    it('un hijo de un padre borrado sin conflicto local es un conflicto propio', async () => {
+      const vehicle = await syncedVehicle();
+      await store.create<FuelEntry>('fuel_entries', newFuelEntry(vehicle.id));
+      const tombstone = serverVersion(vehicle, { deleted_at: new Date().toISOString() });
+      conflictOnce(
+        () => ({
+          kind: 'create_in_deleted_parent',
+          fields: ['vehicle_id'],
+          server_row: tombstone,
+          server_rev: 200,
+          parent: { table: 'vehicles', id: vehicle.id },
+        }),
+        'parent_deleted',
+      );
+
+      await sync.sync();
+
+      const [entry] = await db.sync_outbox.toArray();
+      expect(entry.status).toBe('conflict');
+      expect(entry.conflict?.kind).toBe('create_in_deleted_parent');
+      expect(entry.last_attempt?.kind).toBe('parent_deleted');
+
+      // Restaurar el padre lo encola como restore y el hijo sube detrás.
+      expect(await sync.resolveRestoreParent(entry.id)).toBeNull();
+      const [parentMutation, childMutation] = api.pushed.at(-1)!;
+      expect(parentMutation).toMatchObject({ table: 'vehicles', op: 'insert', resolve: 'restore', base_rev: 200 });
+      expect(childMutation.table).toBe('fuel_entries');
+      expect(await db.sync_outbox.count()).toBe(0);
+    });
+
+    it('un hijo de un padre borrado queda detrás del conflicto del padre', async () => {
+      const vehicle = await syncedVehicle();
+      await store.update<Vehicle>('vehicles', vehicle.id, { notes: 'offline' });
+      await store.create<FuelEntry>('fuel_entries', newFuelEntry(vehicle.id));
+      const tombstone = serverVersion(vehicle, { deleted_at: new Date().toISOString() });
+      api.pushImpl = async (mutations) => ({
+        applied: [],
+        rejected: mutations.map((m) =>
+          m.table === 'vehicles'
+            ? { table: m.table, id: m.id, code: 'conflict' as const, message: 'x',
+                conflict: { kind: 'edit_delete' as const, fields: ['notes'], server_row: tombstone, server_rev: 200 } }
+            : { table: m.table, id: m.id, code: 'parent_deleted' as const, message: 'x',
+                conflict: { kind: 'create_in_deleted_parent' as const, fields: ['vehicle_id'], server_row: tombstone,
+                  server_rev: 200, parent: { table: 'vehicles' as const, id: vehicle.id } } },
+        ),
+        server_rev: 0,
+      });
+
+      await sync.sync();
+
+      const entries = await db.sync_outbox.toArray();
+      expect(entries.find((e) => e.table_name === 'vehicles')!.status).toBe('conflict');
+      const child = entries.find((e) => e.table_name === 'fuel_entries')!;
+      expect(child).toMatchObject({ status: 'blocked', blocked_by: { table: 'vehicles', id: vehicle.id }, conflict: null });
+    });
+
+    it('guarda la fila mezclada que devuelve el servidor', async () => {
+      const vehicle = await syncedVehicle();
+      await store.update<Vehicle>('vehicles', vehicle.id, { notes: 'mía' });
+      const merged = serverVersion(vehicle, { notes: 'mía', license_plate: 'DE-OTRO', rev: 300 } as Partial<Vehicle>);
+      api.pushImpl = async (mutations) => ({
+        applied: mutations.map((m) => ({ table: m.table, id: m.id, rev: 300, row: merged, merged: ['license_plate'] })),
+        rejected: [],
+        server_rev: 300,
+      });
+
+      await sync.sync();
+
+      expect((await db.vehicles.get(vehicle.id))!).toMatchObject({ notes: 'mía', license_plate: 'DE-OTRO', rev: 300 });
+      expect((await db.sync_log.toArray()).map((e) => e.outcome)).toContain('merged');
+    });
+
+    it('si edité mientras subía, mueve la base de la entrada nueva a lo que quedó en el servidor', async () => {
+      const vehicle = await syncedVehicle();
+      await store.update<Vehicle>('vehicles', vehicle.id, { notes: 'uno' });
+      const saved = serverVersion(vehicle, { notes: 'uno', rev: 300 } as Partial<Vehicle>);
+      let edited = false;
+      api.pushImpl = async (mutations) => {
+        if (!edited) {
+          edited = true;
+          // El usuario edita mientras la petición viaja.
+          await store.update<Vehicle>('vehicles', vehicle.id, { notes: 'dos' });
+        }
+        return {
+          applied: mutations.map((m) => ({ table: m.table, id: m.id, rev: 300, row: saved })),
+          rejected: [],
+          server_rev: 300,
+        };
+      };
+
+      await sync.sync();
+      await sync.sync();
+
+      // La segunda vuelta sube "dos" sobre rev 300, no sobre la base vieja.
+      const second = api.pushed[1][0];
+      expect(second.base_rev).toBe(300);
+      expect(second.base?.['notes']).toBe('uno');
+      expect(second.payload?.['notes']).toBe('dos');
+    });
+
+    it('el pull decide por rev y no por el reloj del dispositivo', async () => {
+      const vehicle = await syncedVehicle();
+      // El otro dispositivo tiene el reloj atrasado un día.
+      const late = new Date(Date.now() - 86_400_000).toISOString();
+      api.pullImpl = async () => ({
+        changes: { vehicles: [serverVersion(vehicle, { notes: 'del otro', client_updated_at: late })] },
+        server_rev: 200,
+        has_more: false,
+      });
+
+      await sync.sync();
+
+      expect((await db.vehicles.get(vehicle.id))!.notes).toBe('del otro');
+    });
   });
 });

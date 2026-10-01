@@ -16,7 +16,40 @@ const OUTCOME: Record<SyncLogEntry['outcome'], { label: string; tone: string; ex
     explain:
       'El servidor ya tenía una versión más reciente de este registro (editada en otro dispositivo) y la conservó. Este dispositivo recibió esa versión.',
   },
+  merged: {
+    label: 'Se combinó con otro dispositivo',
+    tone: 'good',
+    explain:
+      'Otro dispositivo había cambiado otros campos de este registro. Se conservaron los cambios de los dos, porque no chocaban.',
+  },
   rejected: { label: 'Rechazado', tone: 'bad', explain: 'El servidor no aceptó el cambio.' },
+  conflict: {
+    label: 'Conflicto',
+    tone: 'bad',
+    explain:
+      'Otro dispositivo cambió lo mismo. No se descartó ninguna versión: el cambio espera a que elijas en la sección Conflictos.',
+  },
+  resolved_mine: { label: 'Se conservó tu versión', tone: 'good', explain: 'Resolviste el conflicto conservando tu versión.' },
+  resolved_theirs: {
+    label: 'Se usó la versión del servidor',
+    tone: 'good',
+    explain: 'Resolviste el conflicto con la versión del otro dispositivo. Tus cambios en otros campos se conservaron.',
+  },
+  resolved_fields: {
+    label: 'Se eligió por campo',
+    tone: 'good',
+    explain: 'Resolviste el conflicto eligiendo, en cada campo, qué versión conservar.',
+  },
+  resolved_restore: {
+    label: 'Se restauró',
+    tone: 'good',
+    explain: 'El registro se había borrado en otro dispositivo y lo restauraste.',
+  },
+  resolved_accept_delete: {
+    label: 'Se aceptó el borrado',
+    tone: 'idle',
+    explain: 'Aceptaste el borrado hecho en otro dispositivo; tu edición y lo que dependía de ella se descartaron.',
+  },
   discarded: { label: 'Descartado', tone: 'idle', explain: 'Descartaste este cambio desde este dispositivo.' },
   uploaded: { label: 'Archivo subido', tone: 'good', explain: 'El archivo llegó completo al servidor.' },
   upload_failed: { label: 'Archivo rechazado', tone: 'bad', explain: 'El servidor no aceptó el archivo.' },

@@ -33,6 +33,10 @@ class SyncPushRequest extends FormRequest
             'mutations.*.id' => ['required', 'uuid'],
             'mutations.*.op' => ['required', 'in:insert,update,delete'],
             'mutations.*.payload' => ['nullable', 'array'],
+            // Sin `base_rev` la mutación usa el last-write-wins anterior.
+            'mutations.*.base_rev' => ['sometimes', 'nullable', 'integer', 'min:0'],
+            'mutations.*.base' => ['sometimes', 'nullable', 'array'],
+            'mutations.*.resolve' => ['sometimes', 'nullable', 'in:restore'],
         ];
     }
 }

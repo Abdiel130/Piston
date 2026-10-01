@@ -130,7 +130,38 @@ describe('OfflineStore', () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
     const updated = await store.update<Vehicle>('vehicles', vehicle.id, { color: 'Rojo' });
 
-    // Es la base del last-write-wins: si no avanza, el pull pisa el cambio.
+    // Las entradas viejas (sin base_rev) aún suben con last-write-wins.
     expect(updated.client_updated_at > vehicle.client_updated_at).toBe(true);
+  });
+
+  it('guarda la base del primer cambio y la conserva al colapsar', async () => {
+    const vehicle = await store.create<Vehicle>('vehicles', newVehicle());
+    expect((await db.sync_outbox.toArray())[0]).toMatchObject({ base_rev: 0, base: null });
+
+    // Simula que ya subió y el servidor le dio rev 7.
+    await db.sync_outbox.clear();
+    await db.vehicles.update(vehicle.id, { rev: 7 });
+
+    await store.update<Vehicle>('vehicles', vehicle.id, { notes: 'uno' });
+    await store.update<Vehicle>('vehicles', vehicle.id, { notes: 'dos' });
+
+    const [entry] = await db.sync_outbox.toArray();
+    expect(entry.base_rev).toBe(7);
+    // La base es lo que el usuario vio ANTES de empezar a editar.
+    expect(JSON.parse(entry.base!).notes).toBeNull();
+    expect(JSON.parse(entry.payload!).notes).toBe('dos');
+  });
+
+  it('un borrado después de editar conserva la misma base', async () => {
+    const vehicle = await store.create<Vehicle>('vehicles', newVehicle());
+    await db.sync_outbox.clear();
+    await db.vehicles.update(vehicle.id, { rev: 7 });
+
+    await store.update<Vehicle>('vehicles', vehicle.id, { notes: 'uno' });
+    await store.remove('vehicles', vehicle.id);
+
+    const [entry] = await db.sync_outbox.toArray();
+    expect(entry).toMatchObject({ op: 'delete', base_rev: 7 });
+    expect(JSON.parse(entry.base!).notes).toBeNull();
   });
 });

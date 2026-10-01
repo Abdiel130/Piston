@@ -67,6 +67,7 @@ export type OutboxOp = 'insert' | 'update' | 'delete';
  * - `pending`: espera su turno (o su backoff).
  * - `in_flight`: va en una petición ahora mismo.
  * - `failed`: el servidor la rechazó de forma definitiva; reintentar igual no sirve.
- * - `blocked`: depende de otra fila que está `failed`/`blocked`; sale sola cuando esa suba.
+ * - `blocked`: depende de otra fila que está `failed`/`blocked`/`conflict`; sale sola cuando esa suba.
+ * - `conflict`: otro dispositivo cambió lo mismo; espera a que el usuario decida. Nunca se reintenta sola.
  */
-export type OutboxStatus = 'pending' | 'in_flight' | 'failed' | 'blocked';
+export type OutboxStatus = 'pending' | 'in_flight' | 'failed' | 'blocked' | 'conflict';

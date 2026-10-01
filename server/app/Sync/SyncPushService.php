@@ -22,16 +22,22 @@ use Throwable;
  * 2. **Idempotencia.** El insert es un upsert por el UUID del cliente y borrar
  *    lo que no existe es un no-op. Reenviar el mismo lote tras un timeout (sin
  *    saber si llegó) es seguro, así que no hace falta Idempotency-Key.
- * 3. **Last-write-wins.** Una escritura con `client_updated_at` más viejo que
- *    el de la fila guardada no la pisa; se responde `stale` y el siguiente
- *    pull le entrega al cliente la versión ganadora.
+ * 3. **Nada se pierde en silencio.** La mutación trae `base_rev`, el `rev` que
+ *    tenía la fila cuando el cliente empezó a editarla, y `base`, la fila tal
+ *    como la vio. Si nadie más la tocó, se aplica. Si otro dispositivo la
+ *    cambió, se mezcla por campo (`FieldMerge`): lo que no choca se combina
+ *    solo y lo que sí choca vuelve como `conflict` para que el usuario decida.
+ *    El reloj del dispositivo no decide nada.
+ *
+ * Una mutación sin `base_rev` (outbox de un cliente anterior) conserva el
+ * last-write-wins por `client_updated_at` de siempre.
  */
 final class SyncPushService
 {
     public function __construct(private readonly SyncAccess $access) {}
 
     /**
-     * @param  list<array{table: string, id: string, op: string, payload?: array<string, mixed>|null}>  $mutations
+     * @param  list<array{table: string, id: string, op: string, payload?: array<string, mixed>|null, base_rev?: int|null, base?: array<string, mixed>|null, resolve?: string|null}>  $mutations
      * @return array{applied: list<array<string, mixed>>, rejected: list<array<string, mixed>>, server_rev: int}
      */
     public function push(User $user, array $mutations): array
@@ -62,7 +68,7 @@ final class SyncPushService
     }
 
     /**
-     * @param  array{table: string, id: string, op: string, payload?: array<string, mixed>|null}  $mutation
+     * @param  array{table: string, id: string, op: string, payload?: array<string, mixed>|null, base_rev?: int|null, base?: array<string, mixed>|null, resolve?: string|null}  $mutation
      * @return array<string, mixed>
      */
     private function apply(User $user, array $mutation): array
@@ -78,13 +84,174 @@ final class SyncPushService
 
         $payload = $mutation['payload'] ?? [];
         $incomingAt = $this->clientTime($payload);
+        $baseRev = $mutation['base_rev'] ?? null;
 
+        if ($baseRev === null) {
+            return $this->applyLastWriteWins($user, $table, $mutation, $existing, $incomingAt);
+        }
+
+        $base = $mutation['base'] ?? null;
+
+        if ($mutation['op'] === 'delete') {
+            return $this->deleteVersioned($table, $mutation['id'], $existing, (int) $baseRev, $base, $incomingAt);
+        }
+
+        $data = $this->validate($table, $payload);
+        $this->access->assertReferences($table, $data, $user, $existing);
+
+        $merge = $this->merge(
+            $table, $mutation, $existing, (int) $baseRev, $base, $data,
+            restore: ($mutation['resolve'] ?? null) === 'restore',
+        );
+
+        if ($existing !== null && $merge->mine === []) {
+            // Lo único distinto venía del servidor: no se escribe, así el
+            // `rev` no sube por nada.
+            return $this->result($table, $existing, merged: $merge->theirs);
+        }
+
+        $row = $existing ?? tap(new $table->model, fn (Model $new) => $new->setAttribute('id', $mutation['id']));
+        $row->forceFill(array_intersect_key($data, array_flip($merge->mine)));
+
+        if ($row->trashed()) {
+            $row->setAttribute('deleted_at', null);
+        }
+        if ($table->hasUserColumn()) {
+            $row->setAttribute('user_id', $user->getKey());
+        }
+        $row->setAttribute('client_updated_at', $incomingAt ?? now());
+        $row->save();
+
+        return $this->result($table, $row, merged: $merge->theirs);
+    }
+
+    /**
+     * Qué columnas del payload escribir (`mine`) y cuáles del servidor se
+     * conservan (`theirs`). Lanza el conflicto si las dos versiones chocan.
+     *
+     * @param  array<string, mixed>  $mutation
+     * @param  array<string, mixed>|null  $base
+     * @param  array<string, mixed>  $data
+     */
+    private function merge(
+        SyncTable $table,
+        array $mutation,
+        ?Model $existing,
+        int $baseRev,
+        ?array $base,
+        array $data,
+        bool $restore,
+    ): FieldMerge {
+        $all = FieldMerge::takeAll(array_keys($data));
+
+        if ($existing === null) {
+            return $all;
+        }
+
+        $rev = (int) $existing->getAttribute('rev');
+
+        // Otro dispositivo lo borró mientras este lo editaba. Solo se resucita
+        // si el usuario lo pidió explícitamente desde el conflicto, y sobre la
+        // versión del tombstone que vio.
+        if ($existing->trashed()) {
+            if (! $restore || $baseRev !== $rev) {
+                $mine = $base === null ? array_keys($data) : FieldMerge::changedSince($table, $base, $data);
+                throw MutationRejected::conflict('edit_delete', $mine, $table, $mutation['id']);
+            }
+
+            return $all;
+        }
+
+        if ($baseRev === $rev) {
+            return $all;
+        }
+
+        // Un insert con base 0 sobre una fila que ya existe solo puede ser este
+        // mismo dispositivo reenviando tras un timeout: el UUID es suyo.
+        if ($mutation['op'] === 'insert' && $baseRev === 0) {
+            return $all;
+        }
+
+        $merge = FieldMerge::of($table, $base, $data, $existing);
+
+        if ($merge->hasConflicts()) {
+            throw MutationRejected::conflict('edit_edit', $merge->conflicts, $table, $mutation['id']);
+        }
+
+        if ($merge->theirs !== []) {
+            Log::channel('sync')->info('sync.merged', [
+                'table' => $table->name,
+                'id' => $mutation['id'],
+                'base_rev' => $baseRev,
+                'server_rev' => $rev,
+                'mine' => $merge->mine,
+                'theirs' => $merge->theirs,
+            ]);
+        }
+
+        return $merge;
+    }
+
+    /**
+     * Borrado con versión. Si otro dispositivo editó la fila después de lo que
+     * este vio, borrarla tiraría esa edición: es conflicto.
+     *
+     * @param  array<string, mixed>|null  $base
+     * @return array<string, mixed>
+     */
+    private function deleteVersioned(
+        SyncTable $table,
+        string $id,
+        ?Model $existing,
+        int $baseRev,
+        ?array $base,
+        ?CarbonImmutable $incomingAt,
+    ): array {
+        if ($existing === null || $existing->trashed()) {
+            // Nunca llegó, ya se purgó o ya estaba borrado: lo que el cliente
+            // quiere (que no exista) ya se cumple.
+            return $existing === null
+                ? ['table' => $table->name, 'id' => $id, 'rev' => 0, 'stale' => false, 'row' => null, 'merged' => []]
+                : $this->result($table, $existing);
+        }
+
+        if ($baseRev !== (int) $existing->getAttribute('rev')) {
+            $changed = $base === null
+                ? array_keys($table->fields)
+                : FieldMerge::changedSince($table, $base, $existing->attributesToArray());
+
+            if ($changed !== []) {
+                throw MutationRejected::conflict('edit_delete', $changed, $table, $id);
+            }
+        }
+
+        $existing->forceFill([
+            'deleted_at' => now(),
+            'client_updated_at' => $incomingAt ?? now(),
+        ])->save();
+
+        return $this->result($table, $existing);
+    }
+
+    /**
+     * El comportamiento anterior a `base_rev`, para entradas viejas del outbox.
+     *
+     * @param  array<string, mixed>  $mutation
+     * @return array<string, mixed>
+     */
+    private function applyLastWriteWins(
+        User $user,
+        SyncTable $table,
+        array $mutation,
+        ?Model $existing,
+        ?CarbonImmutable $incomingAt,
+    ): array {
         if ($mutation['op'] === 'delete') {
             return $this->delete($table, $mutation['id'], $existing, $incomingAt);
         }
 
-        $data = $this->validate($table, $payload);
-        $this->access->assertReferences($table, $data, $user);
+        $data = $this->validate($table, $mutation['payload'] ?? []);
+        $this->access->assertReferences($table, $data, $user, $existing);
 
         // Un tombstone gana siempre: si otro dispositivo ya lo borró, una
         // edición atrasada no lo resucita.
@@ -110,7 +277,7 @@ final class SyncPushService
         if ($existing === null) {
             // Nunca llegó o ya se purgó: el resultado que el cliente quiere
             // (que no exista) ya se cumple.
-            return ['table' => $table->name, 'id' => $id, 'rev' => 0, 'stale' => false];
+            return ['table' => $table->name, 'id' => $id, 'rev' => 0, 'stale' => false, 'row' => null, 'merged' => []];
         }
 
         if (! $existing->trashed() && ! $this->isStale($existing, $incomingAt)) {
@@ -171,13 +338,26 @@ final class SyncPushService
         return $incomingAt !== null && $storedAt !== null && $storedAt->greaterThan($incomingAt);
     }
 
-    /** @return array<string, mixed> */
-    private function result(SyncTable $table, ?Model $row, bool $stale = false): array
+    /**
+     * La fila tal como quedó, releída: `rev` lo pone el trigger dentro de
+     * Postgres y Eloquent no lo relee. El cliente guarda `row` tal cual, así
+     * que si hubo mezcla se queda con la versión combinada sin esperar al pull.
+     *
+     * @param  list<string>  $merged  Campos que se conservaron del servidor al mezclar.
+     * @return array<string, mixed>
+     */
+    private function result(SyncTable $table, ?Model $row, bool $stale = false, array $merged = []): array
     {
-        // `rev` lo pone el trigger dentro de Postgres; Eloquent no lo relee.
-        $rev = $row === null ? 0 : (int) $table->query()->whereKey($row->getKey())->value('rev');
+        $fresh = $row === null ? null : $table->query()->find($row->getKey());
 
-        return ['table' => $table->name, 'id' => (string) $row?->getKey(), 'rev' => $rev, 'stale' => $stale];
+        return [
+            'table' => $table->name,
+            'id' => (string) $row?->getKey(),
+            'rev' => (int) $fresh?->getAttribute('rev'),
+            'stale' => $stale,
+            'row' => $fresh?->toArray(),
+            'merged' => $merged,
+        ];
     }
 
     /**
@@ -204,18 +384,21 @@ final class SyncPushService
     }
 
     /**
-     * @param  array{table: string, id: string, op: string}  $mutation
+     * @param  array{table: string, id: string, op: string, base_rev?: int|null}  $mutation
      * @return array<string, mixed>
      */
     private function reject(array $mutation, MutationRejected $rejection): array
     {
-        Log::channel('sync')->warning('sync.rejected', [
+        Log::channel('sync')->warning($rejection->conflict !== null ? 'sync.conflict' : 'sync.rejected', [
             'table' => $mutation['table'],
             'id' => $mutation['id'],
             'op' => $mutation['op'],
             'code' => $rejection->apiCode->value,
             'message' => $rejection->getMessage(),
             'errors' => $rejection->errors,
+            'kind' => $rejection->conflict['kind'] ?? null,
+            'fields' => $rejection->conflict['fields'] ?? null,
+            'base_rev' => $mutation['base_rev'] ?? null,
         ]);
 
         return [
@@ -224,6 +407,7 @@ final class SyncPushService
             'code' => $rejection->apiCode->value,
             'message' => $rejection->getMessage(),
             'errors' => $rejection->errors,
+            ...($rejection->conflict !== null ? ['conflict' => $rejection->conflict] : []),
         ];
     }
 }

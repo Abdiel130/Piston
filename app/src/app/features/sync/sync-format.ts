@@ -1,4 +1,5 @@
-import type { DomainTable, SyncTrigger } from '../../core/models';
+import { EMPTY, formatKm, formatLiters, formatLongDate, formatMoney, formatNumber } from '../../core/format';
+import type { DomainTable, SyncConflictKind, SyncTrigger } from '../../core/models';
 import type { IconName } from '../../shared/icon/icon.component';
 
 const exactFormat = new Intl.DateTimeFormat('es-MX', {
@@ -127,4 +128,47 @@ export function fieldLabel(field: string): string {
   if (known[field]) return known[field];
   const text = field.replace(/_/g, ' ');
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Causa corta de un conflicto, para la fila de la lista. */
+export const CONFLICT_SHORT: Readonly<Record<SyncConflictKind, string>> = {
+  edit_edit: 'Editado en otro dispositivo',
+  edit_delete: 'Borrado en otro dispositivo',
+  create_in_deleted_parent: 'Su registro se borró',
+};
+
+const dateTimeFormat = new Intl.DateTimeFormat('es-MX', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+/**
+ * Un valor de una columna como lo lee una persona: km, litros, pesos, fechas.
+ * Se decide por el nombre de la columna, igual que en `fieldLabel`.
+ */
+export function fieldValue(field: string, value: unknown): string {
+  if (value === null || value === undefined || value === '') return EMPTY;
+  if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+
+  const numeric = typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value)) ? Number(value) : value;
+  if (typeof numeric === 'number') {
+    if (field === 'km' || field.endsWith('_km')) return formatKm(numeric);
+    if (field === 'liters' || field.endsWith('_l') || field.startsWith('liters_')) return formatLiters(numeric);
+    if (/(amount|price|cost)/.test(field)) return formatMoney(numeric);
+    return formatNumber(numeric);
+  }
+
+  if (typeof value === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return formatLongDate(value);
+    if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? value : dateTimeFormat.format(date);
+    }
+    return value;
+  }
+  return JSON.stringify(value);
 }

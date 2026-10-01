@@ -52,7 +52,7 @@ export class OfflineStore {
 
     await db.transaction('rw', db.table(table), db.sync_outbox, async () => {
       await db.table(table).add(row);
-      await this.enqueue(table, row.id, 'insert', row);
+      await this.enqueue(table, row.id, 'insert', row, null);
     });
 
     return row;
@@ -75,7 +75,7 @@ export class OfflineStore {
 
       updated = { ...current, ...patch, updated_at: now, client_updated_at: now };
       await db.table(table).put(updated);
-      await this.enqueue(table, id, 'update', updated);
+      await this.enqueue(table, id, 'update', updated, current);
     });
 
     return updated;
@@ -102,7 +102,7 @@ export class OfflineStore {
       await db.table(table).put(tombstone);
       // El tombstone completo viaja como payload: con su `client_updated_at`
       // el servidor decide si el borrado es más nuevo que su versión.
-      await this.enqueue(table, id, 'delete', tombstone);
+      await this.enqueue(table, id, 'delete', tombstone, current);
     });
   }
 
@@ -172,19 +172,26 @@ export class OfflineStore {
    * fila se creó offline (`insert` pendiente) y luego se borra, las dos
    * entradas se anulan entre sí —el servidor nunca supo de esa fila, así que
    * mandarle un DELETE es pedirle que borre algo que no tiene—.
+   *
+   * La base (`base`, `base_rev`) se toma en el PRIMER cambio y se conserva al
+   * colapsar: lo que importa es qué versión vio el usuario antes de empezar a
+   * editar, no la de su edición anterior. Con ella el servidor distingue sus
+   * cambios de los de otro dispositivo.
    */
   private async enqueue(
     table: DomainTable,
     rowId: Uuid,
     op: 'insert' | 'update' | 'delete',
     row: SyncFields | null,
+    before: SyncFields | null,
   ): Promise<void> {
     const pending = await db.sync_outbox
       .where('[table_name+row_id]')
       .equals([table, rowId])
-      .toArray();
+      .sortBy('created_at');
 
     const hadPendingInsert = pending.some((entry) => entry.op === 'insert');
+    const first = pending[0];
 
     if (pending.length > 0) {
       await db.sync_outbox.bulkDelete(pending.map((entry) => entry.id));
@@ -203,6 +210,10 @@ export class OfflineStore {
       // el servidor: nunca la ha visto.
       op: hadPendingInsert && op === 'update' ? 'insert' : op,
       payload: row ? JSON.stringify(row) : null,
+      base_rev: first ? first.base_rev : (before?.rev ?? 0),
+      base: first ? first.base : before ? JSON.stringify(before) : null,
+      resolve: first?.resolve ?? null,
+      conflict: null,
       status: 'pending',
       attempts: 0,
       last_attempt: null,

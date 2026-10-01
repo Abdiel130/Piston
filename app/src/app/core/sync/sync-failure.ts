@@ -51,7 +51,13 @@ export function fromRejection(
   requestId: string,
   durationMs: number,
 ): SyncAttempt {
-  return attempt(new Date().toISOString(), kindOfCode(rejected.code), {
+  const kind = rejected.conflict
+    ? rejected.code === 'parent_deleted'
+      ? 'parent_deleted'
+      : 'edit_conflict'
+    : kindOfCode(rejected.code);
+
+  return attempt(new Date().toISOString(), kind, {
     http_status: 200,
     code: rejected.code,
     message: rejected.message,
@@ -94,6 +100,8 @@ function kindOfCode(code: ApiCode): SyncFailureKind {
       return 'conflict';
     case 'parent_missing':
       return 'parent_missing';
+    case 'parent_deleted':
+      return 'parent_deleted';
     case 'payload_too_large':
       return 'payload_too_large';
     case 'unknown_table':

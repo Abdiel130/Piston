@@ -12,7 +12,7 @@ import { IconComponent, type IconName } from '../../shared/icon/icon.component';
 import { IslandService } from '../../shared/island/island.service';
 import { SegmentedComponent, type SegmentedOption } from '../../shared/segmented/segmented.component';
 import { SyncAttemptComponent } from './sync-attempt.component';
-import { TABLE_ICON, TRIGGER_LABEL, clock, dayLabel, relative } from './sync-format';
+import { CONFLICT_SHORT, TABLE_ICON, TRIGGER_LABEL, clock, dayLabel, relative } from './sync-format';
 
 type View = 'current' | 'history';
 
@@ -42,8 +42,15 @@ interface HistoryDay {
 
 const OUTCOME_TEXT: Record<SyncLogEntry['outcome'], { label: string; tone: string }> = {
   applied: { label: 'Subido', tone: 'good' },
+  merged: { label: 'Se combinó con otro dispositivo', tone: 'good' },
   stale: { label: 'Ganó otra versión', tone: 'idle' },
   rejected: { label: 'Rechazado', tone: 'bad' },
+  conflict: { label: 'Conflicto', tone: 'bad' },
+  resolved_mine: { label: 'Conflicto: se conservó la tuya', tone: 'good' },
+  resolved_theirs: { label: 'Conflicto: se usó la del servidor', tone: 'good' },
+  resolved_fields: { label: 'Conflicto: se eligió por campo', tone: 'good' },
+  resolved_restore: { label: 'Conflicto: se restauró', tone: 'good' },
+  resolved_accept_delete: { label: 'Conflicto: se aceptó el borrado', tone: 'idle' },
   discarded: { label: 'Descartado', tone: 'idle' },
   uploaded: { label: 'Archivo subido', tone: 'good' },
   upload_failed: { label: 'Archivo rechazado', tone: 'bad' },
@@ -52,8 +59,8 @@ const OUTCOME_TEXT: Record<SyncLogEntry['outcome'], { label: string; tone: strin
 /**
  * Centro de sincronización: el ÚNICO lugar para ver y resolver el sync.
  *
- * "Actual" es lo que falta por subir (con error, bloqueado o en cola) y cada
- * fila lleva a su diagnóstico. "Historial" son los ciclos recientes y qué pasó
+ * "Actual" es lo que falta por subir (en conflicto, con error, bloqueado o en
+ * cola) y cada fila lleva a su diagnóstico. "Historial" son los ciclos recientes y qué pasó
  * con cada cambio. El botón de abajo reintenta todo de una vez.
  */
 @Component({
@@ -103,6 +110,7 @@ export class SyncCenterComponent {
     [] as SyncLogEntry[],
   );
 
+  protected readonly conflicts = computed(() => this.itemsFor('conflict'));
   protected readonly failed = computed(() => this.itemsFor('failed'));
   protected readonly blocked = computed(() => this.itemsFor('blocked'));
   protected readonly pending = computed(() => this.itemsFor('pending'));
@@ -123,7 +131,12 @@ export class SyncCenterComponent {
   );
 
   protected readonly totalOpen = computed(
-    () => this.failed().length + this.blocked().length + this.pending().length + this.fileItems().length,
+    () =>
+      this.conflicts().length +
+      this.failed().length +
+      this.blocked().length +
+      this.pending().length +
+      this.fileItems().length,
   );
 
   protected readonly viewOptions = computed<readonly SegmentedOption<View>[]>(() => [
@@ -163,7 +176,7 @@ export class SyncCenterComponent {
 
   protected readonly headline = computed(() => {
     const s = this.summary();
-    const open = s.pending + s.blocked + s.failed + s.uploads + s.failedUploads;
+    const open = s.pending + s.blocked + s.failed + s.conflicts + s.uploads + s.failedUploads;
     switch (s.health) {
       case 'expired':
         return { icon: 'cloudOff' as IconName, tone: 'warn', title: 'Sesión expirada', sub: 'Inicia sesión para enviar lo pendiente.' };
@@ -176,6 +189,13 @@ export class SyncCenterComponent {
         };
       case 'syncing':
         return { icon: 'sync' as IconName, tone: 'brand', title: 'Sincronizando…', sub: this.phaseText() };
+      case 'conflict':
+        return {
+          icon: 'alert' as IconName,
+          tone: 'bad',
+          title: s.conflicts === 1 ? '1 conflicto' : `${s.conflicts} conflictos`,
+          sub: 'Se cambió lo mismo en otro dispositivo. Toca cada uno para decidir qué versión conservar.',
+        };
       case 'error':
         return {
           icon: 'alert' as IconName,
@@ -217,15 +237,16 @@ export class SyncCenterComponent {
   constructor() {
     effect(() => {
       const s = this.summary();
-      const open = s.pending + s.blocked + s.failed + s.uploads + s.failedUploads;
+      const open = s.pending + s.blocked + s.failed + s.conflicts + s.uploads + s.failedUploads;
       this.island.present({
         icon: this.headline().icon,
         label: 'Sincronización',
         value: String(open),
-        tone: s.health === 'error' ? 'bad' : open > 0 ? 'warn' : 'good',
+        tone: s.health === 'error' || s.health === 'conflict' ? 'bad' : open > 0 ? 'warn' : 'good',
         title: this.headline().title,
         subtitle: this.headline().sub,
         details: [
+          ...(s.conflicts > 0 ? [{ label: 'Conflictos', value: String(s.conflicts) }] : []),
           { label: 'Pendientes', value: String(s.pending + s.blocked) },
           { label: 'Con error', value: String(s.failed + s.failedUploads) },
           { label: 'Último sync', value: relative(s.lastSyncedAt) },
@@ -269,7 +290,7 @@ export class SyncCenterComponent {
     const parts: string[] = [];
     if (run.applied) parts.push(`${run.applied} subidos`);
     if (run.stale) parts.push(`${run.stale} ya actualizados`);
-    if (run.rejected) parts.push(`${run.rejected} rechazados`);
+    if (run.rejected) parts.push(`${run.rejected} rechazados o en conflicto`);
     if (run.pulled) parts.push(`${run.pulled} recibidos`);
     if (run.uploaded) parts.push(`${run.uploaded} archivos`);
     if (run.error) parts.push(DIAGNOSIS[run.error.kind].short);
@@ -309,7 +330,7 @@ export class SyncCenterComponent {
     return `${OP_LABEL[event.op]} · ${event.label}`;
   }
 
-  private itemsFor(status: 'failed' | 'blocked' | 'pending'): PendingItem[] {
+  private itemsFor(status: 'conflict' | 'failed' | 'blocked' | 'pending'): PendingItem[] {
     return this.outbox()
       .filter((entry) => (status === 'pending' ? entry.status === 'pending' || entry.status === 'in_flight' : entry.status === status))
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -318,18 +339,29 @@ export class SyncCenterComponent {
         const attempt = entry.last_attempt;
         return {
           id: entry.id,
-          link: ['change', entry.id],
+          link: [status === 'conflict' ? 'conflict' : 'change', entry.id],
           icon: TABLE_ICON[entry.table_name] ?? 'sync',
           title: `${title} · ${OP_LABEL[entry.op].toLowerCase()}`,
           detail,
           cause:
-            entry.status === 'in_flight'
-              ? 'Enviando…'
-              : attempt
-                ? DIAGNOSIS[attempt.kind].short
-                : 'En cola',
-          badge: status === 'failed' ? 'Error' : status === 'blocked' ? 'Bloqueado' : entry.status === 'in_flight' ? 'Enviando' : 'Pendiente',
-          tone: status === 'failed' ? 'bad' : status === 'blocked' ? 'warn' : 'idle',
+            status === 'conflict'
+              ? CONFLICT_SHORT[entry.conflict?.kind ?? 'edit_edit']
+              : entry.status === 'in_flight'
+                ? 'Enviando…'
+                : attempt
+                  ? DIAGNOSIS[attempt.kind].short
+                  : 'En cola',
+          badge:
+            status === 'conflict'
+              ? 'Conflicto'
+              : status === 'failed'
+                ? 'Error'
+                : status === 'blocked'
+                  ? 'Bloqueado'
+                  : entry.status === 'in_flight'
+                    ? 'Enviando'
+                    : 'Pendiente',
+          tone: status === 'failed' || status === 'conflict' ? 'bad' : status === 'blocked' ? 'warn' : 'idle',
         };
       });
   }

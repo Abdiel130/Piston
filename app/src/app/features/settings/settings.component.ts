@@ -27,6 +27,7 @@ const BLOCKER_TEXT: Record<Exclude<LogoutBlocker, null>, string> = {
   syncing: 'Sincronizando…',
   pending: 'Hay cambios sin enviar al servidor.',
   failed: 'Hay cambios que el servidor rechazó. Reintenta antes de salir.',
+  conflict: 'Hay conflictos con otro dispositivo. Resuélvelos antes de salir.',
   uploads: 'Hay fotos sin subir.',
 };
 
@@ -93,10 +94,11 @@ export class SettingsComponent {
         icon: s.health === 'offline' || s.health === 'expired' ? 'cloudOff' : 'cloudCheck',
         label: syncLabel(s),
         value: String(open),
-        tone: s.health === 'error' ? 'bad' : open > 0 ? 'warn' : 'good',
-        title: open > 0 ? 'Cambios sin sincronizar' : 'Todo sincronizado',
+        tone: s.health === 'error' || s.health === 'conflict' ? 'bad' : open > 0 ? 'warn' : 'good',
+        title: s.conflicts > 0 ? 'Conflictos por resolver' : open > 0 ? 'Cambios sin sincronizar' : 'Todo sincronizado',
         subtitle: s.health === 'offline' ? 'Se enviarán al recuperar la señal' : 'La cola se vacía en segundo plano',
         details: [
+          ...(s.conflicts > 0 ? [{ label: 'Conflictos', value: String(s.conflicts) }] : []),
           { label: 'En cola', value: String(s.pending + s.blocked) },
           { label: 'Con error', value: String(s.failed + s.failedUploads) },
           { label: 'Último sync', value: relative(s.lastSyncedAt) },
@@ -233,14 +235,14 @@ export class SettingsComponent {
       icon: s.health === 'offline' || s.health === 'expired' ? 'cloudOff' : 'sync',
       title: 'Sincronización',
       value: syncLabel(s),
-      tone: s.health === 'error' ? 'bad' : s.health === 'ok' ? 'good' : 'warn',
+      tone: s.health === 'error' || s.health === 'conflict' ? 'bad' : s.health === 'ok' ? 'good' : 'warn',
       action: () => this.openSync(),
     };
   }
 }
 
 function openCount(s: SyncSummary): number {
-  return s.pending + s.blocked + s.failed + s.uploads + s.failedUploads;
+  return s.pending + s.blocked + s.failed + s.conflicts + s.uploads + s.failedUploads;
 }
 
 /** Estado de una línea: lo que se ve en la fila de Ajustes y en la isla. */
@@ -253,6 +255,8 @@ function syncLabel(s: SyncSummary): string {
       return open > 0 ? `Sin conexión · ${open} en cola` : 'Sin conexión';
     case 'syncing':
       return 'Sincronizando…';
+    case 'conflict':
+      return s.conflicts === 1 ? '1 conflicto' : `${s.conflicts} conflictos`;
     case 'error':
       return `${s.failed + s.failedUploads} con error`;
     case 'pending':

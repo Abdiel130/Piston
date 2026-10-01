@@ -145,6 +145,25 @@ export class PistonDb extends Dexie {
                 : null;
           });
       });
+
+    // Conflictos: cada entrada lleva la versión de la fila que vio el
+    // dispositivo. Lo que ya estaba en cola no la tiene (`base_rev: null`) y
+    // sube con el last-write-wins de antes.
+    this.version(4)
+      .stores({
+        sync_outbox: 'id, status, [status+next_retry_at], [table_name+row_id], created_at',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('sync_outbox')
+          .toCollection()
+          .modify((entry: Record<string, unknown>) => {
+            entry['base_rev'] = null;
+            entry['base'] = null;
+            entry['resolve'] = null;
+            entry['conflict'] = null;
+          });
+      });
   }
 }
 

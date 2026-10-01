@@ -71,23 +71,42 @@ final class SyncAccess
      * que la cuenta pueda ver. Se revisa antes de escribir para devolver un
      * rechazo con campo y no un error de Postgres.
      *
+     * Además, una referencia NUEVA no puede apuntar a un tombstone: crear una
+     * carga dentro de un vehículo que otro dispositivo borró dejaría un hijo
+     * vivo colgando de un padre muerto. Las referencias que la fila ya tenía
+     * no se revisan contra el tombstone: editar las notas de una carga cuya
+     * gasolinera se borró sigue siendo válido.
+     *
      * @param  array<string, mixed>  $data
+     * @param  Model|null  $existing  La fila tal como está en el servidor (null si es nueva).
      */
-    public function assertReferences(SyncTable $table, array $data, User $user): void
+    public function assertReferences(SyncTable $table, array $data, User $user, ?Model $existing = null): void
     {
         foreach ($table->references() as $column => $referenced) {
             if (isset($data[$column])) {
-                $this->assertReachable($referenced, (string) $data[$column], $column, $user);
+                $isNew = $this->isNewReference($table, $column, $data[$column], $existing);
+                $this->assertReachable($referenced, (string) $data[$column], $column, $user, $isNew);
             }
         }
 
         if ($table->polymorphicOwner !== null && isset($data['owner_type'], $data['owner_id'])) {
             $referenced = $table->polymorphicOwner[$data['owner_type']];
-            $this->assertReachable($referenced, (string) $data['owner_id'], 'owner_id', $user);
+            $isNew = $this->isNewReference($table, 'owner_id', $data['owner_id'], $existing)
+                || $existing?->getAttribute('owner_type') !== $data['owner_type'];
+            $this->assertReachable($referenced, (string) $data['owner_id'], 'owner_id', $user, $isNew);
         }
     }
 
-    private function assertReachable(string $tableName, string $id, string $column, User $user): void
+    private function isNewReference(SyncTable $table, string $column, mixed $value, ?Model $existing): bool
+    {
+        if ($existing === null || $existing->trashed()) {
+            return true;
+        }
+
+        return ! $table->fields[$column]->same($existing->getAttribute($column), $value);
+    }
+
+    private function assertReachable(string $tableName, string $id, string $column, User $user, bool $isNew): void
     {
         $table = SyncRegistry::find($tableName);
         $row = $table?->query()->find($id);
@@ -104,6 +123,20 @@ final class SyncAccess
                 ApiCode::Forbidden,
                 'Apunta a un registro de otra cuenta.',
                 [$column => ['Ese registro no pertenece a tu cuenta.']],
+            );
+        }
+
+        if ($isNew && $row->trashed()) {
+            throw new MutationRejected(
+                ApiCode::ParentDeleted,
+                errors: [$column => ["{$tableName}/{$id} se borró en otro dispositivo."]],
+                conflict: [
+                    'kind' => 'create_in_deleted_parent',
+                    'fields' => [$column],
+                    'server_row' => $row->toArray(),
+                    'server_rev' => (int) $row->getAttribute('rev'),
+                    'parent' => ['table' => $tableName, 'id' => $id],
+                ],
             );
         }
     }

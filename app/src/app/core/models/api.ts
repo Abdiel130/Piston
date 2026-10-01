@@ -21,6 +21,7 @@ export type ApiCode =
   | 'payload_too_large'
   | 'too_many_requests'
   | 'parent_missing'
+  | 'parent_deleted'
   | 'unknown_table'
   | 'server_error'
   | 'service_unavailable';

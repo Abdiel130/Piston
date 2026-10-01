@@ -2,7 +2,10 @@
 
 namespace App\Sync;
 
+use Carbon\CarbonImmutable;
+use DateTimeInterface;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 /**
  * Una columna sincronizable: de aquí salen la validación del push y el cast
@@ -117,6 +120,50 @@ final readonly class Field
             'datetime' => 'immutable_datetime',
             default => null,
         };
+    }
+
+    /**
+     * El valor en una forma comparable, venga del cliente (JSON) o de la fila
+     * (cast de Eloquent). Sin esto `12.5` contra `"12.50"`, o una fecha con y
+     * sin microsegundos, parecerían cambios distintos y el merge inventaría
+     * conflictos.
+     */
+    public function normalize(mixed $value): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return match ($this->type) {
+            'integer', 'smallint' => is_numeric($value) ? (int) $value : $value,
+            'decimal' => is_numeric($value)
+                ? number_format(round((float) $value, $this->scale ?? 0), $this->scale ?? 0, '.', '')
+                : $value,
+            'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $value,
+            'date' => $this->moment($value, 'Y-m-d'),
+            'datetime' => $this->moment($value, 'Y-m-d\\TH:i:s.v'),
+            'uuid' => is_string($value) ? strtolower($value) : $value,
+            default => is_scalar($value) ? (string) $value : $value,
+        };
+    }
+
+    public function same(mixed $a, mixed $b): bool
+    {
+        return $this->normalize($a) === $this->normalize($b);
+    }
+
+    /** Fechas a milisegundos y UTC: es la precisión que maneja el cliente. */
+    private function moment(mixed $value, string $format): mixed
+    {
+        try {
+            $moment = $value instanceof DateTimeInterface
+                ? CarbonImmutable::instance($value)
+                : CarbonImmutable::parse((string) $value);
+        } catch (Throwable) {
+            return $value;
+        }
+
+        return ($this->type === 'date' ? $moment : $moment->utc())->format($format);
     }
 
     /** @return list<mixed> */

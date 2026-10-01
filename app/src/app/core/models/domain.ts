@@ -44,7 +44,7 @@ export interface SyncFields {
   readonly id: Uuid;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
-  /** Base del last-write-wins. Reloj del dispositivo que hizo el cambio. */
+  /** Reloj del dispositivo que hizo el cambio. Informativo: los choques se deciden por `rev`. */
   client_updated_at: IsoDateTime;
   /** Tombstone. No-nulo = borrado; la fila se conserva para propagar el borrado. */
   deleted_at: IsoDateTime | null;

@@ -14,17 +14,20 @@ import {
   type DomainTable,
   type OutboxEntry,
   type RowRef,
+  type SyncAppliedRow,
   type SyncAttempt,
   type SyncFields,
   type SyncLogEntry,
   type SyncLogOutcome,
   type SyncPushMutation,
   type SyncPushResponse,
+  type SyncRejectedRow,
   type SyncRun,
   type SyncTrigger,
 } from '../models';
 import { requestDailySync, requestOutboxSync } from './background-sync';
 import { nextRetryAt } from './backoff';
+import { changedFields, conflictView, resolvedRow, type ConflictSide } from './conflict';
 import { rowLabel } from './describe';
 import { parentsOf, refKey } from './references';
 import { classify, fromRejection } from './sync-failure';
@@ -52,6 +55,9 @@ const FRESHNESS_MS = 5 * 60 * 1000;
 /** Web Lock compartido entre pestañas: solo una sincroniza a la vez. */
 const SYNC_LOCK = 'piston-sync';
 
+/** Estados que no van a subir solos: lo que dependa de ellos queda `blocked`. */
+const STUCK: ReadonlySet<OutboxEntry['status']> = new Set(['failed', 'blocked', 'conflict']);
+
 export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error' | 'unauthorized';
 
 /** Fase del ciclo en curso. Lo que muestra la ventana de sincronización. */
@@ -63,16 +69,18 @@ export interface SyncProgress {
 
 /** Por qué no se puede cerrar sesión todavía. `null` = se puede. */
 export type LogoutBlocker =
-  'offline' | 'syncing' | 'pending' | 'failed' | 'uploads' | 'expired' | null;
+  'offline' | 'syncing' | 'pending' | 'failed' | 'conflict' | 'uploads' | 'expired' | null;
 
 /** Estado de una sola palabra para la fila de Ajustes y el encabezado del centro de sync. */
-export type SyncHealth = 'ok' | 'syncing' | 'pending' | 'error' | 'offline' | 'expired';
+export type SyncHealth = 'ok' | 'syncing' | 'pending' | 'conflict' | 'error' | 'offline' | 'expired';
 
 export interface SyncSummary {
   readonly health: SyncHealth;
   readonly pending: number;
   readonly failed: number;
   readonly blocked: number;
+  /** Cambios que chocaron con otro dispositivo y esperan a que el usuario decida. */
+  readonly conflicts: number;
   readonly uploads: number;
   readonly failedUploads: number;
   readonly lastSyncedAt: string | null;
@@ -83,7 +91,11 @@ export interface SyncSummary {
  *
  * Empuja primero y jala después, siempre en ese orden: si se jalara primero,
  * el servidor mandaría la versión vieja de una fila que este dispositivo acaba
- * de cambiar y el last-write-wins la pisaría con datos anteriores.
+ * de cambiar y la pisaría con datos anteriores.
+ *
+ * Los choques con otro dispositivo los detecta el servidor por versión
+ * (`base_rev`) y los mezcla por campo; lo que no puede mezclar vuelve como
+ * conflicto y espera a que el usuario decida (ver "Conflictos" abajo).
  *
  * No hace polling a ciegas. Cuándo corre:
  *
@@ -131,6 +143,9 @@ export class SyncService {
   /** Mutaciones que el servidor rechazó y necesitan que alguien mire. */
   readonly failedCount = this.live(() => db.sync_outbox.where('status').equals('failed').count(), 0);
 
+  /** Mutaciones que chocaron con otro dispositivo. Nunca se resuelven solas. */
+  readonly conflictCount = this.live(() => db.sync_outbox.where('status').equals('conflict').count(), 0);
+
   /** Mutaciones detenidas porque dependen de otra que no pudo subir. */
   readonly blockedCount = this.live(() => db.sync_outbox.where('status').equals('blocked').count(), 0);
 
@@ -164,17 +179,30 @@ export class SyncService {
     const pending = this.pendingCount();
     const failed = this.failedCount();
     const blocked = this.blockedCount();
+    const conflicts = this.conflictCount();
     const uploads = this.pendingUploads();
     const failedUploads = this.failedUploads();
 
+    // Un conflicto pesa más que un pendiente y que un error: el error puede
+    // arreglarse solo con un reintento; el conflicto solo con una decisión.
     let health: SyncHealth = 'ok';
     if (this.auth.state() === 'expired') health = 'expired';
     else if (!this._online()) health = 'offline';
     else if (this._status() === 'syncing') health = 'syncing';
+    else if (conflicts > 0) health = 'conflict';
     else if (failed + failedUploads > 0) health = 'error';
     else if (pending + blocked + uploads > 0) health = 'pending';
 
-    return { health, pending, failed, blocked, uploads, failedUploads, lastSyncedAt: this.lastSyncedAt() };
+    return {
+      health,
+      pending,
+      failed,
+      blocked,
+      conflicts,
+      uploads,
+      failedUploads,
+      lastSyncedAt: this.lastSyncedAt(),
+    };
   });
 
   /**
@@ -186,6 +214,7 @@ export class SyncService {
     if (this.auth.state() === 'expired') return 'expired';
     if (!this._online()) return 'offline';
     if (this._status() === 'syncing') return 'syncing';
+    if (this.conflictCount() > 0) return 'conflict';
     if (this.failedCount() + this.blockedCount() + this.failedUploads() > 0) return 'failed';
     if (this.pendingCount() > 0) return 'pending';
     if (this.pendingUploads() > 0) return 'uploads';
@@ -338,7 +367,14 @@ export class SyncService {
       return;
     }
 
-    const targets = [entry, ...(await this.dependentsOf(entryId))];
+    await this.discardEntries([entry, ...(await this.dependentsOf(entryId))], 'discarded');
+  }
+
+  /** Descarta varias entradas restaurando lo que el servidor tenga de cada una. */
+  private async discardEntries(targets: readonly OutboxEntry[], outcome: SyncLogOutcome): Promise<void> {
+    if (targets.length === 0) {
+      return;
+    }
     const restore = new Map<string, SyncFields | null>();
 
     for (const target of targets) {
@@ -364,9 +400,229 @@ export class SyncService {
           await table.delete(target.row_id);
         }
         await db.sync_outbox.delete(target.id);
-        await db.sync_log.add(this.logEntry(null, target, 'discarded', null, null));
+        await db.sync_log.add(this.logEntry(null, target, outcome, null, null));
       }
     });
+  }
+
+  // ── Conflictos ──────────────────────────────────────────────────────────
+
+  /**
+   * Resuelve un `edit_edit` eligiendo, campo por campo, qué versión queda.
+   *
+   * Parte de la versión del servidor, le aplica lo que este dispositivo cambió
+   * sin choque y, en cada campo en conflicto, el lado elegido (por defecto, el
+   * mío). Si el resultado es exactamente lo que ya tiene el servidor, no hay
+   * nada que subir: se adopta su versión. Si no, se reenvía sobre `server_rev`,
+   * así que ya no choca.
+   */
+  async resolveFields(entryId: string, choices: Readonly<Record<string, ConflictSide>>): Promise<void> {
+    const entry = await this.conflictEntry(entryId);
+    const view = conflictView(entry)!;
+    if (entry.conflict!.kind !== 'edit_edit' || !view.theirs) {
+      throw new Error('Solo un conflicto de edición se resuelve por campo.');
+    }
+
+    const resolved = resolvedRow(view, choices);
+    const picked = view.fields.map((field) => choices[field] ?? 'mine');
+    const outcome: SyncLogOutcome = picked.every((side) => side === 'mine')
+      ? 'resolved_mine'
+      : picked.every((side) => side === 'theirs')
+        ? 'resolved_theirs'
+        : 'resolved_fields';
+
+    if (changedFields(view.theirs, resolved).length === 0) {
+      await this.adoptServer(entry, outcome);
+    } else {
+      await this.requeue(entry, resolved, { op: entry.op === 'insert' ? 'insert' : 'update', resolve: null }, outcome);
+    }
+    await this.sync('manual');
+  }
+
+  /**
+   * "Conservar la mía". En un `edit_edit`, mis valores en todos los campos en
+   * conflicto. Si mi cambio era un borrado (y el otro dispositivo editó), lo
+   * vuelve a mandar sobre la versión editada: borrarla es lo que elegí.
+   */
+  async resolveKeepMine(entryId: string): Promise<void> {
+    const entry = await this.conflictEntry(entryId);
+    const conflict = entry.conflict!;
+
+    if (conflict.kind === 'edit_edit') {
+      return this.resolveFields(entryId, Object.fromEntries(conflict.fields.map((field) => [field, 'mine'])));
+    }
+    if (conflict.kind === 'edit_delete' && entry.op === 'delete') {
+      await this.requeue(entry, payloadOf(entry) ?? {}, { op: 'delete', resolve: null }, 'resolved_mine');
+      return this.sync('manual');
+    }
+    return this.resolveRestore(entryId);
+  }
+
+  /**
+   * "Usar la del servidor". En un `edit_edit`, sus valores en los campos en
+   * conflicto (lo mío que no chocaba se conserva). Si mi cambio era un borrado,
+   * me quedo con la versión editada y no se borra.
+   */
+  async resolveTakeServer(entryId: string): Promise<void> {
+    const entry = await this.conflictEntry(entryId);
+    const conflict = entry.conflict!;
+
+    if (conflict.kind === 'edit_edit') {
+      return this.resolveFields(entryId, Object.fromEntries(conflict.fields.map((field) => [field, 'theirs'])));
+    }
+    if (conflict.kind === 'edit_delete' && entry.op === 'delete') {
+      await this.adoptServer(entry, 'resolved_theirs');
+      return;
+    }
+    return this.resolveAcceptDelete(entryId);
+  }
+
+  /**
+   * "Restaurar con mis cambios": otro dispositivo lo borró y yo lo había
+   * editado. Se resucita con mi versión. El servidor solo lo permite por esta
+   * vía (`resolve: 'restore'`) y sobre el tombstone que vio el usuario.
+   */
+  async resolveRestore(entryId: string): Promise<void> {
+    const entry = await this.conflictEntry(entryId);
+    if (entry.conflict!.kind !== 'edit_delete' || entry.op === 'delete') {
+      throw new Error('Solo se restaura un registro que se borró mientras lo editabas.');
+    }
+
+    const mine = { ...(payloadOf(entry) ?? {}), deleted_at: null };
+    await this.requeue(entry, mine, { op: 'insert', resolve: 'restore' }, 'resolved_restore');
+    await this.sync('manual');
+  }
+
+  /**
+   * "Aceptar el borrado": se queda el tombstone del servidor y se descarta mi
+   * edición junto con lo que dependía de ella (ver `dependentsOf`).
+   */
+  async resolveAcceptDelete(entryId: string): Promise<void> {
+    const entry = await this.conflictEntry(entryId);
+    if (entry.conflict!.kind !== 'edit_delete' || entry.op === 'delete') {
+      throw new Error('Solo se acepta el borrado de un registro que editabas.');
+    }
+
+    const dependents = await this.dependentsOf(entryId);
+    await this.discardEntries(dependents, 'discarded');
+    await this.adoptServer(entry, 'resolved_accept_delete');
+  }
+
+  /**
+   * Para un hijo creado dentro de un padre borrado: si este dispositivo ya
+   * tiene un conflicto del padre, devuelve esa entrada (hay que resolverlo
+   * allí). Si no, restaura el padre tal como estaba antes de borrarse y el
+   * hijo sube detrás de él.
+   *
+   * @returns la entrada del conflicto del padre, o `null` si se restauró.
+   */
+  async resolveRestoreParent(entryId: string): Promise<OutboxEntry | null> {
+    const entry = await this.conflictEntry(entryId);
+    const conflict = entry.conflict!;
+    if (conflict.kind !== 'create_in_deleted_parent' || !conflict.parent || !conflict.server_row) {
+      throw new Error('Este conflicto no tiene un registro padre que restaurar.');
+    }
+
+    const parent = conflict.parent;
+    const queued = await db.sync_outbox.where('[table_name+row_id]').equals([parent.table, parent.id]).first();
+    if (queued?.status === 'conflict') {
+      return queued;
+    }
+
+    const now = new Date().toISOString();
+    const restored = { ...conflict.server_row, deleted_at: null, client_updated_at: now, updated_at: now };
+    const parentEntry: OutboxEntry = {
+      id: uuidV7(),
+      table_name: parent.table,
+      row_id: parent.id,
+      op: 'insert',
+      payload: JSON.stringify(restored),
+      base_rev: conflict.server_rev,
+      base: JSON.stringify(conflict.server_row),
+      resolve: 'restore',
+      conflict: null,
+      status: 'pending',
+      attempts: 0,
+      last_attempt: null,
+      blocked_by: null,
+      next_retry_at: now,
+      created_at: now,
+    };
+
+    await db.transaction('rw', [db.sync_outbox, db.sync_log, db.table(parent.table)], async () => {
+      if (queued) await db.sync_outbox.delete(queued.id);
+      await db.table(parent.table).put(restored);
+      await db.sync_outbox.add(parentEntry);
+      await db.sync_log.add(this.logEntry(null, parentEntry, 'resolved_restore', null, null));
+      // El hijo espera a que el padre suba; `holdDependents` lo ordena.
+      await db.sync_outbox.update(entry.id, this.backToQueue(now));
+    });
+    await this.sync('manual');
+    return null;
+  }
+
+  private async conflictEntry(entryId: string): Promise<OutboxEntry> {
+    const entry = await db.sync_outbox.get(entryId);
+    if (!entry?.conflict || entry.status !== 'conflict') {
+      throw new Error('Ese cambio ya no está en conflicto.');
+    }
+    return entry;
+  }
+
+  /** Se queda la versión del servidor y se olvida mi cambio. */
+  private async adoptServer(entry: OutboxEntry, outcome: SyncLogOutcome): Promise<void> {
+    const server = entry.conflict!.server_row;
+    const table = db.table(entry.table_name);
+
+    await db.transaction('rw', [db.sync_outbox, db.sync_log, table], async () => {
+      if (server) {
+        const local = (await table.get(entry.row_id)) as SyncFields | undefined;
+        await table.put(entry.table_name === 'attachments' ? mergeAttachment(local, server) : server);
+      }
+      await db.sync_outbox.delete(entry.id);
+      await db.sync_log.add(this.logEntry(null, entry, outcome, entry.conflict!.request_id, null));
+    });
+  }
+
+  /**
+   * Vuelve a encolar la entrada con la versión resuelta, ahora sobre la
+   * versión del servidor: `base_rev = server_rev` y `base = server_row`.
+   */
+  private async requeue(
+    entry: OutboxEntry,
+    row: Record<string, unknown>,
+    change: Pick<OutboxEntry, 'op' | 'resolve'>,
+    outcome: SyncLogOutcome,
+  ): Promise<void> {
+    const conflict = entry.conflict!;
+    const now = new Date().toISOString();
+    const resolved = { ...row, client_updated_at: now, updated_at: now, rev: conflict.server_rev };
+    const table = db.table(entry.table_name);
+
+    await db.transaction('rw', [db.sync_outbox, db.sync_log, table], async () => {
+      await table.put(resolved);
+      await db.sync_outbox.update(entry.id, {
+        ...this.backToQueue(now),
+        ...change,
+        payload: JSON.stringify(resolved),
+        base_rev: conflict.server_rev,
+        base: conflict.server_row ? JSON.stringify(conflict.server_row) : null,
+      });
+      await db.sync_log.add(
+        this.logEntry(null, { ...entry, payload: JSON.stringify(resolved) }, outcome, conflict.request_id, null),
+      );
+    });
+  }
+
+  private backToQueue(now: string): Partial<OutboxEntry> {
+    return {
+      status: 'pending',
+      conflict: null,
+      blocked_by: null,
+      attempts: 0,
+      last_attempt: null,
+      next_retry_at: now,
+    };
   }
 
   // ── Ciclo ───────────────────────────────────────────────────────────────
@@ -568,7 +824,7 @@ export class SyncService {
           const parentEntry = byRow.get(refKey(parent));
           if (!parentEntry || parentEntry.id === entry.id) continue;
 
-          if (parentEntry.status === 'failed' || parentEntry.status === 'blocked' || blockedNow.has(parentEntry.id)) {
+          if (STUCK.has(parentEntry.status) || blockedNow.has(parentEntry.id)) {
             blockedBy = parent;
             break;
           }
@@ -608,7 +864,7 @@ export class SyncService {
     return sendable;
   }
 
-  /** Suelta los `blocked` cuyo padre ya no está rechazado ni bloqueado. */
+  /** Suelta los `blocked` cuyo padre ya no está rechazado, bloqueado ni en conflicto. */
   private async releaseBlocked(): Promise<void> {
     const blocked = await db.sync_outbox.where('status').equals('blocked').toArray();
     if (blocked.length === 0) {
@@ -616,7 +872,7 @@ export class SyncService {
     }
 
     const stuck = new Set(
-      (await db.sync_outbox.where('status').anyOf('failed', 'blocked').toArray()).map((entry) =>
+      (await db.sync_outbox.where('status').anyOf([...STUCK]).toArray()).map((entry) =>
         refKey({ table: entry.table_name, id: entry.row_id }),
       ),
     );
@@ -632,12 +888,7 @@ export class SyncService {
   private async pushBatch(batch: readonly OutboxEntry[], run: SyncRun): Promise<void> {
     await this.setStatus(batch, 'in_flight');
 
-    const mutations: SyncPushMutation[] = batch.map((entry) => ({
-      table: entry.table_name,
-      id: entry.row_id,
-      op: entry.op,
-      payload: payloadOf(entry),
-    }));
+    const mutations: SyncPushMutation[] = batch.map((entry) => toMutation(entry));
 
     let result;
     try {
@@ -697,16 +948,14 @@ export class SyncService {
         if (!entry) continue;
         answered.add(entry.id);
 
-        // El `rev` que devuelve el servidor es el que evita que el siguiente
-        // pull nos reenvíe nuestros propios cambios como si fueran novedades.
-        if (applied.rev > 0 && !applied.stale) {
-          await db.table(applied.table).update(applied.id, { rev: applied.rev });
-        }
+        await this.storeApplied(entry, applied);
         // Si el usuario editó la fila mientras viajaba, `enqueue` ya reemplazó
         // esta entrada por otra nueva: este delete no la toca y la nueva sube
         // en la siguiente vuelta.
         await db.sync_outbox.delete(entry.id);
-        await db.sync_log.add(this.logEntry(run.id, entry, applied.stale ? 'stale' : 'applied', requestId, null));
+
+        const outcome: SyncLogOutcome = applied.stale ? 'stale' : applied.merged?.length ? 'merged' : 'applied';
+        await db.sync_log.add(this.logEntry(run.id, entry, outcome, requestId, null));
         if (applied.stale) run.stale += 1;
         else run.applied += 1;
       }
@@ -717,6 +966,14 @@ export class SyncService {
         answered.add(entry.id);
 
         const attempt = fromRejection(rejected, requestId, durationMs);
+
+        if (rejected.conflict) {
+          await this.markConflict(entry, rejected, attempt);
+          await db.sync_log.add(this.logEntry(run.id, entry, 'conflict', requestId, attempt));
+          run.rejected += 1;
+          continue;
+        }
+
         const blocker =
           rejected.code === 'parent_missing' ? await this.localBlocker(entry) : null;
 
@@ -736,6 +993,72 @@ export class SyncService {
     // Defensivo: lo que el servidor no mencionó vuelve a la cola tal cual.
     const unanswered = batch.filter((entry) => !answered.has(entry.id));
     if (unanswered.length > 0) await this.setStatus(unanswered, 'pending');
+  }
+
+  /**
+   * Guarda lo que quedó en el servidor.
+   *
+   * Si nadie editó la fila mientras viajaba, se guarda la fila del servidor
+   * tal cual: si hubo mezcla, así el dispositivo ve ya la versión combinada.
+   * Si sí la editaron, la fila local (más nueva) se queda; solo se mueve la
+   * base de la entrada nueva a esta versión. Sin eso, la siguiente subida
+   * compararía contra la base vieja y vería sus propios cambios como si
+   * fueran de otro dispositivo: un conflicto falso.
+   */
+  private async storeApplied(entry: OutboxEntry, applied: SyncAppliedRow): Promise<void> {
+    if (applied.stale || applied.rev <= 0) {
+      return;
+    }
+
+    const table = db.table(applied.table);
+    const replacement = (
+      await db.sync_outbox.where('[table_name+row_id]').equals([entry.table_name, entry.row_id]).toArray()
+    ).find((other) => other.id !== entry.id);
+
+    if (replacement) {
+      await table.update(applied.id, { rev: applied.rev });
+      if (applied.row && replacement.base_rev !== null && replacement.base_rev === entry.base_rev) {
+        await db.sync_outbox.update(replacement.id, {
+          base_rev: applied.rev,
+          base: JSON.stringify(applied.row),
+        });
+      }
+      return;
+    }
+
+    if (applied.row) {
+      const local = (await table.get(applied.id)) as SyncFields | undefined;
+      await table.put(applied.table === 'attachments' ? mergeAttachment(local, applied.row) : applied.row);
+    } else {
+      await table.update(applied.id, { rev: applied.rev });
+    }
+  }
+
+  /**
+   * Aparta un cambio que chocó con otro dispositivo. La fila local conserva
+   * la versión del usuario (el pull no la pisa mientras haya entrada) y no se
+   * reintenta sola: espera una decisión.
+   *
+   * Un hijo creado dentro de un padre borrado queda `blocked` detrás del
+   * conflicto del padre si este dispositivo también lo tiene en cola; si no,
+   * es un conflicto propio.
+   */
+  private async markConflict(entry: OutboxEntry, rejected: SyncRejectedRow, attempt: SyncAttempt): Promise<void> {
+    const detail = rejected.conflict!;
+    const parent = detail.parent ?? null;
+    const parentQueued =
+      parent !== null &&
+      (await db.sync_outbox.where('[table_name+row_id]').equals([parent.table, parent.id]).count()) > 0;
+
+    await db.sync_outbox.update(entry.id, {
+      status: parentQueued ? 'blocked' : 'conflict',
+      blocked_by: parentQueued ? parent : null,
+      attempts: entry.attempts + 1,
+      last_attempt: attempt,
+      conflict: parentQueued
+        ? null
+        : { ...detail, detected_at: attempt.at, request_id: attempt.request_id },
+    });
   }
 
   /**
@@ -806,15 +1129,15 @@ export class SyncService {
   /**
    * Aplica lo que llegó del servidor, fila por fila.
    *
-   * Dos reglas de resolución de conflicto, en este orden:
+   * Dos reglas, en este orden:
    *
-   * 1. Si la fila tiene una mutación en el outbox (pendiente, rechazada o
-   *    bloqueada), gana lo local. El push la subirá o el usuario decidirá qué
-   *    hacer con ella; pisarla ahora perdería un cambio que dio por guardado.
-   * 2. Si no, gana el `client_updated_at` más reciente (last-write-wins). Se
-   *    compara el reloj del CLIENTE que hizo el cambio, no `updated_at` del
-   *    servidor: lo que se quiere saber es quién editó después, no quién
-   *    sincronizó después. Se compara como fecha, no como texto.
+   * 1. Si la fila tiene una mutación en el outbox (pendiente, rechazada,
+   *    bloqueada o en conflicto), gana lo local. El push la subirá o el
+   *    usuario decidirá qué hacer con ella; pisarla ahora perdería un cambio
+   *    que dio por guardado. Los choques los detecta el servidor al subir.
+   * 2. Si no, gana el servidor, salvo que la copia local ya sea de una
+   *    versión posterior (`rev` mayor). Se compara el `rev`, nunca el reloj de
+   *    los dispositivos: uno con la hora atrasada no debe perder siempre.
    */
   private async applyRows(table: DomainTable, rows: readonly SyncFields[]): Promise<void> {
     if (rows.length === 0) {
@@ -834,7 +1157,7 @@ export class SyncService {
 
         const local = (await db.table(table).get(incoming.id)) as SyncFields | undefined;
 
-        if (local && Date.parse(local.client_updated_at) > Date.parse(incoming.client_updated_at)) {
+        if (local && local.rev > incoming.rev) {
           continue;
         }
 
@@ -1080,6 +1403,28 @@ export class SyncService {
 
 function payloadOf(entry: OutboxEntry): Record<string, unknown> | null {
   return entry.payload ? (JSON.parse(entry.payload) as Record<string, unknown>) : null;
+}
+
+/**
+ * La mutación tal como viaja. Una entrada sin `base_rev` (anterior a v4) no
+ * lo manda y el servidor le aplica el last-write-wins de antes.
+ */
+export function toMutation(entry: OutboxEntry): SyncPushMutation {
+  const mutation: SyncPushMutation = {
+    table: entry.table_name,
+    id: entry.row_id,
+    op: entry.op,
+    payload: payloadOf(entry),
+  };
+  if (entry.base_rev === null || entry.base_rev === undefined) {
+    return mutation;
+  }
+  return {
+    ...mutation,
+    base_rev: entry.base_rev,
+    base: entry.base ? (JSON.parse(entry.base) as Record<string, unknown>) : null,
+    ...(entry.resolve ? { resolve: entry.resolve } : {}),
+  };
 }
 
 /**
