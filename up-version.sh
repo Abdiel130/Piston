@@ -4,7 +4,14 @@
 #
 # Uso:
 #   ./up-version.sh 1.3.0          # Pasando la versión por parámetro
-#   ./up-version.sh                # Solicita la versión de forma interactiva
+#   ./up-version.sh                # Sugiere la siguiente y pide confirmarla (Y/n)
+#
+# Sugerencia (según lo que hay en [Unreleased]):
+#   - Menciona "breaking"/"incompatible"          → major (2.0.0)
+#   - Trae Added, Changed, Deprecated o Removed   → minor (1.6.0)
+#   - Solo Fixed/Security                         → patch (1.5.1)
+#   - La actual es pre-release (1.6.0-rc.1)       → su versión final (1.6.0)
+# Con "n" se pide la versión a mano.
 #
 # Archivos actualizados:
 #   - app/package.json             versión del frontend
@@ -27,6 +34,58 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NEW_VERSION="${1:-}"
+
+# Sugiere la siguiente versión a partir de la actual (app/package.json) y de lo
+# que hay en [Unreleased]. Imprime "versión|motivo", o nada si no puede.
+suggest_version() {
+  python3 - "$ROOT_DIR" << 'EOF'
+import json
+import re
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+try:
+    current = json.loads((root / "app" / "package.json").read_text(encoding="utf-8"))["version"]
+    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+except (OSError, KeyError, ValueError):
+    sys.exit(0)
+
+match = re.match(r"^(\d+)\.(\d+)\.(\d+)(-.+)?$", current)
+unreleased = re.search(r"^##\s*\[Unreleased\][ \t]*\n(.*?)(?=^##\s*\[|\Z)", changelog, re.MULTILINE | re.DOTALL)
+if not match or not unreleased or not unreleased.group(1).strip():
+    sys.exit(0)
+
+major, minor, patch = (int(part) for part in match.group(1, 2, 3))
+body = unreleased.group(1)
+sections = {name.lower(): name for name in re.findall(r"^###\s*(\w+)", body, re.MULTILINE)}
+minor_kinds = [sections[kind] for kind in ("added", "changed", "deprecated", "removed") if kind in sections]
+
+if match.group(4):
+    # Un pre-release (1.5.0-rc.1) se libera como su versión final.
+    version, reason = f"{major}.{minor}.{patch}", f"la actual es pre-release ({current})"
+elif re.search(r"breaking|incompatible", body, re.IGNORECASE):
+    version, reason = f"{major + 1}.0.0", "[Unreleased] menciona un cambio incompatible"
+elif minor_kinds:
+    version, reason = f"{major}.{minor + 1}.0", f"[Unreleased] trae {', '.join(minor_kinds)}"
+else:
+    version, reason = f"{major}.{minor}.{patch + 1}", "[Unreleased] solo trae correcciones"
+
+print(f"{version}|{current} → {version}: {reason}")
+EOF
+}
+
+if [[ -z "$NEW_VERSION" ]]; then
+  SUGGESTION="$(suggest_version)"
+  if [[ -n "$SUGGESTION" ]]; then
+    echo "💡 Sugerencia: ${SUGGESTION#*|}"
+    echo -n "¿Usar ${SUGGESTION%%|*}? [Y/n]: "
+    read -r ANSWER
+    if [[ -z "$ANSWER" || "$ANSWER" =~ ^[YySs]$ ]]; then
+      NEW_VERSION="${SUGGESTION%%|*}"
+    fi
+  fi
+fi
 
 if [[ -z "$NEW_VERSION" ]]; then
   echo -n "Ingresa la nueva versión (ej. 1.3.0): "

@@ -65,6 +65,97 @@
     background: var(--pst-ignition);
     color: #fff;
   }
+
+  // Deducida, no elegida: se ve, pero sin el peso de una respuesta.
+  &.is-suggested {
+    box-shadow: inset 0 0 0 1.5px var(--pst-ignition);
+    color: var(--pst-ignition);
+  }
+}
+
+// Marca de "esto lo puso la app" junto a la etiqueta de un campo.
+.auto {
+  margin-left: var(--pst-space-1);
+  padding: 0.0625rem var(--pst-space-2);
+  border-radius: var(--pst-r-pill);
+  background: color-mix(in srgb, var(--pst-ignition) 16%, transparent);
+  color: var(--pst-ignition);
+  font-size: var(--pst-caption-2);
+  font-weight: 600;
+}
+
+.notes {
+  resize: vertical;
+  font-family: inherit;
+}
+
+// Comprobantes: miniatura, nombre y botón para quitarlo antes de guardar.
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-2);
+  list-style: none;
+}
+
+.file {
+  display: flex;
+  align-items: center;
+  gap: var(--pst-space-3);
+  padding: var(--pst-space-2);
+  border-radius: var(--pst-r-md);
+  background: var(--pst-surface-2);
+}
+
+.file__thumb {
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--pst-r-sm);
+  object-fit: cover;
+  background: var(--pst-surface-3);
+}
+
+.file__thumb--doc {
+  display: grid;
+  place-items: center;
+  color: var(--pst-label-2);
+}
+
+.file__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--pst-subhead);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file__remove {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--pst-r-pill);
+  background: var(--pst-surface-3);
+  color: var(--pst-label-2);
+}
+
+.file-pick {
+  position: relative;
+  cursor: pointer;
+
+  input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &:focus-within {
+    box-shadow: inset 0 0 0 1.5px var(--pst-ignition);
+  }
 }
 
 .saved-note {

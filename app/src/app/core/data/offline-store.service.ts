@@ -1,6 +1,6 @@
 import { Injectable, type Signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { liveQuery } from 'dexie';
+import { liveQuery, type Table } from 'dexie';
 import { from, switchMap, type Observable } from 'rxjs';
 import { db } from '../db/piston-db';
 import { uuidV7 } from '../db/uuid';
@@ -110,9 +110,14 @@ export class OfflineStore {
    * Varias escrituras como una sola: o quedan todas (con sus entradas del
    * outbox) o ninguna. Para capturas que crean más de una fila, como una
    * carga de combustible y su lectura de odómetro.
+   *
+   * Con `attachments` entra también `attachment_blobs`: la fila de un adjunto
+   * no sirve sin su binario, así que siempre se escriben juntos.
    */
   async transaction<R>(tables: readonly DomainTable[], work: () => Promise<R>): Promise<R> {
-    return db.transaction('rw', [...tables.map((table) => db.table(table)), db.sync_outbox], work);
+    const scope: Table[] = [...tables.map((table) => db.table(table)), db.sync_outbox];
+    if (tables.includes('attachments')) scope.push(db.attachment_blobs);
+    return db.transaction('rw', scope, work);
   }
 
   /** Lee una fila viva. Un tombstone se comporta como "no existe". */
