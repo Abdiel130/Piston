@@ -59,7 +59,7 @@ Para desactivar las migraciones automáticas, añade `RUN_MIGRATIONS=false` al e
 
 Salida esperada del health check:
 ```json
-{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.3.0","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
+{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.4.0","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
 ```
 
 ### 5. Crear tu Cuenta
@@ -446,4 +446,4 @@ El script es **todo o nada**: si algo no cuadra no toca ningún archivo. Se nieg
 ---
 
 ## 📄 Licencia y Versión
-- Versión actual: **1.3.0** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).
+- Versión actual: **1.4.0** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).

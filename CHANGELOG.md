@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-30
+
 La sincronización con el servidor funciona de verdad. Lo que se captura sube
 en cuanto hay señal, lo hecho en otro dispositivo llega solo, y cuando algo no
 sube la app explica por qué y cómo se arregla. Si dos dispositivos cambian lo
