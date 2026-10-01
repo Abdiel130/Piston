@@ -81,6 +81,18 @@ export const routes: Routes = [
           import('./features/capture/odometer-capture.component').then((m) => m.OdometerCaptureComponent),
       },
       {
+        path: 'settings/vehicles/new',
+        title: 'Nuevo vehículo · Piston',
+        loadComponent: () =>
+          import('./features/vehicles/vehicle-form.component').then((m) => m.VehicleFormComponent),
+      },
+      {
+        path: 'settings/vehicles/:id',
+        title: 'Vehículo · Piston',
+        loadComponent: () =>
+          import('./features/vehicles/vehicle-form.component').then((m) => m.VehicleFormComponent),
+      },
+      {
         path: 'settings/sync',
         title: 'Sincronización · Piston',
         loadComponent: () =>

@@ -1,12 +1,11 @@
 import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { liveQuery } from 'dexie';
 import { ApiService, AuthRequiredError } from '../api/api.service';
-import { OfflineStore } from '../data/offline-store.service';
+import { VehicleService } from '../data/vehicle.service';
 import { db } from '../db/piston-db';
 import {
   CURRENT,
   type LocalOnboarding,
-  type OdometerReading,
   type OnboardingDraft,
   type OnboardingState,
   type OnboardingStep,
@@ -35,7 +34,7 @@ type Loaded = LocalOnboarding | null | undefined;
 export class OnboardingService {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
-  private readonly store = inject(OfflineStore);
+  private readonly vehicles = inject(VehicleService);
 
   private readonly _local = signal<Loaded>(undefined);
   readonly local = this._local.asReadonly();
@@ -133,52 +132,40 @@ export class OnboardingService {
       'rw',
       [db.vehicles, db.odometer_readings, db.sync_outbox, db.onboarding],
       async () => {
-        vehicle = await this.store.create<Vehicle>('vehicles', {
-          user_id: null,
-          nickname: blankToNull(v.nickname),
-          make: v.make!.trim(),
-          model: v.model!.trim(),
-          year: v.year!,
-          trim: null,
-          vehicle_type: v.vehicle_type ?? 'car',
-          transmission: v.transmission ?? null,
-          engine_displacement_l: null,
-          color: null,
-          vin: null,
-          license_plate: blankToNull(v.license_plate)?.toUpperCase() ?? null,
-          plate_last_digit: lastDigit(v.license_plate),
-          emissions_sticker: v.emissions_sticker ?? 'none',
-          default_fuel_grade: v.default_fuel_grade ?? 'regular',
-          tank_capacity_l: v.tank_capacity_l!,
-          gauge_total_segments: v.gauge_total_segments ?? 8,
-          factory_km_per_liter: null,
-          oil_capacity_l: null,
-          oil_spec: null,
-          tire_pressure_front_psi: null,
-          tire_pressure_rear_psi: null,
-          current_odometer_km: currentKm,
-          purchase_date: v.purchase_date ?? null,
-          purchase_price: v.purchase_price ?? null,
-          purchase_odometer_km: v.purchase_odometer_km ?? null,
-          sale_date: null,
-          sale_price: null,
-          sale_odometer_km: null,
-          status: 'active',
-          is_primary: true,
-          notes: null,
-        });
-
-        if (currentKm > 0) {
-          await this.store.create<OdometerReading>('odometer_readings', {
-            user_id: null,
-            vehicle_id: vehicle.id,
-            read_at: now,
-            km: currentKm,
-            source: 'manual',
-            source_id: null,
-            is_suspect: false,
-          });
-        }
+        vehicle = await this.vehicles.create(
+          {
+            nickname: v.nickname ?? null,
+            make: v.make!,
+            model: v.model!,
+            year: v.year!,
+            trim: null,
+            vehicle_type: v.vehicle_type ?? 'car',
+            transmission: v.transmission ?? null,
+            engine_displacement_l: null,
+            color: null,
+            vin: null,
+            license_plate: v.license_plate ?? null,
+            emissions_sticker: v.emissions_sticker ?? 'none',
+            default_fuel_grade: v.default_fuel_grade ?? 'regular',
+            tank_capacity_l: v.tank_capacity_l!,
+            gauge_total_segments: v.gauge_total_segments ?? 8,
+            factory_km_per_liter: null,
+            oil_capacity_l: null,
+            oil_spec: null,
+            tire_pressure_front_psi: null,
+            tire_pressure_rear_psi: null,
+            purchase_date: v.purchase_date ?? null,
+            purchase_price: v.purchase_price ?? null,
+            purchase_odometer_km: v.purchase_odometer_km ?? null,
+            sale_date: null,
+            sale_price: null,
+            sale_odometer_km: null,
+            status: 'active',
+            notes: null,
+          },
+          currentKm,
+          true,
+        );
 
         await db.onboarding.put({
           ...local,
@@ -272,17 +259,6 @@ export class OnboardingService {
       void this.flush();
     }, FLUSH_DEBOUNCE_MS);
   }
-}
-
-function blankToNull(value: string | null | undefined): string | null {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
-}
-
-/** La terminación de placa decide el calendario de verificación. */
-function lastDigit(plate: string | null | undefined): number | null {
-  const digits = plate?.match(/\d/g);
-  return digits ? Number(digits[digits.length - 1]) : null;
 }
 
 function stripEmpty<T extends object>(value: T): Partial<T> {

@@ -209,6 +209,21 @@ describe('AuthService', () => {
     expect(await db.vehicles.count()).toBe(1);
   });
 
+  it('un cambio de perfil local sobrevive a un refresh con el perfil viejo', async () => {
+    await db.session.put({ key: CURRENT, user: user(), last_login_at: new Date().toISOString() });
+    await auth.restore();
+
+    await auth.patchProfile({ distance_unit: 'mi', currency: 'USD' });
+    expect(auth.user()?.distance_unit).toBe('mi');
+
+    // El servidor todavía no lo sabe: lo que devuelve no debe deshacerlo.
+    await auth.updateUser(user());
+    expect(auth.user()?.distance_unit).toBe('mi');
+    expect(auth.user()?.currency).toBe('USD');
+    const session = await db.session.get(CURRENT);
+    expect(session?.pending_profile).toEqual({ distance_unit: 'mi', currency: 'USD' });
+  });
+
   describe('interceptor', () => {
     it('pone el Bearer y, ante un 401, renueva una vez y reintenta', async () => {
       await login('viejo');

@@ -80,6 +80,148 @@
     </div>
   </section>
 
+  <section>
+    <h2 class="pst-section-title">Perfil</h2>
+    <div class="pst-card pst-form">
+      <label class="pst-field">
+        <span class="pst-field__label">Nombre</span>
+        <div class="inline">
+          <input
+            class="pst-input"
+            autocomplete="name"
+            maxlength="120"
+            [value]="name()"
+            (input)="nameDraft.set(value($event))"
+            (keydown.enter)="saveName()"
+          />
+          @if (nameChanged()) {
+            <button type="button" class="pst-btn pst-btn--primary" (click)="saveName()">Guardar</button>
+          }
+        </div>
+      </label>
+
+      @if (!passwordOpen()) {
+        <button type="button" class="pst-btn pst-btn--block" (click)="passwordOpen.set(true)">
+          Cambiar contraseña
+        </button>
+      } @else {
+        <div class="pst-form">
+          <input
+            class="pst-input"
+            type="password"
+            placeholder="Contraseña actual"
+            autocomplete="current-password"
+            [value]="currentPassword()"
+            (input)="currentPassword.set(value($event))"
+          />
+          <input
+            class="pst-input"
+            type="password"
+            placeholder="Nueva (mínimo 8 caracteres)"
+            autocomplete="new-password"
+            [value]="newPassword()"
+            (input)="newPassword.set(value($event))"
+          />
+          @if (!online()) {
+            <p class="pst-field__hint">Necesita conexión: la contraseña se valida en el servidor.</p>
+          }
+          @if (passwordMessage(); as message) {
+            <p
+              class="pst-note"
+              [class.pst-note--good]="message.tone === 'good'"
+              [class.pst-note--bad]="message.tone === 'bad'"
+              role="status"
+            >
+              {{ message.text }}
+            </p>
+          }
+          <button type="button" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="!canChangePassword()" (click)="changePassword()">
+            {{ passwordBusy() ? 'Cambiando…' : 'Cambiar contraseña' }}
+          </button>
+          <button
+            type="button"
+            class="pst-btn pst-btn--ghost pst-btn--block"
+            (click)="passwordOpen.set(false); currentPassword.set(''); newPassword.set(''); passwordMessage.set(null)"
+          >
+            Cancelar
+          </button>
+        </div>
+      }
+    </div>
+  </section>
+
+  <section>
+    <h2 class="pst-section-title">Vehículos</h2>
+    <div class="pst-card pst-card--flush">
+      <div class="pst-list">
+        @for (row of vehicleRows(); track row.title + (row.sub ?? '')) {
+          <button type="button" class="pst-row" (click)="run(row)">
+            <span class="pst-row__icon"><pst-icon [name]="row.icon" [size]="18" /></span>
+            <span class="pst-row__body">
+              <span class="pst-row__title">{{ row.title }}</span>
+              @if (row.sub) {
+                <span class="pst-row__sub">{{ row.sub }}</span>
+              }
+            </span>
+            <span class="pst-row__trail">
+              @if (row.value) {
+                <span [attr.data-tone]="row.tone">{{ row.value }}</span>
+              }
+              <pst-icon name="chevronRight" [size]="16" />
+            </span>
+          </button>
+        }
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="pst-section-title">Unidades y moneda</h2>
+    <div class="pst-card pst-form">
+      <div class="pst-field-row">
+        <label class="pst-field">
+          <span class="pst-field__label"><pst-icon name="road" [size]="14" /> Distancia</span>
+          <select class="pst-input pst-select" (change)="setDistance(value($event))">
+            @for (option of distanceOptions; track option.code) {
+              <option [value]="option.code" [selected]="preferences().distance === option.code">{{ option.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="pst-field">
+          <span class="pst-field__label"><pst-icon name="droplet" [size]="14" /> Volumen</span>
+          <select class="pst-input pst-select" (change)="setVolume(value($event))">
+            @for (option of volumeOptions; track option.code) {
+              <option [value]="option.code" [selected]="preferences().volume === option.code">{{ option.label }}</option>
+            }
+          </select>
+        </label>
+      </div>
+      <label class="pst-field">
+        <span class="pst-field__label"><pst-icon name="receipt" [size]="14" /> Moneda</span>
+        <select class="pst-input pst-select" (change)="setCurrency(value($event))">
+          @for (option of currencyOptions; track option.code) {
+            <option [value]="option.code" [selected]="preferences().currency === option.code">
+              {{ option.code }} · {{ option.label }}
+            </option>
+          }
+        </select>
+      </label>
+
+      <p class="preview pst-numeric">{{ preview() }}</p>
+      <p class="pst-field__hint">
+        Todo se guarda en kilómetros y litros; cambiar las unidades solo cambia cómo lo ves y
+        capturas. La moneda no convierte montos: los registros ya guardados conservan la suya.
+      </p>
+      @if (profileRejected(); as message) {
+        <p class="pst-note pst-note--bad" role="alert">El servidor rechazó el cambio: {{ message }}</p>
+      } @else if (profileError(); as message) {
+        <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+      } @else if (profilePending()) {
+        <p class="pst-field__hint">Guardado en este dispositivo. Se enviará al recuperar la conexión.</p>
+      }
+    </div>
+  </section>
+
   @for (group of groups(); track group.title) {
     <section>
       <h2 class="pst-section-title">{{ group.title }}</h2>
@@ -90,6 +232,9 @@
               <span class="pst-row__icon"><pst-icon [name]="row.icon" [size]="18" /></span>
               <span class="pst-row__body">
                 <span class="pst-row__title">{{ row.title }}</span>
+                @if (row.sub) {
+                  <span class="pst-row__sub">{{ row.sub }}</span>
+                }
               </span>
               <span class="pst-row__trail">
                 @if (row.value) {

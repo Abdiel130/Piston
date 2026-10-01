@@ -284,17 +284,17 @@
             </div>
 
             <label class="pst-field">
-              <span class="pst-field__label">Capacidad del tanque (L)</span>
+              <span class="pst-field__label">Capacidad del tanque ({{ volumeSymbol() }})</span>
               <input
                 class="pst-input pst-numeric"
                 inputmode="decimal"
                 placeholder="51"
-                [value]="vehicle().tank_capacity_l ?? ''"
-                (input)="setVehicle('tank_capacity_l', num($event))"
+                [value]="volume(vehicle().tank_capacity_l)"
+                (input)="setVolume('tank_capacity_l', $event)"
               />
               @if (litersPerSegment(); as liters) {
                 <span class="pst-field__hint"
-                  >≈ {{ liters }} L por rayita. Se afina solo con tus cargas a tanque lleno.</span
+                  >≈ {{ liters }} {{ volumeSymbol() }} por rayita. Se afina solo con tus cargas a tanque lleno.</span
                 >
               } @else {
                 <span class="pst-field__hint">Viene en el manual o en la tapa del tanque.</span>
@@ -328,13 +328,13 @@
         @case ('purchase') {
           <div class="pst-form">
             <label class="pst-field">
-              <span class="pst-field__label">Kilometraje actual</span>
+              <span class="pst-field__label">Odómetro actual ({{ distanceSymbol() }})</span>
               <input
                 class="pst-input pst-numeric"
                 inputmode="numeric"
                 placeholder="48 250"
-                [value]="vehicle().current_odometer_km ?? ''"
-                (input)="setVehicle('current_odometer_km', num($event))"
+                [value]="distance(vehicle().current_odometer_km)"
+                (input)="setDistance('current_odometer_km', $event)"
               />
               <span class="pst-field__hint">El que marca el tablero hoy.</span>
             </label>
@@ -354,14 +354,14 @@
             <div class="pst-field-row">
               <label class="pst-field">
                 <span class="pst-field__label"
-                  >Km al comprarlo <span class="wizard__optional">opcional</span></span
+                  >{{ distanceSymbol() }} al comprarlo <span class="wizard__optional">opcional</span></span
                 >
                 <input
                   class="pst-input pst-numeric"
                   inputmode="numeric"
                   placeholder="0"
-                  [value]="vehicle().purchase_odometer_km ?? ''"
-                  (input)="setVehicle('purchase_odometer_km', num($event))"
+                  [value]="distance(vehicle().purchase_odometer_km)"
+                  (input)="setDistance('purchase_odometer_km', $event)"
                 />
               </label>
               <label class="pst-field">
@@ -384,7 +384,7 @@
               vehicle().purchase_odometer_km! > vehicle().current_odometer_km!
             ) {
               <p class="pst-note pst-note--warn">
-                El kilometraje de compra no puede ser mayor que el actual.
+                El odómetro de compra no puede ser mayor que el actual.
               </p>
             }
           </div>
@@ -408,14 +408,14 @@
                 <span class="pst-row__icon"><pst-icon name="gauge" [size]="18" /></span>
                 <span class="pst-row__body"><span class="pst-row__title">Medidor</span></span>
                 <span class="pst-row__trail"
-                  >{{ segments() }} rayitas · {{ vehicle().tank_capacity_l }} L</span
+                  >{{ segments() }} rayitas · {{ volume(vehicle().tank_capacity_l) }} {{ volumeSymbol() }}</span
                 >
               </div>
               <div class="pst-row">
                 <span class="pst-row__icon"><pst-icon name="road" [size]="18" /></span>
-                <span class="pst-row__body"><span class="pst-row__title">Kilometraje</span></span>
+                <span class="pst-row__body"><span class="pst-row__title">Odómetro</span></span>
                 <span class="pst-row__trail pst-numeric"
-                  >{{ vehicle().current_odometer_km }} km</span
+                  >{{ distance(vehicle().current_odometer_km) }} {{ distanceSymbol() }}</span
                 >
               </div>
               @if (vehicle().license_plate) {

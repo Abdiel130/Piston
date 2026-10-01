@@ -11,6 +11,7 @@ import { provideServiceWorker } from '@angular/service-worker';
 import { authInterceptor } from './core/auth/auth.interceptor';
 import { AuthService } from './core/auth/auth.service';
 import { OnboardingService } from './core/auth/onboarding.service';
+import { ProfileService } from './core/auth/profile.service';
 import { PwaService } from './core/pwa/pwa.service';
 import { SyncService } from './core/sync/sync.service';
 import { serviceWorkerUrl } from './core/sync/background-sync';
@@ -49,6 +50,7 @@ export const appConfig: ApplicationConfig = {
       const auth = inject(AuthService);
       const sync = inject(SyncService);
       inject(OnboardingService); // empieza a escuchar el onboarding del servidor
+      inject(ProfileService); // sube los cambios de perfil hechos sin conexión
       inject(PwaService); // escucha `beforeinstallprompt` antes de que el navegador lo dispare
 
       await auth.restore();

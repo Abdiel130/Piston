@@ -42,7 +42,7 @@
     </label>
 
     <label class="pst-field">
-      <span class="pst-field__label">Odómetro (opcional)</span>
+      <span class="pst-field__label">Odómetro ({{ units.distanceSymbol() }}, opcional)</span>
       <input class="pst-input pst-numeric" inputmode="numeric" [class.is-invalid]="submitted() && errors().odometer_km" [value]="odometer() ?? ''" (input)="odometer.set(readNumber($event))" />
     </label>
     @if (submitted() && errors().odometer_km; as message) {

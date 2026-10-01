@@ -1,10 +1,20 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { ApiService, PermanentApiError } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { db } from '../../core/db/piston-db';
-import { OfflineStore } from '../../core/data/offline-store.service';
+import { ProfileService } from '../../core/auth/profile.service';
+import { VehicleContext } from '../../core/data/vehicle-context.service';
+import type { ProfilePatch, Vehicle } from '../../core/models';
 import { PwaService } from '../../core/pwa/pwa.service';
 import { SyncService, type LogoutBlocker, type SyncSummary } from '../../core/sync/sync.service';
+import {
+  CURRENCIES,
+  DISTANCE_UNITS,
+  VOLUME_UNITS,
+  isDistanceUnit,
+  isVolumeUnit,
+} from '../../core/units';
+import { UnitsService } from '../../core/units.service';
 import { relative } from '../sync/sync-format';
 import { IconComponent, type IconName } from '../../shared/icon/icon.component';
 import { IslandService } from '../../shared/island/island.service';
@@ -12,6 +22,7 @@ import { IslandService } from '../../shared/island/island.service';
 interface SettingRow {
   readonly icon: IconName;
   readonly title: string;
+  readonly sub?: string;
   readonly value?: string;
   /** Tono del valor: para que un error de sync se note desde la lista. */
   readonly tone?: 'good' | 'warn' | 'bad';
@@ -36,8 +47,6 @@ interface SettingGroup {
   readonly rows: readonly SettingRow[];
 }
 
-const DISTANCE: Record<string, string> = { km: 'Kilómetros', mi: 'Millas' };
-const VOLUME: Record<string, string> = { L: 'Litros', gal: 'Galones' };
 
 /**
  * Ajustes. Todo lo que muestra es real.
@@ -55,9 +64,12 @@ const VOLUME: Record<string, string> = { L: 'Litros', gal: 'Galones' };
 export class SettingsComponent {
   private readonly island = inject(IslandService);
   private readonly sync = inject(SyncService);
-  private readonly store = inject(OfflineStore);
   private readonly auth = inject(AuthService);
+  private readonly api = inject(ApiService);
+  private readonly profile = inject(ProfileService);
+  private readonly context = inject(VehicleContext);
   private readonly router = inject(Router);
+  protected readonly units = inject(UnitsService);
 
   protected readonly user = this.auth.user;
   protected readonly authState = this.auth.state;
@@ -76,10 +88,53 @@ export class SettingsComponent {
 
   protected readonly summary = this.sync.summary;
 
-  /** Vehículos vivos en IndexedDB. Se reemite solo cuando cambian. */
-  private readonly vehicles = this.store.liveSignal(
-    () => db.vehicles.filter((vehicle) => !vehicle.deleted_at).toArray(),
-    [],
+  protected readonly online = this.sync.online;
+
+  // ── Perfil ──────────────────────────────────────────────────────────────
+  protected readonly nameDraft = signal<string | null>(null);
+  protected readonly name = computed(() => this.nameDraft() ?? this.user()?.name ?? '');
+  protected readonly nameChanged = computed(() => {
+    const draft = this.nameDraft()?.trim();
+    return !!draft && draft !== this.user()?.name && draft.length <= 120;
+  });
+  protected readonly profilePending = this.profile.pending;
+  protected readonly profileRejected = this.profile.rejected;
+  protected readonly profileError = signal<string | null>(null);
+
+  // Cambio de contraseña: solo con conexión, nunca se guarda en ningún lado.
+  protected readonly passwordOpen = signal(false);
+  protected readonly currentPassword = signal('');
+  protected readonly newPassword = signal('');
+  protected readonly passwordBusy = signal(false);
+  protected readonly passwordMessage = signal<{ tone: 'good' | 'bad'; text: string } | null>(null);
+  protected readonly canChangePassword = computed(
+    () => this.online() && !this.passwordBusy() && !!this.currentPassword() && this.newPassword().length >= 8,
+  );
+
+  // ── Unidades ────────────────────────────────────────────────────────────
+  protected readonly distanceOptions = Object.values(DISTANCE_UNITS);
+  protected readonly volumeOptions = Object.values(VOLUME_UNITS);
+  protected readonly currencyOptions = CURRENCIES;
+  protected readonly preferences = this.units.preferences;
+  /** Cómo se verán las cifras con las unidades elegidas. */
+  protected readonly preview = computed(() =>
+    [
+      this.units.formatDistance(48_250),
+      this.units.formatVolume(45),
+      this.units.formatEfficiency(14.2),
+      `${this.units.formatPricePerVolume(24.5)}/${this.units.volumeSymbol()}`,
+    ].join(' · '),
+  );
+
+  // ── Vehículos ───────────────────────────────────────────────────────────
+  /** Activos primero (el principal arriba), luego archivados y vendidos. */
+  private readonly vehicles = computed(() =>
+    [...this.context.vehicles()].sort(
+      (a, b) =>
+        Number(b.status === 'active') - Number(a.status === 'active') ||
+        Number(b.is_primary) - Number(a.is_primary) ||
+        a.created_at.localeCompare(b.created_at),
+    ),
   );
 
   constructor() {
@@ -117,26 +172,90 @@ export class SettingsComponent {
       title: 'Datos',
       rows: [this.syncRow()],
     },
+  ]);
+
+  protected readonly vehicleRows = computed<readonly SettingRow[]>(() => [
+    ...this.vehicles().map((vehicle) => this.vehicleRow(vehicle)),
     {
-      title: 'Vehículos',
-      rows: this.vehicles().map((vehicle): SettingRow => ({
-        icon: 'car',
-        title: vehicle.nickname ?? `${vehicle.make} ${vehicle.model}`,
-        value: vehicle.is_primary ? 'Principal' : vehicle.status === 'active' ? undefined : 'Archivado',
-      })),
-    },
-    {
-      title: 'Unidades',
-      rows: [
-        { icon: 'road', title: 'Distancia', value: DISTANCE[this.user()?.distance_unit ?? 'km'] },
-        { icon: 'droplet', title: 'Volumen', value: VOLUME[this.user()?.volume_unit ?? 'L'] },
-        { icon: 'receipt', title: 'Moneda', value: this.user()?.currency ?? 'MXN' },
-      ],
+      icon: 'plus',
+      title: 'Agregar vehículo',
+      action: () => void this.router.navigateByUrl('/settings/vehicles/new'),
     },
   ]);
 
   protected run(row: SettingRow): void {
     row.action?.();
+  }
+
+  private vehicleRow(vehicle: Vehicle): SettingRow {
+    const status = { active: vehicle.is_primary ? 'Principal' : undefined, archived: 'Archivado', sold: 'Vendido' };
+    return {
+      icon: 'car',
+      title: vehicle.nickname ?? `${vehicle.make} ${vehicle.model}`,
+      sub: [
+        vehicle.nickname ? `${vehicle.make} ${vehicle.model}` : null,
+        String(vehicle.year),
+        vehicle.license_plate,
+        this.units.formatDistance(vehicle.current_odometer_km),
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      value: status[vehicle.status],
+      tone: vehicle.is_primary && vehicle.status === 'active' ? 'good' : undefined,
+      action: () => void this.router.navigateByUrl(`/settings/vehicles/${vehicle.id}`),
+    };
+  }
+
+  // ── Perfil y unidades ───────────────────────────────────────────────────
+
+  protected setDistance(value: string): void {
+    if (isDistanceUnit(value)) void this.updateProfile({ distance_unit: value });
+  }
+
+  protected setVolume(value: string): void {
+    if (isVolumeUnit(value)) void this.updateProfile({ volume_unit: value });
+  }
+
+  protected setCurrency(value: string): void {
+    if (CURRENCIES.some((currency) => currency.code === value)) void this.updateProfile({ currency: value });
+  }
+
+  protected async saveName(): Promise<void> {
+    const name = this.nameDraft()?.trim();
+    if (!this.nameChanged() || !name) return;
+    await this.updateProfile({ name });
+    this.nameDraft.set(null);
+  }
+
+  private async updateProfile(patch: ProfilePatch): Promise<void> {
+    this.profileError.set(null);
+    try {
+      await this.profile.update(patch);
+    } catch (error) {
+      this.profileError.set(error instanceof Error ? error.message : 'No se pudo guardar.');
+    }
+  }
+
+  protected async changePassword(): Promise<void> {
+    if (!this.canChangePassword()) return;
+    this.passwordBusy.set(true);
+    this.passwordMessage.set(null);
+    try {
+      await this.api.updatePassword(this.currentPassword(), this.newPassword());
+      this.currentPassword.set('');
+      this.newPassword.set('');
+      this.passwordMessage.set({ tone: 'good', text: 'Contraseña actualizada. Se cerraron tus otras sesiones.' });
+    } catch (error) {
+      this.passwordMessage.set({
+        tone: 'bad',
+        text:
+          error instanceof PermanentApiError
+            ? (Object.values(error.errors ?? {})[0]?.[0] ?? error.message)
+            : 'No se pudo cambiar ahora. Revisa la conexión e inténtalo de nuevo.',
+      });
+    } finally {
+      this.passwordBusy.set(false);
+    }
   }
 
   private installRow(): SettingRow {
@@ -195,6 +314,11 @@ export class SettingsComponent {
     this.logoutError.set(null);
     try {
       await this.sync.sync();
+      await this.profile.flush();
+      if (await this.profile.isPending()) {
+        this.logoutError.set('Tus preferencias aún no llegan al servidor. Revisa la conexión e inténtalo de nuevo.');
+        return;
+      }
       if (!this.sync.canLogout()) {
         this.logoutError.set(this.blockerText() ?? 'Todavía hay datos sin enviar.');
         return;

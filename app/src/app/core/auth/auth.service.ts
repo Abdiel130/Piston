@@ -10,6 +10,7 @@ import {
   type AuthTokenResponse,
   type AuthUser,
   type LocalSession,
+  type ProfilePatch,
 } from '../models';
 import { hasLocalData, wipeLocalData } from './local-data';
 
@@ -239,10 +240,44 @@ export class AuthService {
     this.accessExpiresAt = Date.now() + response.expires_in * 1000;
   }
 
+  /**
+   * Aplica un cambio de perfil hecho en este dispositivo. Local al instante,
+   * aunque no haya red; `ProfileService` lo sube después.
+   */
+  async patchProfile(patch: ProfilePatch): Promise<void> {
+    await db.transaction('rw', db.session, async () => {
+      const session = await db.session.get(CURRENT);
+      if (!session) {
+        throw new Error('No hay sesión local.');
+      }
+      const user = { ...session.user, ...patch };
+      await db.session.put({
+        ...session,
+        user,
+        pending_profile: { ...session.pending_profile, ...patch },
+      });
+      this._user.set(user);
+    });
+  }
+
+  /**
+   * Guarda el perfil que devolvió el servidor. Lo pendiente de subir se
+   * reaplica encima: un refresh con el perfil viejo no debe deshacer en
+   * pantalla un cambio que el usuario ya hizo.
+   */
   private async persistSession(user: AuthUser): Promise<void> {
     const { onboarding: _ignored, ...profile } = user;
-    this._user.set(profile);
-    await db.session.put({ key: CURRENT, user: profile, last_login_at: new Date().toISOString() });
+    await db.transaction('rw', db.session, async () => {
+      const pending = (await db.session.get(CURRENT))?.pending_profile ?? null;
+      const merged = pending ? { ...profile, ...pending } : profile;
+      this._user.set(merged);
+      await db.session.put({
+        key: CURRENT,
+        user: merged,
+        last_login_at: new Date().toISOString(),
+        pending_profile: pending,
+      });
+    });
   }
 
   private forgetTokens(): void {

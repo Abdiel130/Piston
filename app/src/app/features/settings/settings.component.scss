@@ -18,3 +18,27 @@
 
 [data-tone='bad'] { color: var(--pst-bad); }
 [data-tone='warn'] { color: var(--pst-warn); }
+
+.inline {
+  display: flex;
+  gap: var(--pst-space-2);
+
+  .pst-btn {
+    flex-shrink: 0;
+  }
+}
+
+.pst-card.pst-form .pst-field__label {
+  display: flex;
+  align-items: center;
+  gap: var(--pst-space-1);
+}
+
+.preview {
+  padding: var(--pst-space-3) var(--pst-space-4);
+  border-radius: var(--pst-r-md);
+  background: var(--pst-surface-2);
+  font-size: var(--pst-footnote);
+  color: var(--pst-label-2);
+  text-align: center;
+}

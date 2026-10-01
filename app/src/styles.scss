@@ -585,6 +585,19 @@ svg {
   color-scheme: dark;
 }
 
+/* Lista desplegable para catálogos largos (moneda, unidades). Misma caja que
+   los inputs; la flecha nativa se cambia por un chevron del sistema. */
+.pst-select {
+  appearance: none;
+  padding-right: calc(var(--pst-space-4) * 2 + 0.75rem);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M5.2 9.2l6.8 6.9 6.8-6.9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--pst-space-4) center;
+  background-size: 0.875rem;
+  color-scheme: dark;
+  cursor: pointer;
+}
+
 /* Selector de opciones en píldoras. Para 2-6 opciones es más rápido que un
    <select>: se ve todo sin abrir nada. */
 .pst-chips {

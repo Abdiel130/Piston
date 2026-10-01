@@ -1,0 +1,48 @@
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pst-space-2);
+  margin-top: var(--pst-space-1);
+}
+
+// Tres cifras de historial en una fila: la rejilla global es de dos.
+.pst-stat-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.section {
+  margin: var(--pst-space-3) 0 0;
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--pst-label-3);
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pst-space-3);
+  font-size: var(--pst-title-3);
+  font-weight: 700;
+
+  .pst-btn {
+    width: 2.875rem;
+    height: 2.875rem;
+    padding: 0;
+    font-size: var(--pst-title-3);
+  }
+}
+
+.notes {
+  resize: vertical;
+}
+
+.danger {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-3);
+  padding-top: var(--pst-space-4);
+  border-top: 0.5px solid var(--pst-separator-soft);
+}

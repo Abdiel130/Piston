@@ -3,7 +3,8 @@ import { RouterLink } from '@angular/router';
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
 import { db } from '../../core/db/piston-db';
-import { EMPTY, formatKm, formatMoney, formatShortDate } from '../../core/format';
+import { EMPTY, formatShortDate } from '../../core/format';
+import { UnitsService } from '../../core/units.service';
 import type {
   Issue,
   IssueSeverity,
@@ -45,6 +46,8 @@ export class ServiceComponent {
   private readonly island = inject(IslandService);
   private readonly store = inject(OfflineStore);
   private readonly context = inject(VehicleContext);
+  private readonly units = inject(UnitsService);
+  private readonly distance = (km: number) => this.units.formatDistance(km);
 
   private readonly data = this.store.liveFrom(
     this.context.vehicleId,
@@ -84,7 +87,7 @@ export class ServiceComponent {
     this.data().schedules.map((schedule) => ({
       id: schedule.id,
       name: this.data().types.get(schedule.service_type_id)?.name ?? 'Servicio',
-      due: scheduleDue(schedule),
+      due: scheduleDue(schedule, this.distance),
       ...SCHEDULE_TONE[schedule.status],
     })),
   );
@@ -95,7 +98,7 @@ export class ServiceComponent {
       title: issue.title,
       noticed: [
         `Detectado el ${formatShortDate(issue.noticed_at)}`,
-        issue.noticed_odometer_km !== null ? formatKm(issue.noticed_odometer_km) : null,
+        issue.noticed_odometer_km !== null ? this.distance(issue.noticed_odometer_km) : null,
       ]
         .filter(Boolean)
         .join(' · '),
@@ -113,10 +116,10 @@ export class ServiceComponent {
     return this.data().records.map((record) => ({
       id: record.id,
       name: itemsByRecord.get(record.id)?.join(', ') || 'Servicio',
-      sub: [record.is_diy ? 'Hecho por mí' : record.shop_name, formatShortDate(record.performed_at), formatKm(record.odometer_km)]
+      sub: [record.is_diy ? 'Hecho por mí' : record.shop_name, formatShortDate(record.performed_at), this.distance(record.odometer_km)]
         .filter(Boolean)
         .join(' · '),
-      cost: record.total_cost ? formatMoney(record.total_cost, record.currency) : EMPTY,
+      cost: record.total_cost ? this.units.formatMoney(record.total_cost, record.currency) : EMPTY,
     }));
   });
 
@@ -131,7 +134,7 @@ export class ServiceComponent {
         value: String(triage.urgent + triage.warning),
         tone: triage.urgent > 0 ? 'bad' : triage.warning > 0 ? 'warn' : 'good',
         title: next ? (this.data().types.get(next.service_type_id)?.name ?? 'Servicio') : 'Sin pendientes',
-        subtitle: next ? scheduleDue(next) : 'Nada vencido ni por vencer',
+        subtitle: next ? scheduleDue(next, this.distance) : 'Nada vencido ni por vencer',
         details: [
           { label: 'Vencidos', value: String(triage.urgent) },
           { label: 'Próximos', value: String(triage.warning) },

@@ -30,15 +30,15 @@
     <div class="pst-stat-grid">
       <div class="pst-stat">
         <span class="pst-stat__label"><pst-icon name="checkCircle" [size]="14" /> Medición exacta</span>
-        <span class="pst-stat__value pst-numeric">{{ stats().exact }}<span class="pst-stat__unit">km/L</span></span>
+        <span class="pst-stat__value pst-numeric">{{ stats().exact }}<span class="pst-stat__unit">{{ units.efficiencySymbol() }}</span></span>
       </div>
       <div class="pst-stat">
         <span class="pst-stat__label"><pst-icon name="gauge" [size]="14" /> Estimada</span>
-        <span class="pst-stat__value pst-numeric">{{ stats().estimate }}<span class="pst-stat__unit">km/L</span></span>
+        <span class="pst-stat__value pst-numeric">{{ stats().estimate }}<span class="pst-stat__unit">{{ units.efficiencySymbol() }}</span></span>
       </div>
       <div class="pst-stat">
         <span class="pst-stat__label"><pst-icon name="droplet" [size]="14" /> Último precio</span>
-        <span class="pst-stat__value pst-numeric">{{ stats().lastPrice }}<span class="pst-stat__unit">/L</span></span>
+        <span class="pst-stat__value pst-numeric">{{ stats().lastPrice }}<span class="pst-stat__unit">/{{ units.volumeSymbol() }}</span></span>
       </div>
       <div class="pst-stat">
         <span class="pst-stat__label"><pst-icon name="chart" [size]="14" /> Cargas</span>
