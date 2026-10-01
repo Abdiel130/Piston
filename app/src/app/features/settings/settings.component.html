@@ -29,7 +29,10 @@
       }
 
       @if (blockerText(); as reason) {
-        <p class="pst-field__hint">{{ reason }}</p>
+        <p class="pst-field__hint">
+          {{ reason }}
+          <button type="button" class="link" (click)="openSync()">Ver sincronización</button>
+        </p>
       }
       @if (logoutError(); as message) {
         <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
@@ -90,9 +93,11 @@
               </span>
               <span class="pst-row__trail">
                 @if (row.value) {
-                  <span>{{ row.value }}</span>
+                  <span [attr.data-tone]="row.tone">{{ row.value }}</span>
                 }
-                <pst-icon name="chevronRight" [size]="16" />
+                @if (row.action) {
+                  <pst-icon name="chevronRight" [size]="16" />
+                }
               </span>
             </button>
           }

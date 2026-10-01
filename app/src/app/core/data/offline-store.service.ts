@@ -1,7 +1,7 @@
 import { Injectable, type Signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { liveQuery } from 'dexie';
-import { from, type Observable } from 'rxjs';
+import { from, switchMap, type Observable } from 'rxjs';
 import { db } from '../db/piston-db';
 import { uuidV7 } from '../db/uuid';
 import type { DomainTable, SyncFields, Uuid } from '../models';
@@ -52,7 +52,7 @@ export class OfflineStore {
 
     await db.transaction('rw', db.table(table), db.sync_outbox, async () => {
       await db.table(table).add(row);
-      await this.enqueue(table, row.id, 'insert', row);
+      await this.enqueue(table, row.id, 'insert', row, null);
     });
 
     return row;
@@ -75,7 +75,7 @@ export class OfflineStore {
 
       updated = { ...current, ...patch, updated_at: now, client_updated_at: now };
       await db.table(table).put(updated);
-      await this.enqueue(table, id, 'update', updated);
+      await this.enqueue(table, id, 'update', updated, current);
     });
 
     return updated;
@@ -98,9 +98,21 @@ export class OfflineStore {
         return;
       }
 
-      await db.table(table).put({ ...current, deleted_at: now, client_updated_at: now, updated_at: now });
-      await this.enqueue(table, id, 'delete', null);
+      const tombstone = { ...current, deleted_at: now, client_updated_at: now, updated_at: now };
+      await db.table(table).put(tombstone);
+      // El tombstone completo viaja como payload: con su `client_updated_at`
+      // el servidor decide si el borrado es más nuevo que su versión.
+      await this.enqueue(table, id, 'delete', tombstone, current);
     });
+  }
+
+  /**
+   * Varias escrituras como una sola: o quedan todas (con sus entradas del
+   * outbox) o ninguna. Para capturas que crean más de una fila, como una
+   * carga de combustible y su lectura de odómetro.
+   */
+  async transaction<R>(tables: readonly DomainTable[], work: () => Promise<R>): Promise<R> {
+    return db.transaction('rw', [...tables.map((table) => db.table(table)), db.sync_outbox], work);
   }
 
   /** Lee una fila viva. Un tombstone se comporta como "no existe". */
@@ -139,6 +151,19 @@ export class OfflineStore {
   }
 
   /**
+   * Consulta reactiva que además depende de un signal (un parámetro de ruta,
+   * el vehículo activo): al cambiar el signal se rehace la consulta.
+   *
+   * `liveSignal` no sirve para eso: liveQuery solo observa IndexedDB, no los
+   * signals que se lean dentro. Debe llamarse en contexto de inyección.
+   */
+  liveFrom<S, R>(source: Signal<S>, query: (value: S) => Promise<R>, initial: R): Signal<R> {
+    return toSignal(toObservable(source).pipe(switchMap((value) => this.live$(() => query(value)))), {
+      initialValue: initial,
+    });
+  }
+
+  /**
    * Escribe la mutación en el outbox, colapsando lo que ya hubiera para la
    * misma fila.
    *
@@ -147,19 +172,26 @@ export class OfflineStore {
    * fila se creó offline (`insert` pendiente) y luego se borra, las dos
    * entradas se anulan entre sí —el servidor nunca supo de esa fila, así que
    * mandarle un DELETE es pedirle que borre algo que no tiene—.
+   *
+   * La base (`base`, `base_rev`) se toma en el PRIMER cambio y se conserva al
+   * colapsar: lo que importa es qué versión vio el usuario antes de empezar a
+   * editar, no la de su edición anterior. Con ella el servidor distingue sus
+   * cambios de los de otro dispositivo.
    */
   private async enqueue(
     table: DomainTable,
     rowId: Uuid,
     op: 'insert' | 'update' | 'delete',
     row: SyncFields | null,
+    before: SyncFields | null,
   ): Promise<void> {
     const pending = await db.sync_outbox
       .where('[table_name+row_id]')
       .equals([table, rowId])
-      .toArray();
+      .sortBy('created_at');
 
     const hadPendingInsert = pending.some((entry) => entry.op === 'insert');
+    const first = pending[0];
 
     if (pending.length > 0) {
       await db.sync_outbox.bulkDelete(pending.map((entry) => entry.id));
@@ -178,9 +210,14 @@ export class OfflineStore {
       // el servidor: nunca la ha visto.
       op: hadPendingInsert && op === 'update' ? 'insert' : op,
       payload: row ? JSON.stringify(row) : null,
+      base_rev: first ? first.base_rev : (before?.rev ?? 0),
+      base: first ? first.base : before ? JSON.stringify(before) : null,
+      resolve: first?.resolve ?? null,
+      conflict: null,
       status: 'pending',
       attempts: 0,
-      last_error: null,
+      last_attempt: null,
+      blocked_by: null,
       next_retry_at: now,
       created_at: now,
     });

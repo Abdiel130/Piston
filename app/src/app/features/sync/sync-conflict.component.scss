@@ -1,0 +1,59 @@
+// Comparación lado a lado de un conflicto.
+.compare__head,
+.compare__row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--pst-space-2);
+  align-items: center;
+  padding: var(--pst-space-2) var(--pst-space-4);
+}
+
+.compare__head {
+  font-size: var(--pst-footnote);
+  font-weight: 600;
+  color: var(--pst-label-3);
+}
+
+.compare__row {
+  box-shadow: inset 0 0.5px 0 var(--pst-separator-soft);
+}
+
+.compare__label {
+  font-size: var(--pst-subhead);
+  color: var(--pst-label-2);
+  overflow-wrap: anywhere;
+}
+
+.compare__value {
+  min-height: 44px;
+  padding: var(--pst-space-2);
+  border: 1px solid var(--pst-separator-soft);
+  border-radius: var(--pst-r-sm);
+  background: transparent;
+  color: var(--pst-label);
+  font: inherit;
+  font-size: var(--pst-subhead);
+  text-align: left;
+  overflow-wrap: anywhere;
+  user-select: text;
+
+  &.is-picked {
+    border-color: var(--pst-ignition);
+    box-shadow: inset 0 0 0 1px var(--pst-ignition);
+    font-weight: 600;
+  }
+
+  &.is-static {
+    display: flex;
+    align-items: center;
+    border-style: dashed;
+  }
+}
+
+button.compare__value {
+  cursor: pointer;
+}
+
+.merged-note {
+  margin-top: var(--pst-space-2);
+}

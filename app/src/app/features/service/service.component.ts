@@ -1,67 +1,144 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { IconComponent, type IconName } from '../../shared/icon/icon.component';
+import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { OfflineStore } from '../../core/data/offline-store.service';
+import { VehicleContext } from '../../core/data/vehicle-context.service';
+import { db } from '../../core/db/piston-db';
+import { EMPTY, formatKm, formatMoney, formatShortDate } from '../../core/format';
+import type {
+  Issue,
+  IssueSeverity,
+  MaintenanceSchedule,
+  ServiceRecord,
+  ServiceRecordItem,
+  ServiceType,
+} from '../../core/models';
+import { IconComponent } from '../../shared/icon/icon.component';
 import { IslandService } from '../../shared/island/island.service';
+import { SCHEDULE_TONE, scheduleDue } from './schedule-display';
 
-interface ScheduleRow {
-  readonly icon: IconName;
-  readonly name: string;
-  readonly due: string;
-  readonly tone: 'good' | 'warn' | 'bad';
-  readonly status: string;
-  readonly progress: number;
+const SEVERITY: Record<IssueSeverity, { tone: string; label: string }> = {
+  low: { tone: 'good', label: 'Baja' },
+  medium: { tone: 'warn', label: 'Media' },
+  high: { tone: 'bad', label: 'Alta' },
+  critical: { tone: 'bad', label: 'Crítica' },
+};
+
+interface ServiceData {
+  readonly schedules: MaintenanceSchedule[];
+  readonly issues: Issue[];
+  readonly records: ServiceRecord[];
+  readonly items: ServiceRecordItem[];
+  readonly types: Map<string, ServiceType>;
 }
 
-interface IssueRow {
-  readonly title: string;
-  readonly noticed: string;
-  readonly severity: 'good' | 'warn' | 'bad';
-  readonly severityLabel: string;
-}
+const EMPTY_DATA: ServiceData = { schedules: [], issues: [], records: [], items: [], types: new Map() };
 
-/** MAQUETA: datos fijos. */
+/** Mantenimiento del vehículo activo: plan, fallas en seguimiento e historial reales. */
 @Component({
   selector: 'pst-service',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent],
+  imports: [IconComponent, RouterLink],
   templateUrl: './service.component.html',
   styleUrl: './service.component.scss',
 })
 export class ServiceComponent {
   private readonly island = inject(IslandService);
+  private readonly store = inject(OfflineStore);
+  private readonly context = inject(VehicleContext);
+
+  private readonly data = this.store.liveFrom(
+    this.context.vehicleId,
+    async (vehicleId): Promise<ServiceData> => {
+      if (!vehicleId) return EMPTY_DATA;
+      const [schedules, issues, records, types] = await Promise.all([
+        db.maintenance_schedules.where('vehicle_id').equals(vehicleId).toArray(),
+        db.issues.where('vehicle_id').equals(vehicleId).toArray(),
+        db.service_records.where('vehicle_id').equals(vehicleId).toArray(),
+        db.service_types.toArray(),
+      ]);
+      const liveRecords = records.filter((record) => !record.deleted_at);
+      const items = await db.service_record_items
+        .where('service_record_id')
+        .anyOf(liveRecords.map((record) => record.id))
+        .toArray();
+      return {
+        schedules: schedules.filter((schedule) => !schedule.deleted_at && schedule.is_active),
+        issues: issues
+          .filter((issue) => !issue.deleted_at && (issue.status === 'open' || issue.status === 'monitoring'))
+          .sort((a, b) => b.noticed_at.localeCompare(a.noticed_at)),
+        records: liveRecords.sort((a, b) => b.performed_at.localeCompare(a.performed_at)),
+        items: items.filter((item) => !item.deleted_at),
+        types: new Map(types.map((type) => [type.id, type])),
+      };
+    },
+    EMPTY_DATA,
+  );
+
+  protected readonly triage = computed(() => {
+    const count = (status: MaintenanceSchedule['status']) =>
+      this.data().schedules.filter((schedule) => schedule.status === status).length;
+    return { urgent: count('urgent'), warning: count('warning'), optimal: count('optimal') };
+  });
+
+  protected readonly schedules = computed(() =>
+    this.data().schedules.map((schedule) => ({
+      id: schedule.id,
+      name: this.data().types.get(schedule.service_type_id)?.name ?? 'Servicio',
+      due: scheduleDue(schedule),
+      ...SCHEDULE_TONE[schedule.status],
+    })),
+  );
+
+  protected readonly issues = computed(() =>
+    this.data().issues.map((issue) => ({
+      id: issue.id,
+      title: issue.title,
+      noticed: [
+        `Detectado el ${formatShortDate(issue.noticed_at)}`,
+        issue.noticed_odometer_km !== null ? formatKm(issue.noticed_odometer_km) : null,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      ...SEVERITY[issue.severity],
+    })),
+  );
+
+  protected readonly history = computed(() => {
+    const itemsByRecord = new Map<string, string[]>();
+    for (const item of this.data().items) {
+      const name = item.description ?? this.data().types.get(item.service_type_id)?.name;
+      if (!name) continue;
+      itemsByRecord.set(item.service_record_id, [...(itemsByRecord.get(item.service_record_id) ?? []), name]);
+    }
+    return this.data().records.map((record) => ({
+      id: record.id,
+      name: itemsByRecord.get(record.id)?.join(', ') || 'Servicio',
+      sub: [record.is_diy ? 'Hecho por mí' : record.shop_name, formatShortDate(record.performed_at), formatKm(record.odometer_km)]
+        .filter(Boolean)
+        .join(' · '),
+      cost: record.total_cost ? formatMoney(record.total_cost, record.currency) : EMPTY,
+    }));
+  });
 
   constructor() {
-    this.island.present({
-      icon: 'alert',
-      label: 'Próximo servicio',
-      value: '480 km',
-      tone: 'warn',
-      title: 'Rotación de llantas',
-      subtitle: 'Vence al llegar a 49,130 km',
-      details: [
-        { label: 'Faltan', value: '480 km' },
-        { label: 'Vencidos', value: '1' },
-        { label: 'Al día', value: '6' },
-      ],
-      pulsing: true,
+    effect(() => {
+      const next = this.data().schedules.find((schedule) => schedule.status === 'urgent')
+        ?? this.data().schedules.find((schedule) => schedule.status === 'warning');
+      const triage = this.triage();
+      this.island.present({
+        icon: next ? 'alert' : 'wrench',
+        label: next ? 'Próximo servicio' : 'Mantenimiento',
+        value: String(triage.urgent + triage.warning),
+        tone: triage.urgent > 0 ? 'bad' : triage.warning > 0 ? 'warn' : 'good',
+        title: next ? (this.data().types.get(next.service_type_id)?.name ?? 'Servicio') : 'Sin pendientes',
+        subtitle: next ? scheduleDue(next) : 'Nada vencido ni por vencer',
+        details: [
+          { label: 'Vencidos', value: String(triage.urgent) },
+          { label: 'Próximos', value: String(triage.warning) },
+          { label: 'Al día', value: String(triage.optimal) },
+        ],
+        pulsing: triage.urgent > 0,
+      });
     });
   }
-
-  protected readonly schedules: readonly ScheduleRow[] = [
-    { icon: 'wrench', name: 'Balatas delanteras', due: 'Vencido hace 1,200 km', tone: 'bad', status: 'Vencido', progress: 100 },
-    { icon: 'tire', name: 'Rotación de llantas', due: 'En 480 km', tone: 'warn', status: 'Próximo', progress: 94 },
-    { icon: 'droplet', name: 'Aceite y filtro', due: 'En 2,350 km', tone: 'good', status: 'En regla', progress: 76 },
-    { icon: 'spark', name: 'Bujías', due: 'En 11,400 km', tone: 'good', status: 'En regla', progress: 43 },
-    { icon: 'droplet', name: 'Anticongelante', due: 'En 8 meses', tone: 'good', status: 'En regla', progress: 33 },
-  ];
-
-  protected readonly issues: readonly IssueRow[] = [
-    { title: 'Ruido metálico al frenar en reversa', noticed: 'Detectado el 3 sep · 48,410 km', severity: 'warn', severityLabel: 'Media' },
-    { title: 'Vibración leve arriba de 110 km/h', noticed: 'Detectado el 21 ago · 47,900 km', severity: 'good', severityLabel: 'Baja' },
-  ];
-
-  protected readonly history = [
-    { name: 'Cambio de aceite 5W-30', shop: 'Taller Hernández', date: '2 sep', km: '48,200 km', cost: '$1,450' },
-    { name: 'Filtro de aire y cabina', shop: 'Autopartes Delta', date: '10 may', km: '40,000 km', cost: '$680' },
-    { name: 'Balatas cerámicas + discos', shop: 'Frenos MX', date: '20 mar', km: '36,500 km', cost: '$2,100' },
-  ];
 }

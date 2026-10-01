@@ -9,3 +9,12 @@
   align-items: center;
   gap: var(--pst-space-3);
 }
+
+.link {
+  color: var(--pst-ignition);
+  font-weight: 600;
+  font-size: inherit;
+}
+
+[data-tone='bad'] { color: var(--pst-bad); }
+[data-tone='warn'] { color: var(--pst-warn); }

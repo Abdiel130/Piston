@@ -1,0 +1,118 @@
+<div class="pst-stack detail">
+  <header class="top">
+    <a class="top__back" routerLink="/settings/sync" aria-label="Volver a Sincronización">
+      <pst-icon name="chevronLeft" [size]="20" />
+      <span>Sincronización</span>
+    </a>
+  </header>
+
+  @if (gone()) {
+    <div class="empty">
+      <pst-icon name="checkCircle" [size]="40" />
+      <p class="empty__title">Este cambio ya no está pendiente</p>
+      <p class="empty__sub">Se sincronizó o se descartó. Lo encuentras en el Historial.</p>
+      <a class="pst-btn" routerLink="/settings/sync" [queryParams]="{ view: 'history' }">Ver historial</a>
+    </div>
+  } @else {
+    <section class="head">
+      <p class="head__eyebrow">
+        {{ heading().op }}
+        <span class="pst-badge" [class.pst-badge--bad]="state().tone === 'bad'" [class.pst-badge--warn]="state().tone === 'warn'">
+          {{ state().label }}
+        </span>
+      </p>
+      <h1 class="head__title">{{ heading().title }}</h1>
+      @if (heading().detail) {
+        <p class="head__detail">{{ heading().detail }}</p>
+      }
+    </section>
+
+    @if (blockedBy(); as blocker) {
+      <p class="pst-note pst-note--warn">
+        @if (blocker.conflict) {
+          Espera a que resuelvas el conflicto de <strong>{{ blocker.label }}</strong>.
+        } @else {
+          Espera a que suba <strong>{{ blocker.label }}</strong>.
+        }
+        @if (blocker.link) {
+          <a class="link" [routerLink]="blocker.link">{{ blocker.conflict ? 'Ver el conflicto' : 'Ver ese cambio' }}</a>
+        }
+      </p>
+    }
+
+    @if (attempt(); as attempt) {
+      <pst-sync-attempt [attempt]="attempt" [attempts]="entry()?.attempts ?? null" [nextRetry]="entry()?.status === 'pending' ? entry()!.next_retry_at : null" />
+    } @else {
+      <section class="pst-card">
+        <p class="pst-card__title">En cola</p>
+        <p class="muted">
+          Todavía no se ha intentado enviar. Saldrá {{ online() ? 'en unos segundos' : 'en cuanto vuelva la conexión' }}.
+        </p>
+      </section>
+    }
+
+    @if (fields().length > 0) {
+      <details class="pst-card pst-card--flush data">
+        <summary class="data__summary">
+          <span>Datos guardados</span>
+          <pst-icon name="chevronDown" [size]="16" />
+        </summary>
+        <dl class="data__list">
+          @for (field of fields(); track field.label) {
+            <div class="data__row">
+              <dt>{{ field.label }}</dt>
+              <dd>{{ field.value }}</dd>
+            </div>
+          }
+        </dl>
+      </details>
+    }
+
+    @if (entry(); as current) {
+      <p class="muted small">Capturado {{ exactLocal(current.created_at) }}</p>
+    }
+
+    @if (actionError(); as message) {
+      <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+    }
+
+    <div class="actions">
+      <button type="button" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="busy() || !online()" (click)="retry()">
+        <pst-icon name="sync" [size]="18" />
+        {{ busy() ? 'Reintentando…' : 'Reintentar ahora' }}
+      </button>
+
+      @if (canDiscard()) {
+        @if (!confirming()) {
+          <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" [disabled]="busy()" (click)="askDiscard()">
+            Descartar este cambio
+          </button>
+        } @else {
+          <div class="pst-card confirm">
+            <p>
+              @if (kind() === 'upload') {
+                Se quitará este archivo del registro y de este dispositivo.
+              } @else if (entry()?.op === 'insert') {
+                El servidor nunca recibió este registro: se borrará de este dispositivo.
+              } @else {
+                Tu cambio se perderá y el registro volverá a la versión del servidor.
+              }
+            </p>
+            @if (dependents().length > 0) {
+              <p class="muted">También se descartarán {{ dependents().length }} cambios que dependen de este:</p>
+              <ul class="confirm__list">
+                @for (label of dependents(); track $index) {
+                  <li>{{ label }}</li>
+                }
+              </ul>
+            }
+            <button type="button" class="pst-btn pst-btn--danger pst-btn--block" [disabled]="busy()" (click)="discard()">
+              Sí, descartar
+            </button>
+            <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" (click)="confirming.set(false)">Cancelar</button>
+          </div>
+        }
+      }
+    </div>
+  }
+</div>

@@ -7,6 +7,92 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+La sincronización con el servidor funciona de verdad. Lo que se captura sube
+en cuanto hay señal, lo hecho en otro dispositivo llega solo, y cuando algo no
+sube la app explica por qué y cómo se arregla. Si dos dispositivos cambian lo
+mismo, nada se pierde en silencio: lo que no choca se combina solo y lo que sí
+choca lo decide el usuario. Todas las pantallas muestran ya los datos reales
+del vehículo.
+
+### Added
+- **Sincronización real con el servidor**: los cambios capturados sin conexión
+  se envían en cuanto vuelve la señal, y lo registrado en otro dispositivo llega
+  a este. Si un cambio no es válido, se aparta solo y no detiene a los demás.
+  Reenviar lo mismo tras un corte nunca duplica nada, y los datos de una cuenta
+  son inaccesibles para cualquier otra.
+- **Centro de sincronización**: en Ajustes, una sola entrada muestra el estado
+  ("Al día", "3 por subir", "1 con error", "2 conflictos", "Sin conexión").
+  Dentro hay dos vistas: *Actual*, con lo que falta por subir agrupado en
+  conflictos, con error, bloqueado, pendiente y fotos, y *Historial*, con cada sincronización de los
+  últimos 30 días y qué pasó con cada cambio. El botón para sincronizar
+  aparece solo cuando hay algo por subir.
+- **Diagnóstico de cada cambio que no subió**: qué pasó, en palabras
+  sencillas, y cómo se soluciona. Distingue falta de señal, servidor caído o
+  en mantenimiento, error interno del servidor y datos rechazados, con los
+  campos exactos a corregir. Incluye la fecha y hora exactas y un identificador
+  de solicitud que se puede copiar para encontrar el caso en los registros del
+  servidor, aunque la respuesta nunca haya llegado.
+- **Reintentar o descartar un cambio**: cualquier cambio pendiente se puede
+  reintentar al momento. Uno rechazado se puede descartar: lo que el servidor
+  nunca recibió se borra del dispositivo, y lo que sí tenía vuelve a su
+  versión. Antes de confirmar se avisa qué otros cambios dependen de él.
+- **Ediciones de dos dispositivos que se combinan solas**: si en un
+  dispositivo se cambia la placa de un vehículo y en otro sus notas, al
+  sincronizar quedan los dos cambios, sin preguntar. El Historial lo registra
+  como "Se combinó con otro dispositivo".
+- **Conflictos que decide el usuario**: cuando dos dispositivos cambian el
+  mismo campo con valores distintos, se edita algo que otro dispositivo borró,
+  o se registra algo dentro de un registro borrado, el cambio no se descarta:
+  aparece en la sección *Conflictos* del centro de sincronización. El detalle
+  muestra las dos versiones lado a lado, solo en los campos que chocan, y aparte
+  lo que se combinó solo. Se puede conservar la versión propia, usar la del
+  otro dispositivo o elegir campo por campo; un registro borrado se puede
+  restaurar con los cambios propios o aceptar su borrado. Mientras haya
+  conflictos, lo que depende de ellos espera y no se puede cerrar sesión. Cada
+  decisión queda en el Historial.
+- **Cambios que esperan a otros**: un registro que depende de otro que no pudo
+  subir (por ejemplo, una carga de un vehículo rechazado) queda en espera y
+  sale solo en cuanto el otro sube, en vez de fallar.
+- **Subida de pendientes con la app cerrada**: en la app instalada, lo que
+  quedó en cola se envía al volver la señal aunque la app no esté abierta, y
+  hay una revisión aproximadamente diaria. Lo demás se completa al abrir la
+  app.
+- **Captura de cargas, servicios, gastos y odómetro**: formularios sencillos
+  para registrar una carga de combustible (litros, monto, precio, rayitas antes
+  y después, tanque lleno), un servicio con sus conceptos del catálogo, un
+  gasto por categoría y una lectura de odómetro. Se guardan al instante en el
+  dispositivo y se sincronizan solos.
+
+### Changed
+- **Todas las pantallas muestran datos reales**: Garage, Combustible,
+  Servicios, Gastos y Ajustes leen lo guardado en el dispositivo, con mensajes
+  claros cuando todavía no hay nada. Rendimiento, costo por kilómetro y demás
+  métricas muestran lo que ya tenga guardado cada registro, o un guion
+  mientras no existan los cálculos. Unidades y moneda salen de la cuenta.
+- **Sincronización reactiva y sin consumo innecesario**: la app sincroniza al
+  abrirse y justo después de cada cambio. Solo reintenta mientras quede algo
+  por subir, y deja de hacerlo en cuanto todo está en el servidor. Sin
+  pendientes no hace peticiones: al volver a la app solo consulta si pasaron
+  unos minutos, y una revisión de respaldo cada 10 minutos atrapa lo que se
+  haya escapado.
+- **Los fallos pasajeros nunca se dan por perdidos**: sin señal o con el
+  servidor caído, un cambio se reintenta sin límite, espaciando los intentos.
+  Solo lo que el servidor rechaza pasa a "con error".
+- **El reloj del dispositivo ya no decide qué versión gana**: los choques se
+  detectan por la versión del registro que tenía cada dispositivo, así que un
+  teléfono con la hora atrasada ya no pierde sus cambios. Un registro borrado
+  en otro dispositivo solo vuelve si el usuario elige restaurarlo, y no se
+  puede registrar nada nuevo dentro de él.
+- **Direcciones de la app en inglés**: las rutas pasan a `/fuel`, `/services`,
+  `/expenses`, `/settings`, `/settings/sync`, `/welcome`, etc. Los textos
+  siguen en español. Los enlaces guardados con las direcciones anteriores
+  llevan al Garage.
+
+### Removed
+- **Las siete filas de sincronización de Ajustes** y los grupos sin datos
+  reales detrás (Recordatorios, Agregar vehículo, Vehículos archivados): todo
+  lo de sincronización vive ahora en el centro de sincronización.
+
 ## [1.3.0] - 2026-09-28
 
 La aplicación ya sabe de quién es. Cada dispositivo tiene un dueño con una

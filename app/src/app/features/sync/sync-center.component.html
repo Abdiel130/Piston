@@ -1,0 +1,180 @@
+<div class="center">
+  <header class="top">
+    <a class="top__back" routerLink="/settings" aria-label="Volver a Ajustes">
+      <pst-icon name="chevronLeft" [size]="20" />
+      <span>Ajustes</span>
+    </a>
+    <h1 class="top__title">Sincronización</h1>
+    <pst-segmented
+      label="Vista"
+      [options]="viewOptions()"
+      [value]="view()"
+      (valueChange)="setView($event)"
+    />
+    @if (totalOpen() > 0) {
+      <div class="sync-action">
+        <button
+          type="button"
+          class="pst-btn pst-btn--primary pst-btn--block"
+          [disabled]="retrying() || syncDisabledReason() !== null"
+          (click)="syncAll()"
+        >
+          <pst-icon name="sync" [size]="18" [class.is-spinning]="retrying() || summary().health === 'syncing'" />
+          {{ retrying() ? 'Sincronizando…' : 'Sincronizar ' + totalOpen() + (totalOpen() === 1 ? ' cambio' : ' cambios') }}
+        </button>
+        @if (syncDisabledReason(); as reason) {
+          <p class="sync-action__hint">{{ reason }}</p>
+        }
+      </div>
+    }
+  </header>
+
+  <section class="pst-card status" [attr.data-tone]="headline().tone">
+    <span class="status__icon" [class.is-spinning]="summary().health === 'syncing'">
+      <pst-icon [name]="headline().icon" [size]="22" />
+    </span>
+    <div class="status__body">
+      <p class="status__title">{{ headline().title }}</p>
+      <p class="status__sub">{{ headline().sub }}</p>
+    </div>
+    @if (summary().health === 'expired') {
+      <button type="button" class="pst-btn pst-btn--primary" (click)="relogin()">Entrar</button>
+    }
+  </section>
+
+  @if (view() === 'current') {
+    <div class="pst-stack">
+      @if (totalOpen() === 0) {
+        <div class="empty">
+          <pst-icon name="checkCircle" [size]="40" />
+          <p class="empty__title">Nada pendiente</p>
+          <p class="empty__sub">Todo lo de este dispositivo ya está en el servidor.</p>
+        </div>
+      }
+
+      @for (group of [
+        { title: 'Conflictos', items: conflicts() },
+        { title: 'Con error', items: failed() },
+        { title: 'Bloqueados', items: blocked() },
+        { title: 'Pendientes', items: pending() },
+        { title: 'Fotos y archivos', items: fileItems() },
+      ]; track group.title) {
+        @if (group.items.length > 0) {
+          <section>
+            <h2 class="pst-section-title">{{ group.title }} · {{ group.items.length }}</h2>
+            <div class="pst-card pst-card--flush">
+              <div class="pst-list">
+                @for (item of group.items; track item.id) {
+                  <a class="pst-row" [routerLink]="item.link">
+                    <span class="pst-row__icon" [attr.data-tone]="item.tone">
+                      <pst-icon [name]="item.icon" [size]="18" />
+                    </span>
+                    <span class="pst-row__body">
+                      <span class="pst-row__title">{{ item.title }}</span>
+                      <span class="pst-row__sub">
+                        {{ item.detail ? item.detail + ' · ' : '' }}{{ item.cause }}
+                      </span>
+                    </span>
+                    <span class="pst-row__trail">
+                      <span
+                        class="pst-badge"
+                        [class.pst-badge--bad]="item.tone === 'bad'"
+                        [class.pst-badge--warn]="item.tone === 'warn'"
+                      >{{ item.badge }}</span>
+                      <pst-icon name="chevronRight" [size]="16" />
+                    </span>
+                  </a>
+                }
+              </div>
+            </div>
+          </section>
+        }
+      }
+    </div>
+  } @else {
+    <div class="pst-stack">
+      @if (history().length === 0) {
+        <div class="empty">
+          <pst-icon name="clock" [size]="40" />
+          <p class="empty__title">Sin historial todavía</p>
+          <p class="empty__sub">Aquí aparecerá cada sincronización de los últimos 30 días.</p>
+        </div>
+      }
+
+      @for (day of history(); track day.label) {
+        <section>
+          <h2 class="pst-section-title">{{ day.label }}</h2>
+          <div class="pst-card pst-card--flush">
+            <div class="pst-list">
+              @for (item of day.items; track item.id) {
+                @if (item.run; as run) {
+                  <button
+                    type="button"
+                    class="pst-row"
+                    [attr.aria-expanded]="expandedRun() === run.id"
+                    (click)="toggleRun(run.id)"
+                  >
+                    <span class="pst-row__icon" [attr.data-tone]="runTone(run)">
+                      <pst-icon [name]="run.error ? 'cloudOff' : 'sync'" [size]="18" />
+                    </span>
+                    <span class="pst-row__body">
+                      <span class="pst-row__title">{{ triggerLabel[run.trigger] }}</span>
+                      <span class="pst-row__sub">{{ runSummary(run) }}</span>
+                    </span>
+                    <span class="pst-row__trail">
+                      <span class="pst-numeric">{{ clock(run.started_at) }}</span>
+                      <pst-icon name="chevronDown" [size]="16" [class.is-open]="expandedRun() === run.id" />
+                    </span>
+                  </button>
+
+                  @if (expandedRun() === run.id) {
+                    <div class="run">
+                      <p class="run__meta">
+                        <span [class]="'pst-badge pst-badge--' + runTone(run)">{{ runLabel(run) }}</span>
+                        @if (run.request_ids.length > 0) {
+                          <code class="run__ids">{{ run.request_ids.join(' · ') }}</code>
+                        }
+                      </p>
+
+                      @if (run.error; as error) {
+                        <pst-sync-attempt [attempt]="error" />
+                      }
+
+                      @for (event of runEvents(run.id); track event.id) {
+                        <a class="run__event" [routerLink]="['event', event.id]">
+                          <span class="run__dot" [attr.data-tone]="outcomeText[event.outcome].tone"></span>
+                          <span class="run__event-body">
+                            <span>{{ eventTitle(event) }}</span>
+                            <span class="run__event-outcome">{{ outcomeText[event.outcome].label }}</span>
+                          </span>
+                          <pst-icon name="chevronRight" [size]="14" />
+                        </a>
+                      } @empty {
+                        @if (!run.error) {
+                          <p class="run__none">Solo se revisó si había novedades en el servidor.</p>
+                        }
+                      }
+                    </div>
+                  }
+                } @else if (item.event; as event) {
+                  <a class="pst-row" [routerLink]="['event', event.id]">
+                    <span class="pst-row__icon" data-tone="idle"><pst-icon name="close" [size]="18" /></span>
+                    <span class="pst-row__body">
+                      <span class="pst-row__title">{{ outcomeText[event.outcome].label }}</span>
+                      <span class="pst-row__sub">{{ event.label }}</span>
+                    </span>
+                    <span class="pst-row__trail">
+                      <span class="pst-numeric">{{ clock(event.at) }}</span>
+                      <pst-icon name="chevronRight" [size]="16" />
+                    </span>
+                  </a>
+                }
+              }
+            </div>
+          </div>
+        </section>
+      }
+    </div>
+  }
+
+</div>

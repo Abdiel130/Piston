@@ -33,6 +33,11 @@ enum ApiCode: string
     case PayloadTooLarge = 'payload_too_large';
     case TooManyRequests = 'too_many_requests';
 
+    // ── Rechazos del sync (por mutación) ───────────────────────────────────
+    case ParentMissing = 'parent_missing';
+    case ParentDeleted = 'parent_deleted';
+    case UnknownTable = 'unknown_table';
+
     // ── Errores del servidor ───────────────────────────────────────────────
     case ServerError = 'server_error';
     case ServiceUnavailable = 'service_unavailable';
@@ -48,7 +53,8 @@ enum ApiCode: string
             self::ClientHeaderMissing, self::Forbidden => Response::HTTP_FORBIDDEN,
             self::NotFound => Response::HTTP_NOT_FOUND,
             self::MethodNotAllowed => Response::HTTP_METHOD_NOT_ALLOWED,
-            self::RefreshRace, self::Conflict => Response::HTTP_CONFLICT,
+            self::RefreshRace, self::Conflict, self::ParentMissing, self::ParentDeleted => Response::HTTP_CONFLICT,
+            self::UnknownTable => Response::HTTP_BAD_REQUEST,
             self::PayloadTooLarge => Response::HTTP_REQUEST_ENTITY_TOO_LARGE,
             self::TooManyRequests => Response::HTTP_TOO_MANY_REQUESTS,
             self::ServerError => Response::HTTP_INTERNAL_SERVER_ERROR,
@@ -75,6 +81,9 @@ enum ApiCode: string
             self::Conflict => 'El recurso cambió; vuelve a intentarlo.',
             self::PayloadTooLarge => 'El envío es demasiado grande.',
             self::TooManyRequests => 'Demasiadas peticiones. Espera un momento.',
+            self::ParentMissing => 'El registro del que depende todavía no existe en el servidor.',
+            self::ParentDeleted => 'El registro del que depende se borró en otro dispositivo.',
+            self::UnknownTable => 'El servidor no reconoce ese tipo de registro.',
             self::ServerError => 'Algo falló en el servidor.',
             self::ServiceUnavailable => 'El servicio no está disponible por ahora.',
         };

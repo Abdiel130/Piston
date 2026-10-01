@@ -22,6 +22,7 @@ import type {
   VehicleStatus,
   VehicleType,
 } from './enums';
+import type { SyncAttempt } from './sync';
 
 /** UUIDv7 en texto. Lo genera el cliente, nunca el servidor. */
 export type Uuid = string;
@@ -43,7 +44,7 @@ export interface SyncFields {
   readonly id: Uuid;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
-  /** Base del last-write-wins. Reloj del dispositivo que hizo el cambio. */
+  /** Reloj del dispositivo que hizo el cambio. Informativo: los choques se deciden por `rev`. */
   client_updated_at: IsoDateTime;
   /** Tombstone. No-nulo = borrado; la fila se conserva para propagar el borrado. */
   deleted_at: IsoDateTime | null;
@@ -355,4 +356,6 @@ export interface AttachmentBlob {
   attachment_id: Uuid;
   blob: Blob;
   created_at: IsoDateTime;
+  /** Último intento fallido de subir el binario. */
+  last_attempt?: SyncAttempt | null;
 }

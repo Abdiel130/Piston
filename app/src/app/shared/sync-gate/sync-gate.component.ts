@@ -82,6 +82,6 @@ export class SyncGateComponent {
     this.phase.set('hidden');
 
     const step = await this.onboarding.currentStep();
-    await this.router.navigateByUrl(step === 'done' ? '/' : '/bienvenida');
+    await this.router.navigateByUrl(step === 'done' ? '/' : '/welcome');
   }
 }

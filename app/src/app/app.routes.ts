@@ -16,7 +16,7 @@ export const routes: Routes = [
       import('./features/auth/login.component').then((m) => m.LoginComponent),
   },
   {
-    path: 'bienvenida',
+    path: 'welcome',
     title: 'Bienvenida · Piston',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
@@ -33,28 +33,84 @@ export const routes: Routes = [
           import('./features/garage/garage.component').then((m) => m.GarageComponent),
       },
       {
-        path: 'combustible',
+        path: 'fuel',
         title: 'Combustible · Piston',
         loadComponent: () =>
           import('./features/fuel/fuel.component').then((m) => m.FuelComponent),
       },
       {
-        path: 'servicios',
+        path: 'services',
         title: 'Servicios · Piston',
         loadComponent: () =>
           import('./features/service/service.component').then((m) => m.ServiceComponent),
       },
       {
-        path: 'gastos',
+        path: 'expenses',
         title: 'Gastos · Piston',
         loadComponent: () =>
           import('./features/expenses/expenses.component').then((m) => m.ExpensesComponent),
       },
       {
-        path: 'ajustes',
+        path: 'settings',
         title: 'Ajustes · Piston',
         loadComponent: () =>
           import('./features/settings/settings.component').then((m) => m.SettingsComponent),
+      },
+      {
+        path: 'fuel/new',
+        title: 'Nueva carga · Piston',
+        loadComponent: () =>
+          import('./features/capture/fuel-capture.component').then((m) => m.FuelCaptureComponent),
+      },
+      {
+        path: 'services/new',
+        title: 'Nuevo servicio · Piston',
+        loadComponent: () =>
+          import('./features/capture/service-capture.component').then((m) => m.ServiceCaptureComponent),
+      },
+      {
+        path: 'expenses/new',
+        title: 'Nuevo gasto · Piston',
+        loadComponent: () =>
+          import('./features/capture/expense-capture.component').then((m) => m.ExpenseCaptureComponent),
+      },
+      {
+        path: 'odometer/new',
+        title: 'Anotar odómetro · Piston',
+        loadComponent: () =>
+          import('./features/capture/odometer-capture.component').then((m) => m.OdometerCaptureComponent),
+      },
+      {
+        path: 'settings/sync',
+        title: 'Sincronización · Piston',
+        loadComponent: () =>
+          import('./features/sync/sync-center.component').then((m) => m.SyncCenterComponent),
+      },
+      {
+        path: 'settings/sync/change/:id',
+        title: 'Cambio pendiente · Piston',
+        data: { kind: 'change' },
+        loadComponent: () =>
+          import('./features/sync/sync-change.component').then((m) => m.SyncChangeComponent),
+      },
+      {
+        path: 'settings/sync/conflict/:id',
+        title: 'Conflicto · Piston',
+        loadComponent: () =>
+          import('./features/sync/sync-conflict.component').then((m) => m.SyncConflictComponent),
+      },
+      {
+        path: 'settings/sync/file/:id',
+        title: 'Archivo pendiente · Piston',
+        data: { kind: 'upload' },
+        loadComponent: () =>
+          import('./features/sync/sync-change.component').then((m) => m.SyncChangeComponent),
+      },
+      {
+        path: 'settings/sync/event/:id',
+        title: 'Evento de sincronización · Piston',
+        loadComponent: () =>
+          import('./features/sync/sync-event.component').then((m) => m.SyncEventComponent),
       },
     ],
   },

@@ -2,8 +2,11 @@
 
 namespace App\Models\Concerns;
 
+use App\Sync\SyncRegistry;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 /**
@@ -28,10 +31,38 @@ trait SyncsOffline
 
     public function initializeSyncsOffline(): void
     {
-        $this->casts = array_merge([
-            'client_updated_at' => 'immutable_datetime',
-            'rev' => 'integer',
-        ], $this->casts);
+        // Los casts de las columnas de dominio salen del registro del sync: el
+        // pull devuelve números como números y fechas en el formato del cliente.
+        $this->casts = array_merge(
+            SyncRegistry::find($this->getTable())?->casts() ?? [],
+            [
+                'client_updated_at' => 'immutable_datetime',
+                'rev' => 'integer',
+            ],
+            $this->casts,
+        );
+    }
+
+    /**
+     * Precisión de microsegundos y zona explícita al escribir en `timestamptz`.
+     * Con el formato por defecto de Laravel se truncan los milisegundos del
+     * cliente y dos ediciones en el mismo segundo empatan en el last-write-wins.
+     */
+    public function getDateFormat(): string
+    {
+        return 'Y-m-d H:i:s.uP';
+    }
+
+    /**
+     * Mismo formato que `Date.prototype.toISOString()` (milisegundos, UTC).
+     *
+     * No es cosmético: el cliente compara `client_updated_at` para el
+     * last-write-wins, y `...00.123Z` contra `...00.123000Z` no ordena bien
+     * como texto.
+     */
+    protected function serializeDate(DateTimeInterface $date): string
+    {
+        return Carbon::instance($date)->utc()->format('Y-m-d\\TH:i:s.v\\Z');
     }
 
     public function getIncrementing(): bool

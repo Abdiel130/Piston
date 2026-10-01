@@ -66,6 +66,9 @@ por defecto.
 | `conflict` | 409 | El recurso cambió; vuelve a intentarlo. |
 | `payload_too_large` | 413 | El envío es demasiado grande. |
 | `too_many_requests` | 429 | Demasiadas peticiones. Espera un momento. |
+| `parent_missing` | 409 | El registro del que depende todavía no existe en el servidor. |
+| `parent_deleted` | 409 | El registro del que depende se borró en otro dispositivo. |
+| `unknown_table` | 400 | El servidor no reconoce ese tipo de registro. |
 | `server_error` | 500 | Algo falló en el servidor. |
 | `service_unavailable` | 503 | El servicio no está disponible por ahora. |
 
@@ -125,6 +128,145 @@ UUID válido**. Cualquier otra cosa se descarta, para que nadie pueda inyectar
 texto arbitrario (saltos de línea, entradas falsas) en los logs.
 
 El header está en `exposed_headers` de CORS, así que el front puede leerlo.
+
+El cliente genera un `X-Request-Id` propio en **cada** petición. Así conoce el
+id aunque la respuesta nunca llegue (timeout, servidor caído) y lo muestra en
+el detalle de un cambio no sincronizado. Los rechazos del sync se registran en
+`storage/logs/sync-AAAA-MM-DD.log` y los 500 en `laravel.log`, ambos con ese id.
+
+## Sincronización
+
+Todas exigen `auth:sanctum` y `throttle:sync` (120/min por cuenta). La lógica
+vive en `server/app/Sync/`; `SyncRegistry` es la única fuente de las 20 tablas,
+sus columnas escribibles, reglas y dueño.
+
+### `POST /api/sync`: push
+
+```json
+{ "mutations": [
+  { "table": "fuel_entries", "id": "<uuidv7>", "op": "insert|update|delete",
+    "payload": { "...fila completa...", "client_updated_at": "2026-09-28T14:03:00.123Z" },
+    "base_rev": 811,
+    "base": { "...la fila tal como estaba antes del primer cambio local..." },
+    "resolve": "restore" }
+] }
+```
+
+- `base_rev`: el `rev` de la fila cuando el cliente empezó a editarla (`0` si
+  es nueva). Sin él, la mutación usa el last-write-wins anterior (ver abajo).
+- `base`: la fila que vio el cliente. Con ella el servidor sabe qué campos
+  cambió cada lado. `null` en una fila nueva.
+- `resolve`: solo `"restore"`, y solo desde la resolución de un conflicto
+  `edit_delete`. Es la única forma de resucitar un tombstone.
+
+Responde `200` con:
+
+```json
+{ "applied":  [{ "table": "fuel_entries", "id": "…", "rev": 812, "stale": false,
+                 "row": { "...la fila como quedó..." }, "merged": ["notes"] }],
+  "rejected": [{ "table": "…", "id": "…", "code": "validation_failed",
+                 "message": "…", "errors": { "liters": ["…"] } }],
+  "server_rev": 812 }
+```
+
+- **Aislamiento.** Cada mutación corre en un SAVEPOINT; una fila rechazada no
+  afecta al resto del lote.
+- **Idempotente.** El insert es upsert por UUID; borrar lo inexistente es un
+  no-op (`rev: 0`). Reenviar un lote tras un timeout es seguro.
+- **`row`** es la fila guardada, ya con su `rev`. Si hubo mezcla, es la
+  versión combinada: el cliente la guarda sin esperar al pull. `merged` lista
+  los campos que se conservaron del servidor.
+- **Dueño.** `user_id` lo pone el servidor. Los catálogos con `user_id` NULL
+  son del sistema: se leen, no se escriben. Las tablas hijas sin `user_id`
+  pertenecen al dueño del padre.
+- **Rechazos** (`rejected[].code`): `validation_failed` (con `errors` por campo),
+  `forbidden` (fila o FK de otra cuenta), `parent_missing` (el padre no ha
+  llegado; el cliente lo reintenta cuando el padre suba), `parent_deleted`
+  (ver abajo), `conflict` (con `conflict`: dos ediciones que chocan; sin él:
+  duplicado por un índice único), `unknown_table`.
+- **Decimales.** Un decimal con arrastre binario (`0.30000000000000004`) se
+  redondea a la escala de la columna antes de validar. Uno con más decimales de
+  verdad (`41.555` en una columna de 2) sigue siendo `validation_failed`.
+- Más de 500 mutaciones: `413 payload_too_large` (el cliente parte el lote).
+- `server_rev` es informativo. **No** es un cursor: adelantar el cursor con él
+  se saltaría cambios de otros dispositivos que aún no se han jalado.
+
+#### Conflictos
+
+El servidor compara `base_rev` con el `rev` actual de la fila. El reloj del
+dispositivo (`client_updated_at`) ya no decide nada; se guarda solo como dato.
+
+| Situación | Resultado |
+|---|---|
+| Fila nueva, o `base_rev` igual al `rev` actual | Se aplica. |
+| Otro dispositivo cambió campos distintos | Se mezcla por campo y se aplica (`merged`). |
+| Los dos cambiaron el mismo campo al mismo valor | Se aplica; no hay nada que decidir. |
+| Los dos cambiaron el mismo campo a valores distintos | `conflict`, `kind: edit_edit`. No se aplica nada de esa mutación. |
+| Edito algo que otro dispositivo borró | `conflict`, `kind: edit_delete`. |
+| Borro algo que otro dispositivo editó después de mi base | `conflict`, `kind: edit_delete`. |
+| Creo o muevo un hijo hacia un padre con tombstone | `parent_deleted`, `kind: create_in_deleted_parent`. |
+| Insert con `base_rev: 0` sobre una fila que ya existe | Se aplica: es el mismo dispositivo reenviando tras un timeout. |
+
+La mezcla compara solo las columnas escribibles de `SyncRegistry` que trae el
+payload, normalizadas por tipo (`12.5` y `"12.50"` son el mismo decimal; las
+fechas se comparan a milisegundos en UTC).
+
+```json
+{ "table": "vehicles", "id": "…", "code": "conflict", "message": "…",
+  "conflict": { "kind": "edit_edit", "fields": ["license_plate"],
+                "server_row": { "…" }, "server_rev": 931 } }
+```
+
+- `edit_edit`: `fields` son los campos que chocan.
+- `edit_delete`: `fields` son los campos que cambió quien editó.
+  `server_row` es la fila del servidor (el tombstone, si se borró allá).
+- `create_in_deleted_parent`: `fields` es la columna de la referencia,
+  `server_row` es el **padre** borrado y `parent` es `{ table, id }`. Las
+  referencias que la fila ya tenía no se revisan: editar las notas de una carga
+  cuya gasolinera se borró sigue siendo válido.
+
+Resolver desde el cliente:
+
+- **Conservar la mía:** reenviar con `base_rev = server_rev` y
+  `base = server_row`, con el payload construido sobre `server_row` más mis
+  campos. Ya no choca.
+- **Restaurar con mis cambios:** `op: insert`, `resolve: "restore"`,
+  `base_rev` = el `rev` del tombstone. Con otro `base_rev` vuelve a ser
+  conflicto.
+
+Cada conflicto se registra en el canal `sync` como `sync.conflict` y cada
+mezcla automática como `sync.merged`.
+
+**Compatibilidad.** Una mutación sin `base_rev` (outbox de un cliente
+anterior) mantiene el last-write-wins: si la fila guardada tiene un
+`client_updated_at` más reciente, no se pisa (`stale: true`), y un tombstone
+gana siempre.
+
+### `GET /api/sync?since=<rev>&limit=<n>`: pull
+
+`limit` por defecto 500, máximo 1000. Responde
+`{ changes: { tabla: [filas…] }, server_rev, has_more }`.
+
+- Las filas de las 20 tablas se mezclan por `rev` y se cortan en ese orden;
+  `server_rev` es el `rev` de la última fila entregada. Con `has_more` se
+  vuelve a pedir desde `server_rev`.
+- Incluye tombstones (`deleted_at` no nulo).
+- Números como números, fechas `YYYY-MM-DD`, timestamps en el formato de
+  `toISOString()` (`…T14:03:00.123Z`).
+- Un lock consultivo por cuenta (exclusivo en push, compartido en pull) evita
+  que un pull entregue un `rev` alto mientras otro más bajo sigue sin confirmar.
+
+### `GET /api/sync/{table}/{id}`
+
+La versión del servidor de una fila (`{ table, row }`), tombstone incluido.
+`404` si nunca llegó. La usa "Descartar cambio" para restaurar.
+
+### `POST /api/attachments/{id}/file`
+
+Multipart con `file`. Verifica el `checksum` (sha256) de la fila si lo tiene,
+guarda en el disco `local` y marca `upload_status = uploaded`. Idempotente.
+`404` si la fila del adjunto todavía no llegó (el cliente reintenta),
+`413` si excede `SYNC_ATTACHMENT_MAX_KB` (15 MB por defecto).
 
 ## Uso en el backend
 

@@ -25,7 +25,9 @@ class AssignRequestId
     {
         $id = self::of($request);
 
-        Log::withContext(['request_id' => $id]);
+        // shareContext y no withContext: el id tiene que salir también en los
+        // canales dedicados (p. ej. 'sync'), no solo en el default.
+        Log::shareContext(['request_id' => $id]);
 
         $response = $next($request);
         $response->headers->set(self::HEADER, $id);

@@ -14,6 +14,11 @@ export const environment = {
    */
   apiBaseUrl: '',
 
-  /** Cada cuánto intenta sincronizar en segundo plano (ms). */
-  syncIntervalMs: 60_000,
+  /**
+   * Revisión de respaldo (ms). NO es el mecanismo principal: el sync reacciona
+   * a cada cambio y reintenta con backoff mientras haya pendientes. Esto solo
+   * atrapa lo que ningún evento haya disparado (un bug), y no toca la red si
+   * no hay nada por subir.
+   */
+  syncSafetyIntervalMs: 600_000,
 } as const;

@@ -10,7 +10,7 @@ import { SyncGateComponent } from './shared/sync-gate/sync-gate.component';
 import { TabBarComponent } from './shared/tab-bar/tab-bar.component';
 
 /** Rutas sin isla ni pestañas: todavía no hay una app que navegar. */
-const BARE_ROUTES = ['/login', '/bienvenida'];
+const BARE_ROUTES = ['/login', '/welcome'];
 
 @Component({
   selector: 'app-root',

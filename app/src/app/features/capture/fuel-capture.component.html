@@ -1,0 +1,103 @@
+<div class="pst-stack capture-page">
+  <header class="top">
+    <a class="top__back" routerLink="/fuel"><pst-icon name="chevronLeft" [size]="20" /> Combustible</a>
+    <h1 class="top__title">Nueva carga</h1>
+    <p class="top__sub">{{ name() }}</p>
+  </header>
+
+  <form class="pst-form" (submit)="$event.preventDefault(); save()">
+    <div class="pst-field-row">
+      <label class="pst-field">
+        <span class="pst-field__label">Fecha y hora</span>
+        <input class="pst-input" type="datetime-local" [value]="filledAt()" (input)="filledAt.set(readText($event))" />
+      </label>
+      <label class="pst-field">
+        <span class="pst-field__label">Odómetro (km)</span>
+        <input
+          class="pst-input pst-numeric"
+          inputmode="numeric"
+          [class.is-invalid]="submitted() && errors().odometer_km"
+          [placeholder]="odometerHint() ?? ''"
+          [value]="odometer() ?? ''"
+          (input)="odometer.set(readNumber($event))"
+        />
+      </label>
+    </div>
+    @if (submitted() && errors().odometer_km; as message) {
+      <p class="error">{{ message }}</p>
+    }
+
+    <div class="pst-field">
+      <span class="pst-field__label">Combustible</span>
+      <div class="pst-chips" role="group" aria-label="Tipo de combustible">
+        @for (option of grades; track option.value) {
+          <button type="button" class="pst-chip" [class.is-active]="selectedGrade() === option.value" (click)="grade.set(option.value)">
+            {{ option.label }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <div class="pst-field-row">
+      <label class="pst-field">
+        <span class="pst-field__label">Litros</span>
+        <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().liters" [value]="liters() ?? ''" (input)="liters.set(readNumber($event))" />
+      </label>
+      <label class="pst-field">
+        <span class="pst-field__label">Monto pagado</span>
+        <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().amount_paid" [value]="amount() ?? ''" (input)="amount.set(readNumber($event))" />
+      </label>
+      <label class="pst-field">
+        <span class="pst-field__label">Precio por litro</span>
+        <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().price_per_liter" [value]="price() ?? ''" (input)="price.set(readNumber($event))" />
+      </label>
+    </div>
+    @for (key of ['quantity', 'liters', 'amount_paid', 'price_per_liter']; track key) {
+      @if (submitted() && $any(errors())[key]; as message) {
+        <p class="error">{{ message }}</p>
+      }
+    }
+
+    <div class="pst-field">
+      <span class="pst-field__label">Tanque lleno</span>
+      <div class="pst-chips">
+        <button type="button" class="pst-chip" [class.is-active]="fullTank()" (click)="fullTank.set(true)">Sí, lo llené</button>
+        <button type="button" class="pst-chip" [class.is-active]="!fullTank()" (click)="fullTank.set(false)">Carga parcial</button>
+      </div>
+    </div>
+
+    <div class="pst-field">
+      <span class="pst-field__label">Rayitas antes de cargar</span>
+      <div class="ticks" role="group" aria-label="Rayitas antes">
+        @for (tick of ticks(); track tick) {
+          <button type="button" class="tick" [class.is-active]="gaugeBefore() === tick" [attr.aria-pressed]="gaugeBefore() === tick" (click)="setGauge('before', tick)">{{ tick }}</button>
+        }
+      </div>
+    </div>
+
+    @if (!fullTank()) {
+      <div class="pst-field">
+        <span class="pst-field__label">Rayitas después de cargar</span>
+        <div class="ticks" role="group" aria-label="Rayitas después">
+          @for (tick of ticks(); track tick) {
+            <button type="button" class="tick" [class.is-active]="gaugeAfter() === tick" [attr.aria-pressed]="gaugeAfter() === tick" (click)="setGauge('after', tick)">{{ tick }}</button>
+          }
+        </div>
+      </div>
+    }
+
+    <label class="pst-field">
+      <span class="pst-field__label">Notas</span>
+      <input class="pst-input" [value]="notes()" (input)="notes.set(readText($event))" />
+    </label>
+
+    @if (saveError(); as message) {
+      <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+    }
+
+    <button type="submit" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="saving() || !vehicle()">
+      {{ saving() ? 'Guardando…' : 'Guardar carga' }}
+    </button>
+    <p class="saved-note">Se guarda en este dispositivo y se sincroniza sola.</p>
+  </form>
+</div>

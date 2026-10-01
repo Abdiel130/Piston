@@ -36,6 +36,12 @@ class AppServiceProvider extends ServiceProvider
 
         // Un cliente sano refresca una vez cada ~15 minutos por pestaña.
         RateLimiter::for('refresh', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
+
+        // El sync corre en cuanto hay un cambio. 120/min por cuenta sobra para
+        // uso humano y corta a un cliente atorado en un bucle.
+        RateLimiter::for('sync', fn (Request $request) => Limit::perMinute(120)->by(
+            $request->user()?->getAuthIdentifier() ?? $request->ip(),
+        ));
     }
 
     /**
