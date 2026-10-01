@@ -12,12 +12,12 @@
         <input class="pst-input" type="date" [value]="performedAt()" (input)="performedAt.set(readText($event))" />
       </label>
       <label class="pst-field">
-        <span class="pst-field__label">Odómetro (km)</span>
+        <span class="pst-field__label">Odómetro ({{ units.distanceSymbol() }})</span>
         <input
           class="pst-input pst-numeric"
           inputmode="numeric"
           [class.is-invalid]="submitted() && errors().odometer_km"
-          [placeholder]="vehicle()?.current_odometer_km ?? ''"
+          [placeholder]="units.inputDistance(vehicle()?.current_odometer_km ?? null) ?? ''"
           [value]="odometer() ?? ''"
           (input)="odometer.set(readNumber($event))"
         />

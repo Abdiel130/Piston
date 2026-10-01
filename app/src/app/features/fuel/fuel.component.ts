@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AuthService } from '../../core/auth/auth.service';
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
 import { db } from '../../core/db/piston-db';
-import { EMPTY, formatLiters, formatMoney, formatNumber, formatShortDate } from '../../core/format';
+import { EMPTY, formatNumber, formatShortDate } from '../../core/format';
+import { UnitsService } from '../../core/units.service';
 import type { FuelEntry, FuelStation } from '../../core/models';
 import { GaugeComponent } from '../../shared/gauge/gauge.component';
 import { IconComponent } from '../../shared/icon/icon.component';
@@ -40,10 +40,9 @@ export class FuelComponent {
   private readonly island = inject(IslandService);
   private readonly store = inject(OfflineStore);
   private readonly context = inject(VehicleContext);
-  private readonly auth = inject(AuthService);
+  protected readonly units = inject(UnitsService);
 
   protected readonly vehicle = this.context.vehicle;
-  private readonly currency = computed(() => this.auth.user()?.currency ?? 'MXN');
 
   private readonly data = this.store.liveFrom(
     this.context.vehicleId,
@@ -67,8 +66,7 @@ export class FuelComponent {
   protected readonly gaugeValue = computed(() => this.last()?.gauge_after ?? null);
 
   protected readonly headline = computed(() => {
-    const value = this.last()?.km_per_liter;
-    return value === null || value === undefined ? EMPTY : `${formatNumber(value)} km/L`;
+    return this.units.formatEfficiency(this.last()?.km_per_liter ?? null);
   });
 
   protected readonly stats = computed(() => {
@@ -77,9 +75,9 @@ export class FuelComponent {
     const estimate = entries.find((entry) => entry.efficiency_method === 'gauge_estimate' && entry.km_per_liter !== null);
     const priced = entries.find((entry) => entry.price_per_liter !== null);
     return {
-      exact: formatNumber(exact?.km_per_liter ?? null),
-      estimate: formatNumber(estimate?.km_per_liter ?? null),
-      lastPrice: formatMoney(priced?.price_per_liter ?? null, this.currency()),
+      exact: this.units.formatEfficiencyValue(exact?.km_per_liter ?? null),
+      estimate: this.units.formatEfficiencyValue(estimate?.km_per_liter ?? null),
+      lastPrice: this.units.formatPricePerVolume(priced?.price_per_liter ?? null),
       count: String(entries.length),
     };
   });
@@ -90,13 +88,13 @@ export class FuelComponent {
       title: (entry.station_id && this.data().stations.get(entry.station_id)?.name) || 'Carga de combustible',
       sub: [
         formatShortDate(entry.filled_at),
-        entry.liters !== null ? formatLiters(entry.liters) : null,
-        entry.amount_paid !== null ? formatMoney(entry.amount_paid, this.currency()) : null,
+        entry.liters !== null ? this.units.formatVolume(entry.liters) : null,
+        entry.amount_paid !== null ? this.units.formatMoney(entry.amount_paid) : null,
         entry.is_full_tank ? 'Tanque lleno' : null,
       ]
         .filter(Boolean)
         .join(' · '),
-      efficiency: entry.km_per_liter !== null ? `${formatNumber(entry.km_per_liter)} km/L` : EMPTY,
+      efficiency: this.units.formatEfficiency(entry.km_per_liter),
       method: METHOD[entry.efficiency_method],
     })),
   );

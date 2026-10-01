@@ -9,6 +9,9 @@ export { SyncService, type LogoutBlocker, type SyncHealth, type SyncProgress, ty
 export { AccountMismatchError, AuthService, CLIENT_HEADER, type AuthState } from './auth/auth.service';
 export { authInterceptor } from './auth/auth.interceptor';
 export { OnboardingService } from './auth/onboarding.service';
+export { ProfileService } from './auth/profile.service';
+export { UnitsService } from './units.service';
+export * from './units';
 export { backoffDelayMs, nextRetryAt } from './sync/backoff';
 export { authGuard, guestGuard, onboardedGuard, onboardingGuard } from './auth/guards';
 export { PwaService, type UpdateStatus } from './pwa/pwa.service';

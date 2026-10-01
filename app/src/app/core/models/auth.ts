@@ -65,6 +65,11 @@ export interface AuthUser {
   readonly onboarding: OnboardingState;
 }
 
+/** Campos de perfil editables con `PATCH /api/me`. */
+export type ProfilePatch = Partial<
+  Pick<AuthUser, 'name' | 'locale' | 'currency' | 'distance_unit' | 'volume_unit'>
+>;
+
 /** Respuesta de login y refresh. El refresh token NO viene aquí: va en cookie. */
 export interface AuthTokenResponse {
   readonly access_token: string;
@@ -85,6 +90,12 @@ export interface LocalSession {
   readonly key: typeof CURRENT;
   user: Omit<AuthUser, 'onboarding'>;
   last_login_at: IsoDateTime;
+  /**
+   * Cambios de perfil hechos en Ajustes que el servidor aún no confirma. Ya
+   * están aplicados en `user`; se conservan aparte para reaplicarlos sobre lo
+   * que traiga un refresh mientras no suban.
+   */
+  pending_profile?: ProfilePatch | null;
 }
 
 /** Copia local del wizard. CLIENT-ONLY. */

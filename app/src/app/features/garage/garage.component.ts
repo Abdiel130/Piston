@@ -1,17 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AuthService } from '../../core/auth/auth.service';
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
 import { db } from '../../core/db/piston-db';
-import {
-  EMPTY,
-  formatKm,
-  formatMoney,
-  formatNumber,
-  formatShortDate,
-  monthStartIso,
-} from '../../core/format';
+import { UnitsService } from '../../core/units.service';
+import { EMPTY, formatNumber, formatShortDate, monthStartIso } from '../../core/format';
 import type { Expense, FuelEntry, MaintenanceSchedule, ServiceRecord, ServiceType } from '../../core/models';
 import { GaugeComponent } from '../../shared/gauge/gauge.component';
 import { IconComponent, type IconName } from '../../shared/icon/icon.component';
@@ -69,11 +62,10 @@ export class GarageComponent {
   private readonly island = inject(IslandService);
   private readonly store = inject(OfflineStore);
   private readonly context = inject(VehicleContext);
-  private readonly auth = inject(AuthService);
+  protected readonly units = inject(UnitsService);
 
   protected readonly vehicle = this.context.vehicle;
   protected readonly name = this.context.displayName;
-  private readonly currency = computed(() => this.auth.user()?.currency ?? 'MXN');
 
   private readonly data = this.store.liveFrom(
     this.context.vehicleId,
@@ -129,9 +121,9 @@ export class GarageComponent {
     const monthFuel = this.data().fuel.filter((entry) => entry.filled_at.slice(0, 10) >= monthStart);
     const spent = monthFuel.reduce((sum, entry) => sum + (entry.amount_paid ?? 0), 0);
     return {
-      efficiency: formatNumber(this.lastFuel()?.km_per_liter ?? null),
-      costPerKm: formatMoney(this.lastFuel()?.cost_per_km ?? null, this.currency()),
-      fuelSpent: monthFuel.length ? formatMoney(spent, this.currency()) : EMPTY,
+      efficiency: this.units.formatEfficiencyValue(this.lastFuel()?.km_per_liter ?? null),
+      costPerKm: this.units.formatCostPerDistance(this.lastFuel()?.cost_per_km ?? null),
+      fuelSpent: monthFuel.length ? this.units.formatMoney(spent) : EMPTY,
       fillUps: String(monthFuel.length),
     };
   });
@@ -142,7 +134,7 @@ export class GarageComponent {
       return {
         id: schedule.id,
         name: this.data().serviceTypes.get(schedule.service_type_id)?.name ?? 'Servicio',
-        detail: scheduleDue(schedule),
+        detail: scheduleDue(schedule, (km) => this.units.formatDistance(km)),
         tone,
         status: label,
       };
@@ -150,24 +142,23 @@ export class GarageComponent {
   );
 
   protected readonly activity = computed<ActivityItem[]>(() => {
-    const currency = this.currency();
     const items: ActivityItem[] = [
       ...this.data().fuel.map((entry) => ({
         id: entry.id,
         icon: 'fuel' as IconName,
         title: 'Carga de combustible',
-        sub: [formatShortDate(entry.filled_at), entry.liters !== null ? `${formatNumber(entry.liters)} L` : null]
+        sub: [formatShortDate(entry.filled_at), entry.liters !== null ? this.units.formatVolume(entry.liters) : null]
           .filter(Boolean)
           .join(' · '),
-        amount: formatMoney(entry.amount_paid, currency),
+        amount: this.units.formatMoney(entry.amount_paid),
         at: entry.filled_at,
       })),
       ...this.data().services.map((record) => ({
         id: record.id,
         icon: 'wrench' as IconName,
         title: record.shop_name ?? 'Servicio',
-        sub: [formatShortDate(record.performed_at), formatKm(record.odometer_km)].join(' · '),
-        amount: formatMoney(record.total_cost, record.currency),
+        sub: [formatShortDate(record.performed_at), this.units.formatDistance(record.odometer_km)].join(' · '),
+        amount: this.units.formatMoney(record.total_cost, record.currency),
         at: record.performed_at,
       })),
       ...this.data().expenses.map((expense) => ({
@@ -175,7 +166,7 @@ export class GarageComponent {
         icon: 'receipt' as IconName,
         title: expense.description ?? 'Gasto',
         sub: formatShortDate(expense.spent_at),
-        amount: formatMoney(expense.amount, expense.currency),
+        amount: this.units.formatMoney(expense.amount, expense.currency),
         at: expense.spent_at,
       })),
     ];
@@ -193,13 +184,11 @@ export class GarageComponent {
         title: 'Nivel de combustible',
         subtitle: last ? `${this.name()} · según la última carga` : `${this.name()} · sin cargas registradas`,
         details: [
-          { label: 'Odómetro', value: formatKm(this.odometer()) },
+          { label: 'Odómetro', value: this.units.formatDistance(this.odometer()) },
           { label: 'Última carga', value: last ? formatShortDate(last.filled_at) : EMPTY },
-          { label: 'Rendimiento', value: this.stats().efficiency },
+          { label: 'Rendimiento', value: this.units.formatEfficiency(this.lastFuel()?.km_per_liter ?? null) },
         ],
       });
     });
   }
-
-  protected readonly formatKm = formatKm;
 }

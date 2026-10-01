@@ -1,13 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { AuthService } from '../../core/auth/auth.service';
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
 import { db } from '../../core/db/piston-db';
 import { todayIso } from '../../core/format';
 import type { OdometerReading, ServiceRecord, ServiceRecordItem, ServiceType, Vehicle } from '../../core/models';
+import { UnitsService } from '../../core/units.service';
 import { IconComponent } from '../../shared/icon/icon.component';
-import { LIMITS, blankToNull, readNumber, readText, type Errors } from './capture-form';
+import { LIMITS, blankToNull, odometerError, readNumber, readText, type Errors } from './capture-form';
 
 type Field = 'performed_at' | 'odometer_km' | 'total_cost';
 
@@ -22,7 +22,7 @@ type Field = 'performed_at' | 'odometer_km' | 'total_cost';
 export class ServiceCaptureComponent {
   private readonly store = inject(OfflineStore);
   private readonly context = inject(VehicleContext);
-  private readonly auth = inject(AuthService);
+  protected readonly units = inject(UnitsService);
   private readonly router = inject(Router);
 
   protected readonly vehicle = this.context.vehicle;
@@ -37,7 +37,9 @@ export class ServiceCaptureComponent {
   );
 
   protected readonly performedAt = signal(todayIso());
+  /** En la unidad del usuario; `km` es lo que se guarda. */
   protected readonly odometer = signal<number | null>(null);
+  private readonly km = computed(() => this.units.toOdometerKm(this.odometer()));
   protected readonly selected = signal<ReadonlySet<string>>(new Set());
   protected readonly shop = signal('');
   protected readonly diy = signal(false);
@@ -50,10 +52,9 @@ export class ServiceCaptureComponent {
 
   protected readonly errors = computed<Errors<Field>>(() => {
     const errors: Errors<Field> = {};
-    const km = this.odometer();
     if (!this.performedAt()) errors.performed_at = 'Indica la fecha del servicio.';
-    if (km === null) errors.odometer_km = 'Anota el odómetro.';
-    else if (!Number.isInteger(km) || km < 0 || km > LIMITS.km) errors.odometer_km = 'Debe ser un número entero de km.';
+    const odometer = odometerError(this.odometer(), this.km(), this.units.distanceSymbol());
+    if (odometer) errors.odometer_km = odometer;
     const cost = this.cost();
     if (cost !== null && (cost < 0 || cost > LIMITS.money10)) errors.total_cost = 'Costo fuera de rango.';
     return errors;
@@ -78,7 +79,7 @@ export class ServiceCaptureComponent {
 
     this.saving.set(true);
     this.saveError.set(null);
-    const km = this.odometer()!;
+    const km = this.km()!;
 
     try {
       await this.store.transaction(['service_records', 'service_record_items', 'odometer_readings', 'vehicles'], async () => {
@@ -93,7 +94,7 @@ export class ServiceCaptureComponent {
           labor_cost: 0,
           parts_cost: 0,
           total_cost: this.cost() ?? 0,
-          currency: this.auth.user()?.currency ?? 'MXN',
+          currency: this.units.currency(),
           notes: blankToNull(this.notes()),
         });
 

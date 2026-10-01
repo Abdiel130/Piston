@@ -11,26 +11,34 @@ import { Router } from '@angular/router';
 import { ApiService, PermanentApiError } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { OnboardingService } from '../../core/auth/onboarding.service';
-import type {
-  FuelGrade,
-  OnboardingDraft,
-  OnboardingStep,
-  StickerColor,
-  Transmission,
-  VehicleType,
-} from '../../core/models';
+import type { OnboardingDraft, OnboardingStep } from '../../core/models';
+import {
+  CURRENCIES,
+  DISTANCE_UNITS,
+  VOLUME_UNITS,
+  fromBaseDistance,
+  fromBaseVolume,
+  toBaseOdometer,
+  toBaseVolume,
+  type DistanceUnit,
+  type VolumeUnit,
+} from '../../core/units';
 import { SyncService } from '../../core/sync/sync.service';
 import { GaugeComponent } from '../../shared/gauge/gauge.component';
 import { IconComponent } from '../../shared/icon/icon.component';
+import {
+  FUEL_GRADES,
+  MAX_SEGMENTS,
+  MIN_SEGMENTS,
+  STICKERS,
+  TRANSMISSIONS,
+  VEHICLE_TYPES,
+  type Option,
+} from '../vehicles/vehicle-options';
 
 type WizardStep = Exclude<OnboardingStep, 'done'>;
 type VehicleDraft = NonNullable<OnboardingDraft['vehicle']>;
 type AccountDraft = NonNullable<OnboardingDraft['account']>;
-
-interface Option<T> {
-  readonly value: T;
-  readonly label: string;
-}
 
 const STEPS: readonly { readonly id: WizardStep; readonly title: string; readonly sub: string }[] =
   [
@@ -53,8 +61,6 @@ const STEPS: readonly { readonly id: WizardStep; readonly title: string; readonl
     },
   ];
 
-const MIN_SEGMENTS = 2;
-const MAX_SEGMENTS = 16;
 const THIS_YEAR = new Date().getFullYear();
 
 /**
@@ -93,7 +99,7 @@ export class OnboardingComponent {
   protected readonly segments = computed(() => this.vehicle().gauge_total_segments ?? 8);
   /** Litros por rayita, si la capacidad ya está. Hace tangible para qué sirve el dato. */
   protected readonly litersPerSegment = computed(() => {
-    const capacity = this.vehicle().tank_capacity_l;
+    const capacity = fromBaseVolume(this.vehicle().tank_capacity_l ?? null, this.volumeUnit());
     return capacity ? (capacity / this.segments()).toFixed(1) : null;
   });
 
@@ -107,44 +113,49 @@ export class OnboardingComponent {
   protected readonly passwordBusy = signal(false);
   protected readonly passwordMessage = signal<{ tone: 'good' | 'bad'; text: string } | null>(null);
 
-  protected readonly vehicleTypes: readonly Option<VehicleType>[] = [
-    { value: 'car', label: 'Auto' },
-    { value: 'pickup', label: 'Pickup' },
-    { value: 'motorcycle', label: 'Moto' },
-    { value: 'van', label: 'Van' },
-    { value: 'truck', label: 'Camión' },
-  ];
-  protected readonly transmissions: readonly Option<Transmission>[] = [
-    { value: 'manual', label: 'Manual' },
-    { value: 'automatic', label: 'Automática' },
-    { value: 'cvt', label: 'CVT' },
-    { value: 'dsg', label: 'Doble embrague' },
-  ];
-  protected readonly stickers: readonly (Option<StickerColor> & { swatch: string })[] = [
-    { value: 'yellow', label: 'Amarillo', swatch: '#FFD60A' },
-    { value: 'pink', label: 'Rosa', swatch: '#FF6FB5' },
-    { value: 'red', label: 'Rojo', swatch: '#FF453A' },
-    { value: 'green', label: 'Verde', swatch: '#32D74B' },
-    { value: 'blue', label: 'Azul', swatch: '#0A84FF' },
-    { value: 'none', label: 'Ninguno', swatch: 'transparent' },
-  ];
-  protected readonly fuelGrades: readonly Option<FuelGrade>[] = [
-    { value: 'regular', label: 'Regular' },
-    { value: 'premium', label: 'Premium' },
-    { value: 'diesel', label: 'Diésel' },
-  ];
-  protected readonly currencies: readonly Option<string>[] = [
-    { value: 'MXN', label: 'MXN' },
-    { value: 'USD', label: 'USD' },
-  ];
-  protected readonly distanceUnits: readonly Option<'km' | 'mi'>[] = [
-    { value: 'km', label: 'Kilómetros' },
-    { value: 'mi', label: 'Millas' },
-  ];
-  protected readonly volumeUnits: readonly Option<'L' | 'gal'>[] = [
-    { value: 'L', label: 'Litros' },
-    { value: 'gal', label: 'Galones' },
-  ];
+  protected readonly vehicleTypes = VEHICLE_TYPES;
+  protected readonly transmissions = TRANSMISSIONS;
+  protected readonly stickers = STICKERS;
+  protected readonly fuelGrades = FUEL_GRADES;
+  protected readonly currencies: readonly Option<string>[] = CURRENCIES.map((c) => ({
+    value: c.code,
+    label: c.code,
+  }));
+  protected readonly distanceUnits: readonly Option<DistanceUnit>[] = Object.values(
+    DISTANCE_UNITS,
+  ).map((u) => ({ value: u.code, label: u.label }));
+  protected readonly volumeUnits: readonly Option<VolumeUnit>[] = Object.values(VOLUME_UNITS).map(
+    (u) => ({ value: u.code, label: u.label }),
+  );
+
+  /**
+   * Unidades elegidas en el primer paso. El borrador guarda SIEMPRE km y
+   * litros; estas solo cambian lo que se ve y cómo se lee lo escrito.
+   */
+  private readonly distanceUnit = computed(() => this.account().distance_unit ?? 'km');
+  private readonly volumeUnit = computed(() => this.account().volume_unit ?? 'L');
+  protected readonly distanceSymbol = computed(() => DISTANCE_UNITS[this.distanceUnit()].symbol);
+  protected readonly volumeSymbol = computed(() => VOLUME_UNITS[this.volumeUnit()].symbol);
+
+  /** Valor guardado (km) mostrado en la unidad elegida. */
+  protected distance(km: number | null | undefined): number | string {
+    const value = fromBaseDistance(km ?? null, this.distanceUnit());
+    return value === null ? '' : Math.round(value);
+  }
+
+  protected volume(liters: number | null | undefined): number | string {
+    const value = fromBaseVolume(liters ?? null, this.volumeUnit());
+    return value === null ? '' : Math.round(value * 100) / 100;
+  }
+
+  protected setDistance(key: 'current_odometer_km' | 'purchase_odometer_km', event: Event): void {
+    this.setVehicle(key, toBaseOdometer(this.num(event), this.distanceUnit()));
+  }
+
+  protected setVolume(key: 'tank_capacity_l', event: Event): void {
+    const liters = toBaseVolume(this.num(event), this.volumeUnit());
+    this.setVehicle(key, liters === null ? null : Math.round(liters * 100) / 100);
+  }
 
   /** Si el paso actual está completo. Solo entonces se habilita "Siguiente". */
   protected readonly canAdvance = computed(() => {

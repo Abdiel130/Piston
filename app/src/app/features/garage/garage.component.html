@@ -27,12 +27,12 @@
       <div class="hero__readout">
         <div class="hero__cell">
           <span class="hero__cell-label">Odómetro</span>
-          <span class="hero__cell-value pst-numeric">{{ formatKm(odometer()) }}</span>
+          <span class="hero__cell-value pst-numeric">{{ units.formatDistance(odometer()) }}</span>
         </div>
         <div class="hero__divider" aria-hidden="true"></div>
         <div class="hero__cell">
           <span class="hero__cell-label">Capacidad</span>
-          <span class="hero__cell-value pst-numeric">{{ vehicle()!.tank_capacity_l }}<span class="pst-stat__unit">L</span></span>
+          <span class="hero__cell-value pst-numeric">{{ units.inputVolume(vehicle()!.tank_capacity_l) }}<span class="pst-stat__unit">{{ units.volumeSymbol() }}</span></span>
         </div>
       </div>
 
@@ -53,10 +53,10 @@
       <div class="pst-stat-grid">
         <div class="pst-stat">
           <span class="pst-stat__label"><pst-icon name="gauge" [size]="14" /> Rendimiento</span>
-          <span class="pst-stat__value pst-numeric">{{ stats().efficiency }}<span class="pst-stat__unit">km/L</span></span>
+          <span class="pst-stat__value pst-numeric">{{ stats().efficiency }}<span class="pst-stat__unit">{{ units.efficiencySymbol() }}</span></span>
         </div>
         <div class="pst-stat">
-          <span class="pst-stat__label"><pst-icon name="road" [size]="14" /> Costo por km</span>
+          <span class="pst-stat__label"><pst-icon name="road" [size]="14" /> Costo por {{ units.distanceSymbol() }}</span>
           <span class="pst-stat__value pst-numeric">{{ stats().costPerKm }}</span>
         </div>
         <div class="pst-stat">

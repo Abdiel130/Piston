@@ -11,16 +11,14 @@ import {
   type DomainTable,
   type OnboardingDraft,
   type OnboardingStep,
+  type ProfilePatch,
   type SyncPullResponse,
   type SyncPushMutation,
   type SyncPushResponse,
   type SyncFields,
 } from '../models';
 
-/** Campos de perfil editables con `PATCH /api/me`. */
-export type ProfilePatch = Partial<
-  Pick<AuthUser, 'name' | 'locale' | 'currency' | 'distance_unit' | 'volume_unit'>
->;
+export type { ProfilePatch } from '../models';
 
 export interface BackendHealth {
   readonly status: 'ok' | 'degraded';

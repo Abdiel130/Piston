@@ -3,8 +3,9 @@ import { Router, RouterLink } from '@angular/router';
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
 import type { OdometerReading, Vehicle } from '../../core/models';
+import { UnitsService } from '../../core/units.service';
 import { IconComponent } from '../../shared/icon/icon.component';
-import { LIMITS, localDateTime, readNumber, readText, toIso } from './capture-form';
+import { localDateTime, odometerError, readNumber, readText, toIso } from './capture-form';
 
 /** Anotar el odómetro sin que haya carga ni servicio de por medio. */
 @Component({
@@ -22,12 +23,12 @@ import { LIMITS, localDateTime, readNumber, readText, toIso } from './capture-fo
       <form class="pst-form" (submit)="$event.preventDefault(); save()">
         <div class="pst-field-row">
           <label class="pst-field">
-            <span class="pst-field__label">Kilómetros</span>
+            <span class="pst-field__label">Odómetro ({{ units.distanceSymbol() }})</span>
             <input
               class="pst-input pst-numeric"
               inputmode="numeric"
               [class.is-invalid]="submitted() && error()"
-              [placeholder]="vehicle()?.current_odometer_km ?? ''"
+              [placeholder]="units.inputDistance(vehicle()?.current_odometer_km ?? null) ?? ''"
               [value]="km() ?? ''"
               (input)="km.set(readNumber($event))"
             />
@@ -55,10 +56,13 @@ export class OdometerCaptureComponent {
   private readonly store = inject(OfflineStore);
   private readonly context = inject(VehicleContext);
   private readonly router = inject(Router);
+  protected readonly units = inject(UnitsService);
 
   protected readonly vehicle = this.context.vehicle;
   protected readonly name = this.context.displayName;
+  /** En la unidad del usuario; `baseKm` es lo que se guarda. */
   protected readonly km = signal<number | null>(null);
+  private readonly baseKm = computed(() => this.units.toOdometerKm(this.km()));
   protected readonly readAt = signal(localDateTime());
   protected readonly saving = signal(false);
   protected readonly submitted = signal(false);
@@ -67,9 +71,8 @@ export class OdometerCaptureComponent {
   protected readonly readNumber = readNumber;
 
   protected readonly error = computed(() => {
-    const km = this.km();
-    if (km === null) return 'Anota los kilómetros.';
-    if (!Number.isInteger(km) || km < 0 || km > LIMITS.km) return 'Debe ser un número entero de km.';
+    const odometer = odometerError(this.km(), this.baseKm(), this.units.distanceSymbol());
+    if (odometer) return odometer;
     if (!this.readAt()) return 'Indica la fecha.';
     return null;
   });
@@ -81,7 +84,7 @@ export class OdometerCaptureComponent {
 
     this.saving.set(true);
     this.saveError.set(null);
-    const km = this.km()!;
+    const km = this.baseKm()!;
     try {
       await this.store.transaction(['odometer_readings', 'vehicles'], async () => {
         await this.store.create<OdometerReading>('odometer_readings', {

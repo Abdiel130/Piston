@@ -3,8 +3,9 @@ import { Router, RouterLink } from '@angular/router';
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
 import type { FuelEntry, FuelGrade, FuelInputMode, OdometerReading, Vehicle } from '../../core/models';
+import { UnitsService } from '../../core/units.service';
 import { IconComponent } from '../../shared/icon/icon.component';
-import { LIMITS, blankToNull, localDateTime, readNumber, readText, toIso, type Errors } from './capture-form';
+import { LIMITS, blankToNull, localDateTime, odometerError, readNumber, readText, toIso, type Errors } from './capture-form';
 
 type Field = 'filled_at' | 'odometer_km' | 'quantity' | 'liters' | 'amount_paid' | 'price_per_liter';
 
@@ -15,7 +16,8 @@ const GRADES: readonly { value: FuelGrade; label: string }[] = [
 ];
 
 /**
- * Captura de una carga. Guarda lo que el usuario escribió, tal cual: el
+ * Captura de una carga. Los campos están en la unidad del usuario y se
+ * guardan en km y litros. Fuera de eso, guarda lo que escribió tal cual: el
  * rendimiento y las estimaciones por rayitas las calculará el motor después.
  * Crea la carga y su lectura de odómetro en una sola transacción.
  */
@@ -30,6 +32,7 @@ export class FuelCaptureComponent {
   private readonly store = inject(OfflineStore);
   private readonly context = inject(VehicleContext);
   private readonly router = inject(Router);
+  protected readonly units = inject(UnitsService);
 
   protected readonly vehicle = this.context.vehicle;
   protected readonly name = this.context.displayName;
@@ -53,20 +56,28 @@ export class FuelCaptureComponent {
   protected readonly segments = computed(() => this.vehicle()?.gauge_total_segments ?? 8);
   protected readonly ticks = computed(() => Array.from({ length: this.segments() + 1 }, (_, i) => i));
   protected readonly selectedGrade = computed(() => this.grade() ?? this.vehicle()?.default_fuel_grade ?? 'regular');
-  protected readonly odometerHint = computed(() => this.vehicle()?.current_odometer_km ?? null);
+  protected readonly odometerHint = computed(() => this.units.inputDistance(this.vehicle()?.current_odometer_km ?? null));
+
+  /** Lo escrito, ya en unidades base: lo que se valida contra el servidor y se guarda. */
+  private readonly base = computed(() => ({
+    km: this.units.toOdometerKm(this.odometer()),
+    liters: this.units.toLiters(this.liters(), 3),
+    price: this.units.toPricePerLiter(this.price()),
+  }));
 
   protected readonly errors = computed<Errors<Field>>(() => {
     const errors: Errors<Field> = {};
-    const km = this.odometer();
+    const typed = this.odometer();
+    const { km, liters, price } = this.base();
     if (!this.filledAt()) errors.filled_at = 'Indica la fecha de la carga.';
-    if (km === null) errors.odometer_km = 'Anota el odómetro.';
-    else if (!Number.isInteger(km) || km < 0 || km > LIMITS.km) errors.odometer_km = 'Debe ser un número entero de km.';
-    if (this.liters() === null && this.amount() === null && this.gaugeAfter() === null) {
-      errors.quantity = 'Anota los litros, el monto o las rayitas después de cargar.';
+    const odometer = odometerError(typed, km, this.units.distanceSymbol());
+    if (odometer) errors.odometer_km = odometer;
+    if (liters === null && this.amount() === null && this.gaugeAfter() === null) {
+      errors.quantity = 'Anota la cantidad, el monto o las rayitas después de cargar.';
     }
-    if (this.liters() !== null && (this.liters()! <= 0 || this.liters()! > LIMITS.liters)) errors.liters = 'Litros fuera de rango.';
+    if (liters !== null && (liters <= 0 || liters > LIMITS.liters)) errors.liters = 'Cantidad fuera de rango.';
     if (this.amount() !== null && (this.amount()! <= 0 || this.amount()! > LIMITS.money10)) errors.amount_paid = 'Monto fuera de rango.';
-    if (this.price() !== null && (this.price()! <= 0 || this.price()! > LIMITS.price)) errors.price_per_liter = 'Precio fuera de rango.';
+    if (price !== null && (price <= 0 || price > LIMITS.price)) errors.price_per_liter = 'Precio fuera de rango.';
     return errors;
   });
 
@@ -88,7 +99,8 @@ export class FuelCaptureComponent {
     this.saving.set(true);
     this.saveError.set(null);
     const filledAt = toIso(this.filledAt());
-    const km = this.odometer()!;
+    const { km: baseKm, liters, price } = this.base();
+    const km = baseKm!;
     const mode: FuelInputMode = this.liters() !== null ? 'by_liters' : this.amount() !== null ? 'by_amount' : 'by_segments';
 
     try {
@@ -102,8 +114,8 @@ export class FuelCaptureComponent {
           fuel_grade: this.selectedGrade(),
           input_mode: mode,
           amount_paid: this.amount(),
-          price_per_liter: this.price(),
-          liters: this.liters(),
+          price_per_liter: price,
+          liters,
           gauge_before: this.gaugeBefore(),
           gauge_after: this.fullTank() ? this.segments() : this.gaugeAfter(),
           gauge_total_segments: this.segments(),

@@ -7,6 +7,51 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-09-30
+
+La configuración deja de ser una maqueta. Desde Ajustes se agregan más
+vehículos y se corrige cualquier dato del registro inicial, se elige cuál es
+el principal y se archivan los que ya no se usan. Distancia, volumen y moneda
+se eligen de una lista y toda la app los respeta al mostrar y al capturar,
+sin tocar lo guardado, que sigue siempre en kilómetros y litros.
+
+### Added
+- **Agregar más vehículos**: en Ajustes, la lista de vehículos termina con
+  *Agregar vehículo*. El alta pide lo mismo que el wizard y además permite
+  elegir si el nuevo será el principal. El primero siempre lo es.
+- **Ficha de cada vehículo**: tocar un vehículo abre su ficha, con cuántas
+  cargas, servicios y gastos tiene, y todos sus datos editables para corregir
+  lo capturado al inicio. Suma lo que el wizard no pedía: versión, motor,
+  color, VIN, capacidad y especificación del aceite, presión de llantas,
+  rendimiento de fábrica, notas y los datos de venta.
+- **Vehículo principal, archivado y vendido**: cualquier vehículo activo se
+  puede volver el principal, que es el que muestran Garage, Combustible,
+  Servicios y Gastos. Al archivar o vender el principal, el puesto pasa solo
+  a otro activo. Un vehículo capturado por error se puede borrar mientras no
+  tenga historial; con historial se archiva para no perderlo.
+- **Corrección del odómetro**: desde la ficha se puede subir el odómetro o
+  bajarlo si se capturó mal. Al bajarlo se corrigen las lecturas manuales; si
+  una carga o un servicio registró más kilómetros, la app lo dice en vez de
+  corregirlo en silencio, porque el error está en ese registro.
+- **Unidades y moneda configurables**: en Ajustes, listas para elegir
+  distancia (kilómetros o millas), volumen (litros o galones) y moneda, con
+  una vista previa de cómo se verán las cifras. El cambio se aplica al
+  instante en toda la app, también sin conexión, y se envía a la cuenta en
+  cuanto hay señal.
+- **Perfil en Ajustes**: el nombre se puede editar y la contraseña se puede
+  cambiar desde Ajustes, ya no solo durante el wizard.
+
+### Changed
+- **Toda la app respeta las unidades elegidas**: odómetro, cantidades,
+  rendimiento, precio por volumen y costo por distancia se muestran y se
+  capturan en las unidades de la cuenta, en Garage, Combustible, Servicios,
+  las capturas y el wizard. Lo guardado sigue siempre en kilómetros y litros,
+  así que cambiar de unidades nunca altera los datos ni lo que reciben otros
+  dispositivos. La moneda no convierte montos: los registros ya guardados
+  conservan la suya.
+- **Más monedas**: además de MXN y USD, se puede elegir CAD, EUR, GTQ, COP,
+  CLP, ARS y PEN.
+
 ## [1.4.0] - 2026-09-30
 
 La sincronización con el servidor funciona de verdad. Lo que se captura sube

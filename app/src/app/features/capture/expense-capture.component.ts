@@ -1,13 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { AuthService } from '../../core/auth/auth.service';
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
 import { db } from '../../core/db/piston-db';
 import { todayIso } from '../../core/format';
 import type { Expense, ExpenseCategory } from '../../core/models';
+import { UnitsService } from '../../core/units.service';
 import { IconComponent } from '../../shared/icon/icon.component';
-import { LIMITS, blankToNull, readNumber, readText, type Errors } from './capture-form';
+import { LIMITS, blankToNull, odometerError, readNumber, readText, type Errors } from './capture-form';
 
 type Field = 'spent_at' | 'category_id' | 'amount' | 'odometer_km';
 
@@ -22,7 +22,7 @@ type Field = 'spent_at' | 'category_id' | 'amount' | 'odometer_km';
 export class ExpenseCaptureComponent {
   private readonly store = inject(OfflineStore);
   private readonly context = inject(VehicleContext);
-  private readonly auth = inject(AuthService);
+  protected readonly units = inject(UnitsService);
   private readonly router = inject(Router);
 
   protected readonly vehicle = this.context.vehicle;
@@ -40,7 +40,9 @@ export class ExpenseCaptureComponent {
   protected readonly category = signal<string | null>(null);
   protected readonly amount = signal<number | null>(null);
   protected readonly description = signal('');
+  /** En la unidad del usuario; `km` es lo que se guarda. */
   protected readonly odometer = signal<number | null>(null);
+  private readonly km = computed(() => this.units.toOdometerKm(this.odometer()));
   protected readonly notes = signal('');
 
   protected readonly saving = signal(false);
@@ -50,12 +52,12 @@ export class ExpenseCaptureComponent {
   protected readonly errors = computed<Errors<Field>>(() => {
     const errors: Errors<Field> = {};
     const amount = this.amount();
-    const km = this.odometer();
     if (!this.spentAt()) errors.spent_at = 'Indica la fecha.';
     if (!this.category()) errors.category_id = 'Elige una categoría.';
     if (amount === null) errors.amount = 'Anota el monto.';
     else if (amount <= 0 || amount > LIMITS.money10) errors.amount = 'Monto fuera de rango.';
-    if (km !== null && (!Number.isInteger(km) || km < 0 || km > LIMITS.km)) errors.odometer_km = 'Debe ser un número entero de km.';
+    const odometer = odometerError(this.odometer(), this.km(), this.units.distanceSymbol(), false);
+    if (odometer) errors.odometer_km = odometer;
     return errors;
   });
 
@@ -77,9 +79,9 @@ export class ExpenseCaptureComponent {
         category_id: this.category()!,
         recurring_expense_id: null,
         spent_at: this.spentAt(),
-        odometer_km: this.odometer(),
+        odometer_km: this.km(),
         amount: this.amount()!,
-        currency: this.auth.user()?.currency ?? 'MXN',
+        currency: this.units.currency(),
         description: blankToNull(this.description()),
         notes: blankToNull(this.notes()),
       });

@@ -12,7 +12,7 @@
         <input class="pst-input" type="datetime-local" [value]="filledAt()" (input)="filledAt.set(readText($event))" />
       </label>
       <label class="pst-field">
-        <span class="pst-field__label">Odómetro (km)</span>
+        <span class="pst-field__label">Odómetro ({{ units.distanceSymbol() }})</span>
         <input
           class="pst-input pst-numeric"
           inputmode="numeric"
@@ -40,7 +40,7 @@
 
     <div class="pst-field-row">
       <label class="pst-field">
-        <span class="pst-field__label">Litros</span>
+        <span class="pst-field__label">Cantidad ({{ units.volumeSymbol() }})</span>
         <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().liters" [value]="liters() ?? ''" (input)="liters.set(readNumber($event))" />
       </label>
       <label class="pst-field">
@@ -48,7 +48,7 @@
         <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().amount_paid" [value]="amount() ?? ''" (input)="amount.set(readNumber($event))" />
       </label>
       <label class="pst-field">
-        <span class="pst-field__label">Precio por litro</span>
+        <span class="pst-field__label">Precio por {{ units.volumeSymbol() }}</span>
         <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().price_per_liter" [value]="price() ?? ''" (input)="price.set(readNumber($event))" />
       </label>
     </div>

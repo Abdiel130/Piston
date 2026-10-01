@@ -40,3 +40,18 @@ export const LIMITS = {
 } as const;
 
 export type Errors<K extends string> = Partial<Record<K, string>>;
+
+/**
+ * Valida un odómetro. `typed` es lo escrito (en la unidad del usuario, debe
+ * ser entero); `km` es lo mismo ya convertido, que es lo que tiene límite.
+ */
+export function odometerError(
+  typed: number | null,
+  km: number | null,
+  symbol: string,
+  required = true,
+): string | null {
+  if (typed === null || km === null) return required ? 'Anota el odómetro.' : null;
+  if (!Number.isInteger(typed) || km < 0 || km > LIMITS.km) return `Debe ser un número entero de ${symbol}.`;
+  return null;
+}

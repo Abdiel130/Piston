@@ -1,0 +1,318 @@
+<div class="pst-stack capture-page">
+  <header class="top">
+    <a class="top__back" routerLink="/settings"><pst-icon name="chevronLeft" [size]="20" /> Ajustes</a>
+    <h1 class="top__title">{{ title() }}</h1>
+    @if (saved(); as vehicle) {
+      <p class="top__sub">
+        {{ vehicle.make }} {{ vehicle.model }} {{ vehicle.year }} · {{ units.formatDistance(vehicle.current_odometer_km) }}
+      </p>
+      <div class="badges">
+        @if (vehicle.is_primary) {
+          <span class="pst-badge pst-badge--brand">Principal</span>
+        }
+        @if (vehicle.status === 'archived') {
+          <span class="pst-badge">Archivado</span>
+        }
+        @if (vehicle.status === 'sold') {
+          <span class="pst-badge">Vendido</span>
+        }
+        @if (vehicle.rev === 0) {
+          <span class="pst-badge pst-badge--warn">Sin sincronizar</span>
+        }
+      </div>
+    } @else if (!editing()) {
+      <p class="top__sub">Agrega otro vehículo a tu garage.</p>
+    }
+  </header>
+
+  @if (missing()) {
+    <p class="pst-note pst-note--warn">Este vehículo ya no existe. Pudo borrarse en otro dispositivo.</p>
+  } @else if (editing() && !saved()) {
+    <p class="pst-empty">Cargando…</p>
+  } @else {
+    @if (saved(); as vehicle) {
+      @if (history(); as h) {
+        <div class="pst-stat-grid">
+          <div class="pst-stat">
+            <span class="pst-stat__label"><pst-icon name="fuel" [size]="14" /> Cargas</span>
+            <span class="pst-stat__value pst-numeric">{{ h.fuel }}</span>
+          </div>
+          <div class="pst-stat">
+            <span class="pst-stat__label"><pst-icon name="wrench" [size]="14" /> Servicios</span>
+            <span class="pst-stat__value pst-numeric">{{ h.services }}</span>
+          </div>
+          <div class="pst-stat">
+            <span class="pst-stat__label"><pst-icon name="receipt" [size]="14" /> Gastos</span>
+            <span class="pst-stat__value pst-numeric">{{ h.expenses }}</span>
+          </div>
+        </div>
+      }
+      @if (!vehicle.is_primary && vehicle.status === 'active') {
+        <button type="button" class="pst-btn pst-btn--block" (click)="setPrimary()">
+          <pst-icon name="car" [size]="18" /> Usar como principal
+        </button>
+        <p class="pst-field__hint">El principal es el que ves en Garage, Combustible, Servicios y Gastos.</p>
+      }
+    }
+
+    <form class="pst-form" (submit)="$event.preventDefault(); save()">
+      <!-- General -->
+      <h2 class="pst-section-title section">General</h2>
+      <div class="pst-field-row">
+        <label class="pst-field">
+          <span class="pst-field__label">Marca</span>
+          <input class="pst-input" maxlength="60" placeholder="Mazda" [class.is-invalid]="submitted() && errors().make" [value]="form().make" (input)="set('make', readText($event))" />
+        </label>
+        <label class="pst-field">
+          <span class="pst-field__label">Modelo</span>
+          <input class="pst-input" maxlength="80" placeholder="3 Sedán" [class.is-invalid]="submitted() && errors().model" [value]="form().model" (input)="set('model', readText($event))" />
+        </label>
+      </div>
+      <div class="pst-field-row">
+        <label class="pst-field">
+          <span class="pst-field__label">Año</span>
+          <input class="pst-input pst-numeric" inputmode="numeric" placeholder="2022" [class.is-invalid]="submitted() && errors().year" [value]="form().year ?? ''" (input)="set('year', readNumber($event))" />
+        </label>
+        <label class="pst-field">
+          <span class="pst-field__label">Versión <span class="optional">opcional</span></span>
+          <input class="pst-input" maxlength="80" placeholder="i Sport" [value]="form().trim" (input)="set('trim', readText($event))" />
+        </label>
+      </div>
+      <label class="pst-field">
+        <span class="pst-field__label">Apodo <span class="optional">opcional</span></span>
+        <input class="pst-input" maxlength="60" placeholder="El rojo" [value]="form().nickname" (input)="set('nickname', readText($event))" />
+      </label>
+      @for (key of ['make', 'model', 'year']; track key) {
+        @if (submitted() && $any(errors())[key]; as message) {
+          <p class="error">{{ message }}</p>
+        }
+      }
+
+      <div class="pst-field">
+        <span class="pst-field__label">Tipo</span>
+        <div class="pst-chips">
+          @for (option of vehicleTypes; track option.value) {
+            <button type="button" class="pst-chip" [class.is-active]="form().vehicle_type === option.value" (click)="set('vehicle_type', option.value)">{{ option.label }}</button>
+          }
+        </div>
+      </div>
+      <div class="pst-field">
+        <span class="pst-field__label">Transmisión</span>
+        <div class="pst-chips">
+          @for (option of transmissions; track option.value) {
+            <button type="button" class="pst-chip" [class.is-active]="form().transmission === option.value" (click)="set('transmission', form().transmission === option.value ? null : option.value)">{{ option.label }}</button>
+          }
+        </div>
+      </div>
+      <div class="pst-field-row">
+        <label class="pst-field">
+          <span class="pst-field__label">Motor (L) <span class="optional">opcional</span></span>
+          <input class="pst-input pst-numeric" inputmode="decimal" placeholder="2.5" [class.is-invalid]="submitted() && errors().engine_displacement_l" [value]="form().engine_displacement_l ?? ''" (input)="set('engine_displacement_l', readNumber($event))" />
+        </label>
+        <label class="pst-field">
+          <span class="pst-field__label">Color <span class="optional">opcional</span></span>
+          <input class="pst-input" maxlength="40" placeholder="Rojo" [value]="form().color" (input)="set('color', readText($event))" />
+        </label>
+      </div>
+
+      <!-- Placa y verificación -->
+      <h2 class="pst-section-title section">Placa y verificación</h2>
+      <div class="pst-field-row">
+        <label class="pst-field">
+          <span class="pst-field__label">Placa <span class="optional">opcional</span></span>
+          <input class="pst-input" maxlength="15" autocapitalize="characters" placeholder="ABC-123-D" [class.is-invalid]="submitted() && errors().license_plate" [value]="form().license_plate" (input)="set('license_plate', readText($event))" />
+        </label>
+        <label class="pst-field">
+          <span class="pst-field__label">VIN <span class="optional">opcional</span></span>
+          <input class="pst-input pst-numeric" maxlength="17" autocapitalize="characters" [class.is-invalid]="submitted() && errors().vin" [value]="form().vin" (input)="set('vin', readText($event))" />
+        </label>
+      </div>
+      @if (submitted() && errors().vin; as message) {
+        <p class="error">{{ message }}</p>
+      }
+      <div class="pst-field">
+        <span class="pst-field__label">Engomado</span>
+        <div class="pst-chips">
+          @for (option of stickers; track option.value) {
+            <button type="button" class="pst-chip" [class.is-active]="form().emissions_sticker === option.value" (click)="set('emissions_sticker', option.value)">
+              <span class="pst-chip__swatch" [style.background]="option.swatch"></span>
+              {{ option.label }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Tanque y combustible -->
+      <h2 class="pst-section-title section">Tanque y combustible</h2>
+      <div class="pst-field-row">
+        <label class="pst-field">
+          <span class="pst-field__label">Capacidad ({{ units.volumeSymbol() }})</span>
+          <input class="pst-input pst-numeric" inputmode="decimal" placeholder="51" [class.is-invalid]="submitted() && errors().tank" [value]="form().tank ?? ''" (input)="set('tank', readNumber($event))" />
+        </label>
+        <div class="pst-field">
+          <span class="pst-field__label">Rayitas del medidor</span>
+          <div class="stepper">
+            <button type="button" class="pst-btn" aria-label="Una rayita menos" (click)="bumpSegments(-1)">−</button>
+            <span class="pst-numeric">{{ form().gauge_total_segments }}</span>
+            <button type="button" class="pst-btn" aria-label="Una rayita más" (click)="bumpSegments(1)">+</button>
+          </div>
+        </div>
+      </div>
+      @if (submitted() && errors().tank; as message) {
+        <p class="error">{{ message }}</p>
+      } @else if (perSegment(); as each) {
+        <p class="pst-field__hint">≈ {{ each }} {{ units.volumeSymbol() }} por rayita.</p>
+      }
+      <div class="pst-field">
+        <span class="pst-field__label">Combustible</span>
+        <div class="pst-chips">
+          @for (option of fuelGrades; track option.value) {
+            <button type="button" class="pst-chip" [class.is-active]="form().default_fuel_grade === option.value" (click)="set('default_fuel_grade', option.value)">{{ option.label }}</button>
+          }
+        </div>
+      </div>
+      <label class="pst-field">
+        <span class="pst-field__label">Rendimiento de fábrica ({{ units.efficiencySymbol() }}) <span class="optional">opcional</span></span>
+        <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().factory_efficiency" [value]="form().factory_efficiency ?? ''" (input)="set('factory_efficiency', readNumber($event))" />
+        <span class="pst-field__hint">Sirve de referencia para comparar con tu rendimiento real.</span>
+      </label>
+
+      <!-- Mantenimiento -->
+      <h2 class="pst-section-title section">Mantenimiento</h2>
+      <div class="pst-field-row">
+        <label class="pst-field">
+          <span class="pst-field__label">Aceite ({{ units.volumeSymbol() }}) <span class="optional">opcional</span></span>
+          <input class="pst-input pst-numeric" inputmode="decimal" placeholder="4.5" [class.is-invalid]="submitted() && errors().oil_capacity" [value]="form().oil_capacity ?? ''" (input)="set('oil_capacity', readNumber($event))" />
+        </label>
+        <label class="pst-field">
+          <span class="pst-field__label">Especificación <span class="optional">opcional</span></span>
+          <input class="pst-input" maxlength="40" placeholder="0W-20" [value]="form().oil_spec" (input)="set('oil_spec', readText($event))" />
+        </label>
+      </div>
+      <div class="pst-field-row">
+        <label class="pst-field">
+          <span class="pst-field__label">Llantas del. (PSI) <span class="optional">opcional</span></span>
+          <input class="pst-input pst-numeric" inputmode="numeric" placeholder="33" [class.is-invalid]="submitted() && errors().tire_pressure_front_psi" [value]="form().tire_pressure_front_psi ?? ''" (input)="set('tire_pressure_front_psi', readNumber($event))" />
+        </label>
+        <label class="pst-field">
+          <span class="pst-field__label">Llantas tras. (PSI) <span class="optional">opcional</span></span>
+          <input class="pst-input pst-numeric" inputmode="numeric" placeholder="33" [class.is-invalid]="submitted() && errors().tire_pressure_rear_psi" [value]="form().tire_pressure_rear_psi ?? ''" (input)="set('tire_pressure_rear_psi', readNumber($event))" />
+        </label>
+      </div>
+      @for (key of ['engine_displacement_l', 'factory_efficiency', 'oil_capacity', 'tire_pressure_front_psi', 'tire_pressure_rear_psi']; track key) {
+        @if (submitted() && $any(errors())[key]; as message) {
+          <p class="error">{{ message }}</p>
+        }
+      }
+
+      <!-- Odómetro y compra -->
+      <h2 class="pst-section-title section">Odómetro y compra</h2>
+      <label class="pst-field">
+        <span class="pst-field__label">Odómetro actual ({{ units.distanceSymbol() }})</span>
+        <input class="pst-input pst-numeric" inputmode="numeric" placeholder="48250" [class.is-invalid]="submitted() && errors().odometer" [value]="form().odometer ?? ''" (input)="set('odometer', readNumber($event))" />
+        @if (editing()) {
+          <span class="pst-field__hint">Si lo bajas, se corrigen las lecturas manuales. Las de cargas y servicios se corrigen en su registro.</span>
+        }
+      </label>
+      @if (submitted() && errors().odometer; as message) {
+        <p class="error">{{ message }}</p>
+      }
+      <div class="pst-field-row">
+        <label class="pst-field">
+          <span class="pst-field__label">Fecha de compra <span class="optional">opcional</span></span>
+          <input class="pst-input" type="date" [value]="form().purchase_date" (input)="set('purchase_date', readText($event))" />
+        </label>
+        <label class="pst-field">
+          <span class="pst-field__label">Odómetro al comprarlo <span class="optional">opcional</span></span>
+          <input class="pst-input pst-numeric" inputmode="numeric" [class.is-invalid]="submitted() && errors().purchase_odometer" [value]="form().purchase_odometer ?? ''" (input)="set('purchase_odometer', readNumber($event))" />
+        </label>
+        <label class="pst-field">
+          <span class="pst-field__label">Precio ({{ units.currency() }}) <span class="optional">opcional</span></span>
+          <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().purchase_price" [value]="form().purchase_price ?? ''" (input)="set('purchase_price', readNumber($event))" />
+        </label>
+      </div>
+      @for (key of ['purchase_odometer', 'purchase_price']; track key) {
+        @if (submitted() && $any(errors())[key]; as message) {
+          <p class="error">{{ message }}</p>
+        }
+      }
+
+      <!-- Estado -->
+      <h2 class="pst-section-title section">Estado</h2>
+      <div class="pst-chips">
+        @for (option of statuses; track option.value) {
+          <button type="button" class="pst-chip" [class.is-active]="form().status === option.value" (click)="set('status', option.value)">{{ option.label }}</button>
+        }
+      </div>
+      @if (form().status !== 'active') {
+        <p class="pst-field__hint">Conserva todo su historial, pero deja de aparecer en las pantallas principales.</p>
+      }
+      @if (form().status === 'sold') {
+        <div class="pst-field-row">
+          <label class="pst-field">
+            <span class="pst-field__label">Fecha de venta</span>
+            <input class="pst-input" type="date" [class.is-invalid]="submitted() && errors().sale_date" [value]="form().sale_date" (input)="set('sale_date', readText($event))" />
+          </label>
+          <label class="pst-field">
+            <span class="pst-field__label">Odómetro al venderlo</span>
+            <input class="pst-input pst-numeric" inputmode="numeric" [class.is-invalid]="submitted() && errors().sale_odometer" [value]="form().sale_odometer ?? ''" (input)="set('sale_odometer', readNumber($event))" />
+          </label>
+          <label class="pst-field">
+            <span class="pst-field__label">Precio ({{ units.currency() }})</span>
+            <input class="pst-input pst-numeric" inputmode="decimal" [class.is-invalid]="submitted() && errors().sale_price" [value]="form().sale_price ?? ''" (input)="set('sale_price', readNumber($event))" />
+          </label>
+        </div>
+        @for (key of ['sale_date', 'sale_odometer', 'sale_price']; track key) {
+          @if (submitted() && $any(errors())[key]; as message) {
+            <p class="error">{{ message }}</p>
+          }
+        }
+      }
+      @if (!editing() && !firstVehicle() && form().status === 'active') {
+        <div class="pst-chips">
+          <button type="button" class="pst-chip" [class.is-active]="makePrimary()" (click)="makePrimary.set(!makePrimary())">
+            Usar como principal
+          </button>
+        </div>
+      }
+
+      <label class="pst-field">
+        <span class="pst-field__label">Notas <span class="optional">opcional</span></span>
+        <textarea class="pst-input notes" rows="3" [value]="form().notes" (input)="set('notes', readText($event))"></textarea>
+      </label>
+
+      @if (saveError(); as message) {
+        <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+      }
+      @if (notice(); as message) {
+        <p class="pst-note pst-note--good" role="status">{{ message }}</p>
+      }
+      @if (submitted() && !valid()) {
+        <p class="error">Revisa los campos marcados.</p>
+      }
+
+      <button type="submit" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="saving()">
+        {{ saving() ? 'Guardando…' : editing() ? 'Guardar cambios' : 'Agregar vehículo' }}
+      </button>
+      <p class="saved-note">Se guarda en este dispositivo y se sincroniza sola.</p>
+    </form>
+
+    @if (editing()) {
+      <section class="danger">
+        @if (hasHistory()) {
+          <p class="pst-field__hint">
+            Tiene historial, así que no se puede borrar. Si ya no lo usas, márcalo como archivado o vendido.
+          </p>
+        } @else if (!confirmDelete()) {
+          <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" (click)="confirmDelete.set(true)">
+            Borrar vehículo
+          </button>
+        } @else {
+          <p class="pst-note pst-note--bad">Se borra de todos tus dispositivos. No se puede deshacer.</p>
+          <button type="button" class="pst-btn pst-btn--danger pst-btn--block" (click)="remove()">Sí, borrar</button>
+          <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" (click)="confirmDelete.set(false)">Cancelar</button>
+        }
+      </section>
+    }
+  }
+</div>
