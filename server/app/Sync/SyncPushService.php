@@ -298,7 +298,7 @@ final class SyncPushService
      */
     private function validate(SyncTable $table, array $payload): array
     {
-        $validator = Validator::make($payload, $table->rules());
+        $validator = Validator::make($table->prepare($payload), $table->rules());
 
         if ($validator->fails()) {
             throw new MutationRejected(

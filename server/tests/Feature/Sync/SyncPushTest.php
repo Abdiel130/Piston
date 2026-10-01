@@ -65,6 +65,25 @@ class SyncPushTest extends TestCase
             ->assertJsonPath('data.rejected.0.code', 'validation_failed');
     }
 
+    public function test_binary_float_drift_in_a_decimal_is_rounded_not_rejected(): void
+    {
+        $this->actingUser();
+        $vehicle = $this->mutation('vehicles', $this->vehicle(['tank_capacity_l' => 0.1 + 0.2]));
+
+        $this->push([$vehicle])->assertOk()->assertJsonCount(0, 'data.rejected');
+
+        $this->assertSame(0.3, Vehicle::find($vehicle['id'])->tank_capacity_l);
+    }
+
+    public function test_real_extra_decimals_are_still_rejected(): void
+    {
+        $this->actingUser();
+
+        $this->push([$this->mutation('vehicles', $this->vehicle(['tank_capacity_l' => 41.555]))])
+            ->assertOk()
+            ->assertJsonPath('data.rejected.0.code', 'validation_failed');
+    }
+
     public function test_child_without_parent_is_rejected_as_parent_missing(): void
     {
         $this->actingUser();

@@ -13,6 +13,7 @@ import { AuthService } from './core/auth/auth.service';
 import { OnboardingService } from './core/auth/onboarding.service';
 import { PwaService } from './core/pwa/pwa.service';
 import { SyncService } from './core/sync/sync.service';
+import { serviceWorkerUrl } from './core/sync/background-sync';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
@@ -25,7 +26,7 @@ export const appConfig: ApplicationConfig = {
     // ngsw no aplica.
     provideHttpClient(withFetch(), withInterceptors([authInterceptor])),
 
-    provideServiceWorker('piston-sw.js', {
+    provideServiceWorker(serviceWorkerUrl(), {
       // En `ng serve` no hay worker: cachearía el bundle y el hot reload
       // dejaría de reflejar los cambios.
       enabled: !isDevMode(),

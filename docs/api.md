@@ -184,6 +184,9 @@ Responde `200` con:
   llegado; el cliente lo reintenta cuando el padre suba), `parent_deleted`
   (ver abajo), `conflict` (con `conflict`: dos ediciones que chocan; sin él:
   duplicado por un índice único), `unknown_table`.
+- **Decimales.** Un decimal con arrastre binario (`0.30000000000000004`) se
+  redondea a la escala de la columna antes de validar. Uno con más decimales de
+  verdad (`41.555` en una columna de 2) sigue siendo `validation_failed`.
 - Más de 500 mutaciones: `413 payload_too_large` (el cliente parte el lote).
 - `server_rev` es informativo. **No** es un cursor: adelantar el cursor con él
   se saltaría cambios de otros dispositivos que aún no se han jalado.

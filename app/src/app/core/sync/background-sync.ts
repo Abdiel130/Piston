@@ -4,14 +4,28 @@
  * o no hay worker (`ng serve`), no pasa nada y la app sincroniza al abrirse.
  */
 
+import { environment } from '../../../environments/environment';
+
 /** Mismo tag que escucha el worker. */
-const OUTBOX_TAG = 'piston-outbox';
-const DAILY_TAG = 'piston-daily';
+export const OUTBOX_TAG = 'piston-outbox';
+export const DAILY_TAG = 'piston-daily';
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 interface SyncCapableRegistration extends ServiceWorkerRegistration {
   readonly sync?: { register(tag: string): Promise<void> };
   readonly periodicSync?: { register(tag: string, options: { minInterval: number }): Promise<void> };
+}
+
+/**
+ * URL con la que se registra el worker.
+ *
+ * El worker no ve `environment`: por defecto llama a la API en su propio
+ * origen. Si la API vive en otro (`apiBaseUrl` no vacío), se le pasa en la
+ * URL y la lee de `self.location`. Con la API en el mismo dominio la URL no
+ * cambia, así que no se fuerza una reinstalación del worker.
+ */
+export function serviceWorkerUrl(apiBaseUrl: string = environment.apiBaseUrl): string {
+  return apiBaseUrl ? `piston-sw.js?api=${encodeURIComponent(apiBaseUrl)}` : 'piston-sw.js';
 }
 
 async function registration(): Promise<SyncCapableRegistration | null> {

@@ -37,6 +37,23 @@ final readonly class SyncTable
         return $this->model::query()->withTrashed();
     }
 
+    /**
+     * El payload listo para validar (ver `Field::prepare`).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function prepare(array $payload): array
+    {
+        foreach ($this->fields as $column => $field) {
+            if (array_key_exists($column, $payload)) {
+                $payload[$column] = $field->prepare($payload[$column]);
+            }
+        }
+
+        return $payload;
+    }
+
     /** @return array<string, list<mixed>> */
     public function rules(): array
     {

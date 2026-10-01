@@ -22,7 +22,8 @@ importScripts('./sw/dexie.min.js');
 
 const OUTBOX_TAG = 'piston-outbox';
 const DAILY_TAG = 'piston-daily';
-const API = `${self.location.origin}/api`;
+/** La app pasa la base de la API en la URL del worker si no es este mismo origen (ver serviceWorkerUrl). */
+const API = `${new URL(self.location.href).searchParams.get('api') || self.location.origin}/api`;
 const BATCH = 200;
 
 /** Mismo orden que TABLE_ORDER en core/models/sync.ts: padres antes que hijos. */

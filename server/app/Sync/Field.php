@@ -123,6 +123,24 @@ final readonly class Field
     }
 
     /**
+     * Quita el arrastre binario de un decimal antes de validarlo: `0.1 + 0.2`
+     * llega como `0.30000000000000004` y `decimal:0,2` lo rechazaría aunque el
+     * dato sea `0.3`. Solo se redondea si la diferencia es ese ruido; un valor
+     * con más decimales de verdad (`41.555` en una columna de 2) se deja tal
+     * cual para que la validación lo rechace con su campo.
+     */
+    public function prepare(mixed $value): mixed
+    {
+        if ($this->type !== 'decimal' || ! is_float($value)) {
+            return $value;
+        }
+
+        $rounded = round($value, $this->scale ?? 0);
+
+        return abs($value - $rounded) < 1e-9 ? $rounded : $value;
+    }
+
+    /**
      * El valor en una forma comparable, venga del cliente (JSON) o de la fila
      * (cast de Eloquent). Sin esto `12.5` contra `"12.50"`, o una fecha con y
      * sin microsegundos, parecerían cambios distintos y el merge inventaría
