@@ -21,6 +21,16 @@
   font-size: var(--pst-callout);
 }
 
+// En una hoja ya hay contexto (el asa, el velo): sin enlace de regreso y con
+// el título un punto más chico, como las hojas de iOS.
+.top--sheet {
+  padding-top: 0;
+
+  .top__title {
+    font-size: var(--pst-title-2);
+  }
+}
+
 .top__title {
   font-size: var(--pst-title-1);
   font-weight: 700;
@@ -162,4 +172,91 @@
   font-size: var(--pst-footnote);
   color: var(--pst-label-3);
   text-align: center;
+}
+
+// Avanzado: una fila que se toca para desplegar lo opcional. El subtítulo
+// resume lo que ya se cambió adentro, así no hay que abrirlo para revisarlo.
+.advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--pst-space-3);
+  width: 100%;
+  padding: var(--pst-space-3) var(--pst-space-4);
+  border-radius: var(--pst-r-md);
+  background: var(--pst-surface-2);
+  text-align: left;
+  transition: background-color var(--pst-dur-fast) var(--pst-snap);
+
+  &:active {
+    background: var(--pst-surface-3);
+  }
+}
+
+.advanced-toggle__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.advanced-toggle__title {
+  font-size: var(--pst-callout);
+  font-weight: 600;
+}
+
+.advanced-toggle__sub {
+  overflow: hidden;
+  font-size: var(--pst-footnote);
+  color: var(--pst-label-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Hay algo cambiado adentro.
+.advanced-toggle__dot {
+  flex: none;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: var(--pst-r-pill);
+  background: var(--pst-ignition);
+}
+
+.advanced-toggle__chevron {
+  flex: none;
+  color: var(--pst-label-3);
+  transition: transform var(--pst-dur-base) var(--pst-spring);
+}
+
+.advanced-toggle.is-open .advanced-toggle__chevron {
+  transform: rotate(180deg);
+}
+
+// Se pliega animando `grid-template-rows` de 0fr a 1fr: anima la altura real
+// del contenido sin medirla. El margen negativo se come el `gap` del
+// formulario mientras está plegado; abierto, lo devuelve el padding interior.
+.advanced {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-top: calc(-1 * var(--pst-space-4));
+  transition: grid-template-rows var(--pst-dur-slow) var(--pst-spring);
+
+  &.is-open {
+    grid-template-rows: 1fr;
+  }
+}
+
+.advanced__inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-4);
+  min-height: 0;
+  overflow: hidden;
+  padding-top: var(--pst-space-4);
+  opacity: 0;
+  transition: opacity var(--pst-dur-fast) var(--pst-snap);
+}
+
+.advanced.is-open .advanced__inner {
+  opacity: 1;
+  transition: opacity var(--pst-dur-base) var(--pst-snap) 0.08s;
 }

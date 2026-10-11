@@ -52,14 +52,14 @@
       </div>
 
       <div class="hero__actions">
-        <a class="pst-btn pst-btn--primary pst-btn--block" routerLink="/fuel/new">
+        <button type="button" class="pst-btn pst-btn--primary pst-btn--block" aria-haspopup="dialog" (click)="fuelOpen.set(true)">
           <pst-icon name="plus" [size]="18" />
           Registrar carga
-        </a>
-        <a class="pst-btn pst-btn--block" routerLink="/odometer/new">
+        </button>
+        <button type="button" class="pst-btn pst-btn--block" aria-haspopup="dialog" (click)="odometerOpen.set(true)">
           <pst-icon name="road" [size]="18" />
           Anotar odómetro
-        </a>
+        </button>
       </div>
     </section>
 
@@ -137,6 +137,14 @@
   }
 </div>
 
-<!-- Fuera de la pila: ahí cobraría un hueco del gap y un turno de la entrada
-     escalonada sin mostrar nada. -->
+<!-- Las hojas van fuera de la pila: ahí cobrarían un hueco del gap y un turno
+     de la entrada escalonada sin mostrar nada. -->
 <pst-vehicle-sheet [(open)]="sheetOpen" />
+
+<pst-sheet [(open)]="fuelOpen" label="Nueva carga">
+  <ng-template pstSheetContent><pst-fuel-capture embedded (saved)="fuelOpen.set(false)" /></ng-template>
+</pst-sheet>
+
+<pst-sheet [(open)]="odometerOpen" label="Anotar odómetro">
+  <ng-template pstSheetContent><pst-odometer-capture embedded (saved)="odometerOpen.set(false)" /></ng-template>
+</pst-sheet>

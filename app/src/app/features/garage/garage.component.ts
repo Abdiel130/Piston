@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { VehicleAlerts, worstTone } from '../../core/data/vehicle-alerts.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
@@ -11,6 +10,9 @@ import { GaugeComponent } from '../../shared/gauge/gauge.component';
 import { IconComponent, type IconName } from '../../shared/icon/icon.component';
 import { IslandService } from '../../shared/island/island.service';
 import { SCHEDULE_TONE, scheduleDue } from '../service/schedule-display';
+import { SheetComponent, SheetContentDirective } from '../../shared/sheet/sheet.component';
+import { FuelCaptureComponent } from '../capture/fuel-capture.component';
+import { OdometerCaptureComponent } from '../capture/odometer-capture.component';
 import { VehicleSheetComponent } from '../vehicle/vehicle-sheet.component';
 
 interface HealthItem {
@@ -56,7 +58,7 @@ const EMPTY_DATA: GarageData = {
 @Component({
   selector: 'pst-garage',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, GaugeComponent, RouterLink, VehicleSheetComponent],
+  imports: [IconComponent, GaugeComponent, VehicleSheetComponent, SheetComponent, SheetContentDirective, FuelCaptureComponent, OdometerCaptureComponent],
   templateUrl: './garage.component.html',
   styleUrl: './garage.component.scss',
 })
@@ -71,6 +73,9 @@ export class GarageComponent {
   protected readonly name = this.context.displayName;
 
   protected readonly sheetOpen = signal(false);
+  /** Registrar carga y anotar odómetro se hacen en hoja, sin salir del garage. */
+  protected readonly fuelOpen = signal(false);
+  protected readonly odometerOpen = signal(false);
   /** Algo de este vehículo pide atención: se queda hasta resolverse. */
   protected readonly alertTone = computed(() => worstTone(this.alerts.forVehicle(this.context.vehicleId())));
 

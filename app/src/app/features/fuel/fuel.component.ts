@@ -1,5 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
 import { db } from '../../core/db/piston-db';
@@ -9,6 +8,8 @@ import type { FuelEntry, FuelStation } from '../../core/models';
 import { GaugeComponent } from '../../shared/gauge/gauge.component';
 import { IconComponent } from '../../shared/icon/icon.component';
 import { IslandService } from '../../shared/island/island.service';
+import { SheetComponent, SheetContentDirective } from '../../shared/sheet/sheet.component';
+import { FuelCaptureComponent } from '../capture/fuel-capture.component';
 
 interface FuelRow {
   readonly id: string;
@@ -32,7 +33,7 @@ const METHOD: Record<FuelEntry['efficiency_method'], { label: string; tone: stri
 @Component({
   selector: 'pst-fuel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, GaugeComponent, RouterLink],
+  imports: [IconComponent, GaugeComponent, SheetComponent, SheetContentDirective, FuelCaptureComponent],
   templateUrl: './fuel.component.html',
   styleUrl: './fuel.component.scss',
 })
@@ -41,6 +42,8 @@ export class FuelComponent {
   private readonly store = inject(OfflineStore);
   private readonly context = inject(VehicleContext);
   protected readonly units = inject(UnitsService);
+  /** Registrar carga abre una hoja, sin salir de la lista. */
+  protected readonly captureOpen = signal(false);
 
   protected readonly vehicle = this.context.vehicle;
 

@@ -7,6 +7,39 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-10-10
+
+Las hojas ahora son de vidrio: dejan ver, desenfocado, lo que hay detrás, con
+un canto de luz arriba y un brillo de ignición que es solo de Piston.
+Registrar una carga y anotar el odómetro ya no te sacan del garage: se hacen
+en una hoja, y al guardar vuelves justo donde estabas. El formulario de carga
+se vuelve más corto: a la vista queda solo lo que casi siempre se escribe, y
+el resto espera en *Avanzado*.
+
+### Added
+- **Avanzado en la carga de combustible**: fecha, tipo de combustible,
+  rayitas antes de cargar, comprobantes y notas se agrupan en una sección que
+  se despliega al tocarla. Todos tienen un buen valor por omisión (ahora, el
+  combustible del vehículo, las rayitas deducidas de lo que cupo), así que una
+  carga normal se registra con el odómetro y dos de monto, precio o cantidad.
+  En carga parcial, las rayitas después de cargar siguen a la vista porque
+  pueden sustituir a la cantidad. El botón resume lo que cambiaste adentro y
+  se marca con un punto, para revisarlo sin abrirlo.
+
+### Changed
+- **Hojas de vidrio**: el fondo de las hojas es translúcido y desenfoca lo
+  que hay detrás, y el velo alrededor deja ver más del garage. Las tarjetas,
+  campos y botones dentro de la hoja también se vuelven translúcidos en vez
+  de verse como bloques opacos.
+- **Registrar carga y anotar odómetro en hoja**: los botones del garage y el
+  de la pestaña Combustible abren una hoja en lugar de otra pantalla. Cada
+  vez empieza limpia, y con el teclado abierto la hoja sube para que los
+  campos no queden tapados.
+
+### Fixed
+- **Fecha de la carga sin aviso**: si se borraba la fecha, la carga no se
+  guardaba y no se decía por qué. Ahora se marca el campo con su mensaje.
+
 ## [1.7.1] - 2026-10-10
 
 La hoja del vehículo ya no parpadea al aparecer y ahora se mueve como una hoja
