@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-10-10
+
 Montar Piston ahora toma un solo comando. `./up.sh --setup` recorre la
 instalación completa con preguntas: revisa Docker, configura puertos, URLs y
 credenciales de la base, levanta el stack, espera a que el servidor quede listo
