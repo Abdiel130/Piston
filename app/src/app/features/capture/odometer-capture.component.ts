@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { booleanAttribute, ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
@@ -7,15 +7,21 @@ import { UnitsService } from '../../core/units.service';
 import { IconComponent } from '../../shared/icon/icon.component';
 import { localDateTime, odometerError, readNumber, readText, toIso } from './capture-form';
 
-/** Anotar el odómetro sin que haya carga ni servicio de por medio. */
+/**
+ * Anotar el odómetro sin que haya carga ni servicio de por medio. Vive como
+ * página (`/odometer/new`) o dentro de una hoja (`embedded`), igual que la
+ * captura de carga.
+ */
 @Component({
   selector: 'pst-odometer-capture',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [IconComponent, RouterLink],
   template: `
     <div class="pst-stack capture-page">
-      <header class="top">
-        <a class="top__back" routerLink="/"><pst-icon name="chevronLeft" [size]="20" /> Garage</a>
+      <header class="top" [class.top--sheet]="embedded()">
+        @if (!embedded()) {
+          <a class="top__back" routerLink="/"><pst-icon name="chevronLeft" [size]="20" /> Garage</a>
+        }
         <h1 class="top__title">Anotar odómetro</h1>
         <p class="top__sub">{{ name() }}</p>
       </header>
@@ -57,6 +63,10 @@ export class OdometerCaptureComponent {
   private readonly context = inject(VehicleContext);
   private readonly router = inject(Router);
   protected readonly units = inject(UnitsService);
+
+  /** Dentro de una hoja: sin enlace de regreso y sin navegar al guardar. */
+  readonly embedded = input(false, { transform: booleanAttribute });
+  readonly saved = output<void>();
 
   protected readonly vehicle = this.context.vehicle;
   protected readonly name = this.context.displayName;
@@ -100,7 +110,8 @@ export class OdometerCaptureComponent {
           await this.store.update<Vehicle>('vehicles', vehicle.id, { current_odometer_km: km });
         }
       });
-      await this.router.navigateByUrl('/');
+      this.saved.emit();
+      if (!this.embedded()) await this.router.navigateByUrl('/');
     } catch (error) {
       this.saveError.set(`No se pudo guardar: ${error instanceof Error ? error.message : String(error)}`);
     } finally {

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { booleanAttribute, ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AttachmentService, type PreparedFile } from '../../core/data/attachment.service';
 import { OfflineStore } from '../../core/data/offline-store.service';
@@ -34,12 +34,25 @@ function plain(value: number | null, digits: number): string {
   return String(Math.round(value * factor) / factor);
 }
 
+/** Fecha corta para el resumen de Avanzado ("12 oct, 18:30"). */
+const summaryDate = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
 /**
  * Captura de una carga. Los campos están en la unidad del usuario y se
  * guardan en km y litros. De monto, precio y cantidad basta con dos: el
  * tercero se calcula, y el precio se sugiere con la última carga del mismo
  * combustible. Con tanque lleno se deduce con cuánto se arrancó. Crea la
  * carga, su lectura de odómetro y sus comprobantes en una sola transacción.
+ *
+ * A la vista solo va lo que casi siempre se escribe: odómetro, si se llenó y
+ * cuánto. Lo que tiene un buen valor por omisión (fecha, combustible, rayitas
+ * antes, comprobantes, notas) espera en Avanzado. Las rayitas después son la
+ * excepción: en una carga parcial pueden sustituir a la cantidad, así que ahí
+ * salen a la vista.
+ *
+ * Vive como página (`/fuel/new`) o dentro de una hoja (`embedded`). En la
+ * hoja no lleva el enlace de regreso y, al guardar, avisa con `saved` en vez
+ * de navegar.
  */
 @Component({
   selector: 'pst-fuel-capture',
@@ -55,12 +68,17 @@ export class FuelCaptureComponent {
   private readonly router = inject(Router);
   protected readonly units = inject(UnitsService);
 
+  /** Dentro de una hoja: sin enlace de regreso y sin navegar al guardar. */
+  readonly embedded = input(false, { transform: booleanAttribute });
+  readonly saved = output<void>();
+
   protected readonly vehicle = this.context.vehicle;
   protected readonly name = this.context.displayName;
   protected readonly grades = GRADES;
   protected readonly plain = plain;
 
-  protected readonly filledAt = signal(localDateTime());
+  private readonly openedAt = localDateTime();
+  protected readonly filledAt = signal(this.openedAt);
   protected readonly odometer = signal<number | null>(null);
   protected readonly grade = signal<FuelGrade | null>(null);
   /** Lo escrito en cada campo del trío; lo calculado vive en `trio`. */
@@ -76,6 +94,8 @@ export class FuelCaptureComponent {
   protected readonly preparing = signal(0);
   protected readonly fileError = signal<string | null>(null);
   private nextFileId = 0;
+
+  protected readonly advanced = signal(false);
 
   protected readonly saving = signal(false);
   protected readonly submitted = signal(false);
@@ -165,6 +185,22 @@ export class FuelCaptureComponent {
   });
 
   protected readonly valid = computed(() => Object.keys(this.errors()).length === 0);
+
+  /** Avanzado se abre solo si al guardar algo de adentro tiene error. */
+  protected readonly showAdvanced = computed(() => this.advanced() || (this.submitted() && !!this.errors().filled_at));
+
+  /** Lo que se cambió dentro de Avanzado, para verlo sin abrirlo. */
+  protected readonly advancedSummary = computed(() => {
+    const parts: string[] = [];
+    if (this.filledAt() !== this.openedAt && this.filledAt()) parts.push(summaryDate.format(new Date(this.filledAt())));
+    if (this.grade() !== null && this.grade() !== this.vehicle()?.default_fuel_grade) parts.push(this.gradeLabel());
+    const before = this.gaugeBefore();
+    if (before !== null) parts.push(`${before}/${this.segments()} antes`);
+    const files = this.files().length;
+    if (files) parts.push(files === 1 ? '1 comprobante' : `${files} comprobantes`);
+    if (this.notes().trim()) parts.push('nota');
+    return parts.join(' · ');
+  });
 
   protected readonly readText = readText;
   protected readonly readNumber = readNumber;
@@ -273,7 +309,8 @@ export class FuelCaptureComponent {
           await this.attachments.attachPrepared('fuel_entry', entry.id, prepared, kind, index);
         }
       });
-      await this.router.navigateByUrl('/fuel');
+      this.saved.emit();
+      if (!this.embedded()) await this.router.navigateByUrl('/fuel');
     } catch (error) {
       this.saveError.set(`No se pudo guardar: ${error instanceof Error ? error.message : String(error)}`);
     } finally {

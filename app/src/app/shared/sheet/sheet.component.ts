@@ -2,7 +2,9 @@ import {
   ChangeDetectionStrategy,
   afterNextRender,
   Component,
+  Directive,
   computed,
+  contentChild,
   DestroyRef,
   type ElementRef,
   effect,
@@ -10,8 +12,10 @@ import {
   input,
   model,
   signal,
+  TemplateRef,
   viewChild,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 
 /** Lo que hay que arrastrar hacia abajo para que la hoja se cierre sola. */
 const DISMISS_PX = 96;
@@ -30,6 +34,16 @@ const SLOP_PX = 6;
  * animaciones). Algo más que la salida más larga.
  */
 const CLOSE_FALLBACK_MS = 600;
+
+/**
+ * Marca el contenido diferido de una hoja: `<ng-template pstSheetContent>`.
+ * Hace falta un marcador propio porque una consulta por `TemplateRef` a secas
+ * también atrapa las plantillas internas de `@if` y `@for` del contenido.
+ */
+@Directive({ selector: 'ng-template[pstSheetContent]' })
+export class SheetContentDirective {
+  readonly template = inject(TemplateRef);
+}
 
 /** `closing` dura lo que la animación de salida; el `<dialog>` sigue abierto. */
 type Phase = 'closed' | 'open' | 'closing';
@@ -58,12 +72,20 @@ type Gesture = 'idle' | 'pending' | 'drag' | 'scroll';
  * botón: ese botón todavía está fuera de la pantalla y el navegador
  * desplazaba la hoja para mostrarlo, lo que se veía como un parpadeo.
  *
+ * El contenido puede ir directo o dentro de `<ng-template pstSheetContent>`. Con plantilla
+ * se crea al abrir y se destruye al terminar de cerrar: un formulario empieza
+ * limpio cada vez y no corre nada mientras la hoja está guardada.
+ *
+ * Con el teclado en pantalla la hoja sube sobre él (`visualViewport`), así los
+ * campos de abajo no quedan tapados.
+ *
  * Cerrar no es inmediato: primero corre la salida y solo al terminar se llama
  * a `dialog.close()`. Si se cerrara antes, la hoja desaparecería de golpe.
  */
 @Component({
   selector: 'pst-sheet',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [NgTemplateOutlet],
   template: `
     <dialog
       #dialog
@@ -72,6 +94,7 @@ type Gesture = 'idle' | 'pending' | 'drag' | 'scroll';
       [class.is-closing]="phase() === 'closing'"
       [class.is-dragging]="dragging()"
       [style.--sheet-veil]="veil()"
+      [style.--sheet-keyboard.px]="keyboard()"
       [attr.aria-label]="label()"
       (click)="onBackdrop($event)"
       (cancel)="onCancel($event)"
@@ -91,7 +114,13 @@ type Gesture = 'idle' | 'pending' | 'drag' | 'scroll';
           <span class="sheet__handle" aria-hidden="true"></span>
         </div>
         <div #body class="sheet__body pst-scroll-area">
-          <ng-content />
+          @if (lazy(); as content) {
+            @if (phase() !== 'closed') {
+              <ng-container [ngTemplateOutlet]="content.template" />
+            }
+          } @else {
+            <ng-content />
+          }
         </div>
       </div>
     </dialog>
@@ -103,6 +132,9 @@ export class SheetComponent {
   /** Nombre accesible del diálogo. */
   readonly label = input<string>();
 
+  /** Contenido diferido, si lo hay. Solo hijo directo: no el de una hoja anidada. */
+  protected readonly lazy = contentChild(SheetContentDirective, { descendants: false });
+
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
   private readonly panel = viewChild.required<ElementRef<HTMLElement>>('panel');
   private readonly grip = viewChild.required<ElementRef<HTMLElement>>('grip');
@@ -111,6 +143,8 @@ export class SheetComponent {
   protected readonly phase = signal<Phase>('closed');
   protected readonly dragY = signal(0);
   protected readonly dragging = signal(false);
+  /** Lo que tapa el teclado en pantalla, en px; 0 sin teclado. */
+  protected readonly keyboard = signal(0);
   /**
    * Cuánto velo queda: 1 con la hoja en su lugar, 0 si bajara entera. El
    * `::backdrop` lo hereda del `<dialog>` y con él escala oscuridad y blur,
@@ -141,7 +175,8 @@ export class SheetComponent {
         this.fallback = setTimeout(() => this.finishClose(), CLOSE_FALLBACK_MS);
       }
     });
-    inject(DestroyRef).onDestroy(() => clearTimeout(this.fallback));
+    const destroyRef = inject(DestroyRef);
+    destroyRef.onDestroy(() => clearTimeout(this.fallback));
 
     // Estos dos van a mano porque Angular no deja elegir `passive` ni la fase
     // de captura desde la plantilla.
@@ -167,6 +202,21 @@ export class SheetComponent {
         },
         { capture: true },
       );
+
+      // El layout no se encoge con el teclado (ni en iOS ni, por defecto, en
+      // Android); solo el viewport visual. La diferencia es lo que tapa.
+      const viewport = window.visualViewport;
+      if (!viewport) return;
+      const measure = () => {
+        const covered = window.innerHeight - viewport.height - viewport.offsetTop;
+        this.keyboard.set(this.dialog().nativeElement.open ? Math.max(0, Math.round(covered)) : 0);
+      };
+      viewport.addEventListener('resize', measure);
+      viewport.addEventListener('scroll', measure);
+      destroyRef.onDestroy(() => {
+        viewport.removeEventListener('resize', measure);
+        viewport.removeEventListener('scroll', measure);
+      });
     });
   }
 
@@ -191,6 +241,7 @@ export class SheetComponent {
     clearTimeout(this.fallback);
     this.phase.set('closed');
     this.dragY.set(0);
+    this.keyboard.set(0);
     this.open.set(false);
   }
 

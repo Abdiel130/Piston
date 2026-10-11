@@ -18,6 +18,8 @@
   background: transparent;
   color: inherit;
   overflow: clip;
+  /* El teclado en pantalla empuja la hoja hacia arriba. */
+  padding-bottom: var(--sheet-keyboard, 0px);
 }
 
 /* El foco cae en el <dialog> solo para no saltar al primer botón; no es un
@@ -40,11 +42,14 @@
    `--sheet-veil` (0–1) llega del componente mientras se arrastra: el velo se
    aclara y se desenfoca menos conforme baja la hoja. Donde el ::backdrop aún
    no hereda variables, el respaldo de 1 deja el velo fijo. La entrada no
-   rellena hacia adelante: así, al terminar, manda el valor vivo. */
+   rellena hacia adelante: así, al terminar, manda el valor vivo.
+
+   Más claro y más desenfocado que un velo de hoja opaca: la hoja es de vidrio
+   y necesita que lo de atrás tenga color, no que desaparezca en negro. */
 .sheet::backdrop {
-  background: rgba(0, 0, 0, calc(0.55 * var(--sheet-veil, 1)));
-  backdrop-filter: blur(calc(2px * var(--sheet-veil, 1)));
-  -webkit-backdrop-filter: blur(calc(2px * var(--sheet-veil, 1)));
+  background: rgba(0, 0, 0, calc(0.38 * var(--sheet-veil, 1)));
+  backdrop-filter: blur(calc(6px * var(--sheet-veil, 1)));
+  -webkit-backdrop-filter: blur(calc(6px * var(--sheet-veil, 1)));
   animation: sheet-veil-in var(--pst-dur-base) var(--pst-snap) backwards;
 }
 
@@ -61,36 +66,90 @@
   animation: sheet-veil-out var(--pst-dur-base) var(--pst-dismiss) both;
 }
 
-/* Entra con un muelle que rebasa apenas y se asienta, como la isla al
-   expandirse. Sale acelerando hacia abajo, sin rebote. */
+/* La hoja es de vidrio: deja pasar el color de lo de atrás, desenfocado y
+   saturado, con un canto de luz arriba. Entra con un muelle que rebasa apenas
+   y se asienta, como la isla al expandirse; sale acelerando, sin rebote.
+
+   El panel se prolonga `--sheet-skirt` por debajo de la pantalla (el <dialog>
+   lo recorta). Ese faldón es lo que se asoma cuando el muelle rebasa o el
+   dedo la estira hacia arriba, y como es el mismo panel, es el mismo vidrio. */
 .sheet__panel {
+  --sheet-skirt: var(--pst-space-12);
+
+  /* Dentro del vidrio, las superficies opacas pasan a rellenos translúcidos.
+     Se redefinen aquí y no en cada componente: así cualquier tarjeta, fila,
+     campo o chip que se proyecte en la hoja se adapta solo. */
+  --pst-surface-1: var(--pst-glass-fill-1);
+  --pst-surface-2: var(--pst-glass-fill-2);
+  --pst-surface-3: var(--pst-glass-fill-3);
+  --pst-surface-4: var(--pst-glass-fill-4);
+  --pst-separator-soft: var(--pst-glass-edge);
+  --pst-shadow-card: none;
+
   position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 40rem;
-  max-height: calc(100dvh - var(--pst-safe-top) - var(--pst-space-12));
-  padding-bottom: var(--pst-safe-bottom);
-  background: var(--pst-surface-2);
-  border: 0.5px solid var(--pst-separator-soft);
-  border-bottom: 0;
-  border-radius: var(--pst-r-xl) var(--pst-r-xl) 0 0;
-  box-shadow: var(--pst-shadow-float);
+  max-height: calc(
+    100dvh - var(--pst-safe-top) - var(--pst-space-12) - var(--sheet-keyboard, 0px) +
+      var(--sheet-skirt)
+  );
+  margin-bottom: calc(-1 * var(--sheet-skirt));
+  padding-bottom: calc(var(--pst-safe-bottom) + var(--sheet-skirt));
+  border-radius: var(--pst-r-2xl) var(--pst-r-2xl) 0 0;
+  background: var(--pst-glass-solid);
+  box-shadow:
+    inset 0 0 0 0.5px var(--pst-glass-edge),
+    0 -12px 48px rgba(0, 0, 0, 0.5);
   will-change: transform;
   animation: sheet-rise var(--pst-dur-island) var(--pst-settle);
   transition: transform var(--pst-dur-base) var(--pst-spring);
 }
 
-/* El rebase del muelle y el estirón hacia arriba despegan la hoja del borde.
-   Esta extensión del mismo fondo tapa el hueco que dejarían debajo. */
-.sheet__panel::after {
+/* Solo con desenfoque real se vuelve transparente: sin él, un fondo al 50 %
+   dejaría el texto encima del garage, ilegible. */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .sheet__panel {
+    background:
+      /* Luz piloto: un brillo de ignición casi imperceptible detrás del asa.
+         Es la firma de Piston dentro del vidrio. */
+      radial-gradient(
+        40% 3.5rem at 50% 0,
+        color-mix(in srgb, var(--pst-ignition) 14%, transparent),
+        transparent
+      ),
+      /* Reflejo: el vidrio es más claro arriba, donde le pega la luz. */
+        linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent 7rem),
+      var(--pst-glass);
+    backdrop-filter: var(--pst-glass-blur);
+    -webkit-backdrop-filter: var(--pst-glass-blur);
+  }
+}
+
+/* El canto: un borde de 1px que brilla arriba y se apaga hacia los lados,
+   como luz que entra por el filo de un vidrio grueso. Va en un pseudo con
+   máscara porque un `border` no admite degradado con esquinas redondas. */
+.sheet__panel::before {
   content: '';
   position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: var(--pst-space-12);
-  background: inherit;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    var(--pst-glass-rim),
+    rgba(255, 255, 255, 0.08) 2.5rem,
+    transparent 6rem
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
 }
 
 .sheet.is-closing .sheet__panel {
@@ -115,7 +174,7 @@
   width: 2.25rem;
   height: 0.3125rem;
   border-radius: var(--pst-r-pill);
-  background: var(--pst-label-4);
+  background: rgba(255, 255, 255, 0.32);
 }
 
 /* El contenido no viaja pegado a la caja: entra un instante después y con un
