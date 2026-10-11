@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-10
+
 La sección del vehículo suma su tercera vista: el resto de los documentos.
 Verificación, tenencia o refrendo, tarjeta de circulación, licencia,
 garantía y cualquier otro trámite quedan agrupados por tipo, con sus
