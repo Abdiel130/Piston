@@ -178,6 +178,24 @@ export class ApiService {
     );
   }
 
+  /**
+   * Baja el binario de un adjunto que subió otro dispositivo. 404 mientras
+   * ese dispositivo no lo suba: reintentable, como cualquier otro 404.
+   */
+  async downloadAttachment(attachmentId: string): Promise<Blob> {
+    const requestId = uuidV7();
+    const startedAt = Date.now();
+    const call = this.http.get(`${this.base}/attachments/${attachmentId}/file`, {
+      headers: new HttpHeaders({ 'X-Request-Id': requestId }),
+      responseType: 'blob',
+    });
+    try {
+      return await firstValueFrom(call.pipe(timeout(UPLOAD_TIMEOUT_MS)));
+    } catch (error) {
+      throw this.toApiError(error, requestId, Date.now() - startedAt);
+    }
+  }
+
   // ── Cuenta ────────────────────────────────────────────────────────────
 
   async me(): Promise<AuthUser> {

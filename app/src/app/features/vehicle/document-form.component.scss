@@ -1,0 +1,5 @@
+// Etiquetas de distinto largo ("Inciso" vs "Número de asegurado opcional")
+// envuelven distinto en pantallas angostas: se alinean los inputs por abajo.
+.pst-field-row {
+  align-items: end;
+}

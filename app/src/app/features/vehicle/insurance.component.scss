@@ -1,0 +1,122 @@
+.policy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-3);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pst-space-2);
+
+  .pst-badge {
+    text-transform: none;
+    letter-spacing: 0;
+  }
+}
+
+// Los teléfonos van primero: en un choque es lo único que importa.
+.phones,
+.actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--pst-space-2);
+}
+
+.claim {
+  margin: 0;
+}
+
+// Línea de tiempo: un riel con un punto por vigencia, la vigente resaltada.
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-3);
+  list-style: none;
+  padding-left: var(--pst-space-5);
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: var(--pst-space-3);
+    bottom: var(--pst-space-3);
+    left: 0.4375rem;
+    width: 2px;
+    background: var(--pst-separator);
+  }
+}
+
+.timeline__item {
+  position: relative;
+}
+
+.timeline__dot {
+  position: absolute;
+  top: var(--pst-space-4);
+  left: calc(-1 * var(--pst-space-5) + 0.125rem);
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid var(--pst-bg);
+  border-radius: var(--pst-r-pill);
+  background: var(--pst-label-4);
+}
+
+.timeline__item.is-current .timeline__dot {
+  background: var(--pst-ignition);
+}
+
+.timeline__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-1);
+}
+
+.timeline__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.timeline__event {
+  font-size: var(--pst-footnote);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pst-label-3);
+}
+
+.is-current .timeline__event {
+  color: var(--pst-ignition);
+}
+
+.timeline__edit {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--pst-label-3);
+}
+
+.timeline__period {
+  margin: 0;
+  font-weight: 600;
+}
+
+.timeline__summary,
+.timeline__cost {
+  margin: 0;
+  font-size: var(--pst-subhead);
+  color: var(--pst-label-2);
+}
+
+.timeline__change {
+  display: block;
+  font-size: var(--pst-footnote);
+  color: var(--pst-label-3);
+}
+
+.timeline pst-document-files {
+  margin-top: var(--pst-space-2);
+}

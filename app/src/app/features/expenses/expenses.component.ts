@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
+import { DOCUMENT_LABEL } from '../../core/data/document-status';
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
 import { db } from '../../core/db/piston-db';
@@ -36,16 +37,6 @@ const EMPTY_DATA: ExpenseData = {
 };
 
 const PALETTE = ['var(--pst-ignition)', 'var(--pst-info)', 'var(--pst-good)', 'var(--pst-warn)', 'var(--pst-bad)', 'var(--pst-idle)'];
-
-const DOCUMENT_LABEL: Record<VehicleDocument['type'], string> = {
-  insurance: 'Seguro',
-  emissions_check: 'Verificación',
-  ownership_tax: 'Tenencia',
-  circulation_card: 'Tarjeta de circulación',
-  driver_license: 'Licencia',
-  warranty: 'Garantía',
-  other: 'Documento',
-};
 
 /**
  * Gastos del mes del vehículo activo: gastos capturados más lo pagado en

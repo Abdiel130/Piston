@@ -80,7 +80,7 @@ Para desactivar las migraciones automáticas, añade `RUN_MIGRATIONS=false` al e
 
 Salida esperada del health check:
 ```json
-{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.7.2","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
+{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.8.0","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
 ```
 
 ### 5. Crear tu Cuenta
@@ -204,6 +204,7 @@ Piston/
 │   │       │   └── tab-bar/         # Barra de pestañas estilo iOS
 │   │       ├── features/            # Una pantalla por pestaña
 │   │       │   ├── garage/          # Vehículo, nivel de tanque, salud
+│   │       │   ├── vehicle/         # Hoja del vehículo, Datos y póliza de seguro
 │   │       │   ├── fuel/            # Captura por rayitas e historial
 │   │       │   ├── service/         # Semáforo, fallas en seguimiento
 │   │       │   ├── expenses/        # Gasto por categoría y vencimientos
@@ -211,8 +212,8 @@ Piston/
 │   │       └── core/                # Capa offline-first
 │   │           ├── models/          # Enums y tipos, espejo de schema.dbml
 │   │           ├── db/              # Dexie, UUIDv7 y siembra de catálogos
-│   │           ├── data/            # OfflineStore (escrituras) y adjuntos
-│   │           ├── sync/            # Motor de sync: outbox, backoff, delta
+│   │           ├── data/            # OfflineStore (escrituras), adjuntos, documentos y alertas
+│   │           ├── sync/            # Motor de sync: outbox, backoff, delta, descarga de adjuntos
 │   │           └── api/             # Cliente HTTP de la API
 │
 └── server/                          # BACKEND: Laravel 13 + Sanctum + PHP 8.5
@@ -233,6 +234,9 @@ La app es **mobile-first** y **offline-first**: toda escritura ocurre primero en
 
 ### 🚗 Garage y vehículos
 - Multi-vehículo con ficha completa: marca, modelo, año, versión, motor, transmisión, VIN, placas y color.
+- **Hoja del vehículo**: el apodo en el garage abre una hoja con las vistas del vehículo y, si tienes varios, el **cambio rápido** del vehículo en gestión. Todo lo que registres después va al elegido.
+- **Datos del vehículo**: ficha completa y resumen de toda su vida (rendimiento promedio, costo por km, gasto mensual y total, kilómetros recorridos y cargas).
+- **Badge de atención** en el apodo y en la hoja mientras algo del vehículo pida atención (ej. una póliza por vencer). No se quita hasta resolverlo.
 - Tipos de vehículo (auto, moto, pickup, camión, van) con catálogos de mantenimiento propios.
 - Especificaciones técnicas que alimentan los cálculos: capacidad del tanque, número de rayitas del indicador, rendimiento de fábrica, capacidad y especificación de aceite, presiones de llantas.
 - **Historial de odómetro** como serie temporal, con detección de lecturas inconsistentes.
@@ -267,6 +271,10 @@ La app es **mobile-first** y **offline-first**: toda escritura ocurre primero en
 - Seguro, verificación, tenencia, tarjeta de circulación y licencia, con vigencias y costos.
 - **Alertas de vencimiento** configurables (30 / 15 / 7 días antes).
 - Foto o escaneo del documento, disponible **sin conexión**.
+- **Póliza de seguro**: aseguradora, número de póliza, inciso, número de asegurado (si tu aseguradora lo da), cobertura, vigencia y costo, con los teléfonos de **siniestro y asistencia vial a un toque** y los números que te van a pedir a la vista. Aviso un mes antes de vencer (amarillo) y al vencer (rojo).
+- **Renovación con línea de tiempo**: "Marcar como renovada" prellena la nueva vigencia y deja elegir qué archivos de la anterior se conservan (las guías sí, el PDF del año pasado no). La anterior deja de avisar y pasa a una **línea de tiempo** con cada vigencia, su costo y qué cambió (precio, aseguradora, cobertura).
+- El historial no ocupa espacio: sus archivos se liberan del dispositivo en cuanto subieron y se ven desde el servidor al tocarlos.
+- Varios archivos por documento (PDF, fotos de cámara o de la galería), **cada uno con título y notas**: ej. "¿Cómo reportar un siniestro?" con la imagen que manda la aseguradora. Las imágenes se ven grandes, y todo **se baja solo a tus otros dispositivos** para tenerlo sin señal.
 - Calendario de verificación por **engomado y terminación de placa**.
 
 ### 🛰️ Gasolineras
@@ -288,7 +296,7 @@ La app es **mobile-first** y **offline-first**: toda escritura ocurre primero en
 - **Outbox** de mutaciones pendientes con reintentos y backoff exponencial.
 - **Sync delta** por número de revisión, sin depender de relojes que pueden ir desfasados.
 - **Soft delete con tombstones**: los borrados se propagan y no "reviven" al reconectar.
-- **Adjuntos diferidos**: la foto se guarda al instante y el binario sube cuando haya red.
+- **Adjuntos diferidos**: la foto se guarda al instante y el binario sube cuando haya red. Los archivos de documentos se bajan en cada sync al resto de tus dispositivos; los demás, al abrirlos.
 - PWA instalable con service worker.
 
 ### Fuera de alcance por ahora
@@ -398,6 +406,13 @@ un enum y sin exponer nada del servidor. Ver **[docs/api.md](docs/api.md)**.
 
 La foto se guarda como Blob en IndexedDB y se ve al instante; el binario sube por su propia cola, aparte del outbox, para que 4 MB de imagen no bloqueen la sincronización de los datos.
 
+El camino de vuelta también es parte del sync. La fila del adjunto llega a los otros dispositivos por el pull, pero el binario no: `AttachmentDownloads` lo baja con `GET /api/attachments/{id}/file` y lo guarda en IndexedDB igual que uno propio (`local_blob_key` es solo del cliente y el pull lo respeta).
+
+- **Documentos vigentes** (póliza y demás): se bajan en cada ciclo, después de las subidas. Se necesitan justo cuando no hay señal.
+- **Documentos renovados** (historial): sus blobs se liberan en cuanto el archivo subió, y se ven con `AttachmentDownloads.blob()`, que lo trae del servidor sin guardarlo.
+- **Resto** (tickets, fotos de servicios): se bajan al abrirlos, para no llenar el dispositivo.
+- Un `404` (el otro dispositivo aún no sube el archivo) salta solo ese adjunto y se reintenta en el siguiente ciclo. Los blobs de adjuntos borrados en otro dispositivo se liberan.
+
 ### PWA
 
 `ng build` genera `ngsw-worker.js` y `ngsw.json`. El service worker **solo se registra en producción** (`enabled: !isDevMode()`): en `ng serve` cachearía el bundle y el hot reload dejaría de reflejar los cambios. Para probar la instalación hay que servir `dist/app/browser` sobre HTTP, no usar el dev server.
@@ -470,4 +485,4 @@ El script es **todo o nada**: si algo no cuadra no toca ningún archivo. Se nieg
 ---
 
 ## 📄 Licencia y Versión
-- Versión actual: **1.7.2** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).
+- Versión actual: **1.8.0** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).

@@ -7,6 +7,7 @@ import { OfflineStore, type NewRow } from '../data/offline-store.service';
 import { db } from '../db/piston-db';
 import {
   GLOBAL_CURSOR,
+  type Attachment,
   type FuelEntry,
   type SyncConflictDetail,
   type SyncFields,
@@ -51,6 +52,27 @@ class FakeApi {
   async uploadAttachment(): Promise<ApiResult<void>> {
     return { data: undefined, requestId: 'req-upload', durationMs: 5 };
   }
+
+  downloaded: string[] = [];
+  files = new Map<string, Blob>();
+
+  async downloadAttachment(id: string): Promise<Blob> {
+    this.downloaded.push(id);
+    const file = this.files.get(id);
+    if (!file) throw new RetriableApiError('aún no sube', 404, { code: 'not_found' });
+    return file;
+  }
+}
+
+/** Un adjunto que subió otro dispositivo, tal como llega en el pull. */
+function remoteAttachment(id: string, ownerType: Attachment['owner_type'], rev: number): Attachment {
+  return {
+    id, user_id: 'u1', owner_type: ownerType, owner_id: 'owner-1', kind: 'document_scan',
+    file_name: `${id}.pdf`, mime_type: 'application/pdf', size_bytes: 4, width: null, height: null,
+    checksum: null, storage_path: null, local_blob_key: null, upload_status: 'uploaded', sort_order: 0, title: null, notes: null,
+    created_at: '2026-10-10T00:00:00Z', updated_at: '2026-10-10T00:00:00Z',
+    client_updated_at: '2026-10-10T00:00:00Z', deleted_at: null, rev,
+  };
 }
 
 /** Sesión de mentira: el sync solo lee su estado. */
@@ -112,9 +134,62 @@ describe('SyncService', () => {
       db.sync_runs.clear(),
       db.sync_log.clear(),
       db.attachments.clear(),
+      db.documents.clear(),
       db.attachment_blobs.clear(),
     ]);
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+  });
+
+  it('baja los archivos de documentos de otro dispositivo, no los tickets', async () => {
+    api.files.set('poliza', new Blob(['%PDF']));
+    api.files.set('ticket', new Blob(['jpg']));
+    api.pullImpl = async () => ({
+      changes: {
+        attachments: [
+          remoteAttachment('poliza', 'document', 1),
+          remoteAttachment('ticket', 'fuel_entry', 2),
+          remoteAttachment('sin-subir', 'document', 3),
+        ],
+      },
+      server_rev: 3,
+      has_more: false,
+    });
+
+    await sync.sync();
+
+    const poliza = await db.attachments.get('poliza');
+    expect(poliza?.local_blob_key).toBeTruthy();
+    expect(await db.attachment_blobs.get(poliza!.local_blob_key!)).toBeDefined();
+    // El 404 del que aún no sube no tumba el ciclo; se reintenta en el siguiente.
+    expect(api.downloaded.sort()).toEqual(['poliza', 'sin-subir']);
+    expect((await db.attachments.get('ticket'))?.local_blob_key).toBeNull();
+    expect(sync.status()).toBe('idle');
+
+    // Ya bajado, no se vuelve a pedir ni sale como subida pendiente.
+    api.downloaded = [];
+    await sync.sync();
+    expect(api.downloaded).toEqual(['sin-subir']);
+    expect((await db.attachments.get('poliza'))?.upload_status).toBe('uploaded');
+  });
+
+  it('el historial de pólizas libera sus archivos y no se vuelve a bajar', async () => {
+    const doc = (id: string, renewedBy: string | null) =>
+      ({ id, vehicle_id: 'car', type: 'insurance', renewed_by_id: renewedBy, deleted_at: null, rev: 1 }) as never;
+    await db.documents.bulkPut([doc('vieja', 'nueva'), doc('nueva', null)]);
+    await db.attachment_blobs.put({ key: 'k-guia', attachment_id: 'guia', blob: new Blob(['jpg']), created_at: '2026-10-10T00:00:00Z' });
+    await db.attachments.bulkPut([
+      { ...remoteAttachment('guia', 'document', 1), owner_id: 'vieja', local_blob_key: 'k-guia' },
+      { ...remoteAttachment('pdf-viejo', 'document', 2), owner_id: 'vieja' },
+      { ...remoteAttachment('pdf-nuevo', 'document', 3), owner_id: 'nueva' },
+    ]);
+    api.files.set('pdf-viejo', new Blob(['%PDF']));
+    api.files.set('pdf-nuevo', new Blob(['%PDF']));
+
+    await sync.sync();
+
+    expect(await db.attachment_blobs.get('k-guia')).toBeUndefined();
+    expect((await db.attachments.get('guia'))?.local_blob_key).toBeNull();
+    expect(api.downloaded).toEqual(['pdf-nuevo']);
   });
 
   it('vacía el outbox y graba el rev del servidor', async () => {

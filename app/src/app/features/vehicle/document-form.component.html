@@ -1,0 +1,193 @@
+<div class="pst-stack capture-page">
+  <header class="top">
+    <a class="top__back" [routerLink]="back()"><pst-icon name="chevronLeft" [size]="20" /> {{ backLabel() }}</a>
+    <h1 class="top__title">{{ title() }}</h1>
+    @if (renewing()) {
+      <p class="top__sub">La anterior pasa al historial y deja de avisar.</p>
+    }
+  </header>
+
+  @if (missing()) {
+    <p class="pst-note pst-note--warn">Este documento ya no existe. Pudo borrarse en otro dispositivo.</p>
+  } @else if (alreadyRenewed()) {
+    <p class="pst-note pst-note--warn">Este documento ya se renovó. Edita la renovación desde la lista.</p>
+  } @else if ((editing() || renewing()) && !saved()) {
+    <p class="pst-empty">Cargando…</p>
+  } @else {
+    <form class="pst-form" (submit)="$event.preventDefault(); save()">
+      <div class="pst-field-row">
+        <label class="pst-field">
+          <span class="pst-field__label">{{ kind().issuerLabel }}</span>
+          <input class="pst-input" maxlength="120" [placeholder]="kind().issuerPlaceholder" [class.is-invalid]="submitted() && errors().issuer" [value]="form().issuer" (input)="set('issuer', readText($event))" />
+        </label>
+        <label class="pst-field">
+          <span class="pst-field__label">{{ kind().referenceLabel }}</span>
+          <input class="pst-input pst-numeric" maxlength="80" [class.is-invalid]="submitted() && errors().reference" [value]="form().reference" (input)="set('reference', readText($event))" />
+        </label>
+      </div>
+      @if (kind().insurance) {
+        <div class="pst-field-row">
+          <label class="pst-field">
+            <span class="pst-field__label">Inciso <span class="optional">opcional</span></span>
+            <input class="pst-input pst-numeric" maxlength="20" inputmode="numeric" autocomplete="off" placeholder="1" [class.is-invalid]="submitted() && errors().policy_item" [value]="form().policy_item" (input)="set('policy_item', readText($event))" />
+          </label>
+          <label class="pst-field">
+            <span class="pst-field__label">Número de asegurado <span class="optional">opcional</span></span>
+            <input class="pst-input pst-numeric" maxlength="80" autocomplete="off" [class.is-invalid]="submitted() && errors().insured_number" [value]="form().insured_number" (input)="set('insured_number', readText($event))" />
+          </label>
+        </div>
+        <span class="pst-field__hint">
+          Vienen en la carátula de la póliza y te los piden al reportar un siniestro. El inciso es el renglón que cubre este auto: en una póliza individual casi siempre es 1. El número de asegurado no todas las aseguradoras lo dan.
+        </span>
+        <label class="pst-field">
+          <span class="pst-field__label">Cobertura <span class="optional">opcional</span></span>
+          <input class="pst-input" maxlength="120" placeholder="Amplia" [class.is-invalid]="submitted() && errors().coverage" [value]="form().coverage" (input)="set('coverage', readText($event))" />
+        </label>
+      } @else {
+        <label class="pst-field">
+          <span class="pst-field__label">Nombre <span class="optional">opcional</span></span>
+          <input class="pst-input" maxlength="160" [class.is-invalid]="submitted() && errors().title" [value]="form().title" (input)="set('title', readText($event))" />
+        </label>
+      }
+
+      <h2 class="pst-section-title section">Vigencia</h2>
+      <div class="pst-field-row">
+        <label class="pst-field">
+          <span class="pst-field__label">Inicio <span class="optional">opcional</span></span>
+          <input class="pst-input" type="date" [value]="form().issued_at" (input)="set('issued_at', readText($event))" />
+        </label>
+        <label class="pst-field">
+          <span class="pst-field__label">Vencimiento</span>
+          <input class="pst-input" type="date" [class.is-invalid]="submitted() && errors().expires_at" [value]="form().expires_at" (input)="set('expires_at', readText($event))" />
+        </label>
+      </div>
+      @if (submitted() && errors().expires_at; as message) {
+        <p class="error">{{ message }}</p>
+      }
+      <label class="pst-field">
+        <span class="pst-field__label">Costo <span class="optional">opcional</span></span>
+        <input class="pst-input pst-numeric" inputmode="decimal" placeholder="9800" [class.is-invalid]="submitted() && errors().cost" [value]="form().cost ?? ''" (input)="set('cost', readNumber($event))" />
+      </label>
+
+      @if (kind().insurance) {
+        <h2 class="pst-section-title section">Teléfonos</h2>
+        <div class="pst-field-row">
+          <label class="pst-field">
+            <span class="pst-field__label">Siniestros</span>
+            <input class="pst-input pst-numeric" type="tel" maxlength="30" autocomplete="off" placeholder="800 800 2880" [class.is-invalid]="submitted() && errors().contact_phone" [value]="form().contact_phone" (input)="set('contact_phone', readText($event))" />
+          </label>
+          <label class="pst-field">
+            <span class="pst-field__label">Asistencia vial</span>
+            <input class="pst-input pst-numeric" type="tel" maxlength="30" autocomplete="off" [class.is-invalid]="submitted() && errors().assistance_phone" [value]="form().assistance_phone" (input)="set('assistance_phone', readText($event))" />
+          </label>
+        </div>
+        @for (key of ['contact_phone', 'assistance_phone']; track key) {
+          @if (submitted() && $any(errors())[key]; as message) {
+            <p class="error">{{ message }}</p>
+          }
+        }
+      }
+
+      @if (renewing() && previousFiles().length) {
+        <div class="pst-field">
+          <span class="pst-field__label">Conservar de la anterior</span>
+          <ul class="doc-files">
+            @for (file of previousFiles(); track file.id) {
+              <li class="doc-file">
+                <label class="doc-file__head keep">
+                  <input type="checkbox" [checked]="keep().has(file.id)" (change)="toggleKeep(file.id)" />
+                  <span class="doc-file__body">
+                    <span class="doc-file__title">{{ file.title ?? file.file_name }}</span>
+                    <span class="doc-file__sub">{{ file.title ? file.file_name : (file.mime_type === 'application/pdf' ? 'PDF' : 'Imagen') }}</span>
+                  </span>
+                </label>
+              </li>
+            }
+          </ul>
+          <span class="pst-field__hint">Los marcados pasan a la nueva póliza y siguen disponibles sin conexión. Los demás se quedan en el historial y se ven desde el servidor.</span>
+        </div>
+      }
+
+      <div class="pst-field">
+        <span class="pst-field__label">Archivos</span>
+        @if (id(); as documentId) {
+          <pst-document-files [documentId]="documentId" [editable]="true" [remote]="!!saved()?.renewed_by_id" [(removed)]="removed" [(captions)]="captions" />
+        }
+        @if (files().length) {
+          <ul class="doc-files">
+            @for (file of files(); track file.id) {
+              <li class="doc-file">
+                <div class="doc-file__head">
+                  @if (file.url) {
+                    <img class="doc-file__thumb" [src]="file.url" [alt]="file.prepared.file.name" />
+                  } @else {
+                    <span class="doc-file__thumb"><pst-icon name="document" [size]="22" /></span>
+                  }
+                  <span class="doc-file__body">
+                    <span class="doc-file__title">{{ file.title || file.prepared.file.name }}</span>
+                    <span class="doc-file__sub">Nuevo · se guarda al guardar</span>
+                  </span>
+                  <button type="button" class="doc-file__remove" [attr.aria-label]="'Quitar ' + file.prepared.file.name" (click)="removeFile(file.id)">
+                    <pst-icon name="close" [size]="14" />
+                  </button>
+                </div>
+                <input class="pst-input" maxlength="120" placeholder="Título (ej. ¿Cómo reportar un siniestro?)" [attr.aria-label]="'Título de ' + file.prepared.file.name" [value]="file.title" (input)="captionFile(file.id, 'title', $event)" />
+                <textarea class="pst-input doc-file__notes-input" rows="2" placeholder="Notas" [attr.aria-label]="'Notas de ' + file.prepared.file.name" [value]="file.notes" (input)="captionFile(file.id, 'notes', $event)"></textarea>
+              </li>
+            }
+          </ul>
+        }
+        <div class="pst-chips">
+          <label class="pst-chip file-pick">
+            <pst-icon name="camera" [size]="16" /> Tomar foto
+            <input type="file" accept="image/*" capture="environment" (change)="pickFiles($event)" />
+          </label>
+          <label class="pst-chip file-pick">
+            <pst-icon name="image" [size]="16" /> Galería
+            <input type="file" accept="image/*" multiple (change)="pickFiles($event)" />
+          </label>
+          <label class="pst-chip file-pick">
+            <pst-icon name="document" [size]="16" /> Adjuntar archivo
+            <input type="file" accept="image/*,application/pdf" multiple (change)="pickFiles($event)" />
+          </label>
+        </div>
+        @if (fileError(); as message) {
+          <p class="error">{{ message }}</p>
+        } @else {
+          <span class="pst-field__hint">El PDF, fotos o capturas de la aseguradora (ej. cómo reportar un siniestro), cada uno con su título y notas. Se ven sin conexión y se suben solos cuando hay señal.</span>
+        }
+      </div>
+
+      <label class="pst-field">
+        <span class="pst-field__label">Notas <span class="optional">opcional</span></span>
+        <textarea class="pst-input notes" rows="3" [value]="form().notes" (input)="set('notes', readText($event))"></textarea>
+      </label>
+
+      @if (saveError(); as message) {
+        <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+      }
+      @if (submitted() && !valid()) {
+        <p class="error">Revisa los campos marcados.</p>
+      }
+
+      <button type="submit" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="saving() || preparing() > 0">
+        {{ saving() ? 'Guardando…' : preparing() > 0 ? 'Leyendo archivos…' : editing() ? 'Guardar cambios' : renewing() ? 'Guardar renovación' : 'Guardar' }}
+      </button>
+      <p class="saved-note">Se guarda en este dispositivo y se sincroniza sola.</p>
+    </form>
+
+    @if (editing()) {
+      <section class="danger">
+        @if (!confirmDelete()) {
+          <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" (click)="confirmDelete.set(true)">
+            Borrar {{ kind().noun }}
+          </button>
+        } @else {
+          <p class="pst-note pst-note--bad">Se borra con sus archivos de todos tus dispositivos. No se puede deshacer.</p>
+          <button type="button" class="pst-btn pst-btn--danger pst-btn--block" (click)="remove()">Sí, borrar</button>
+          <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" (click)="confirmDelete.set(false)">Cancelar</button>
+        }
+      </section>
+    }
+  }
+</div>

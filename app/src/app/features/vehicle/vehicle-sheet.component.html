@@ -44,14 +44,21 @@
     <h2 class="pst-section-title">Vehículo</h2>
     <div class="pst-card pst-card--flush">
       <div class="pst-list">
-        @for (view of views; track view.route) {
+        @for (view of views(); track view.route) {
           <button type="button" class="pst-row" (click)="go(view.route)">
             <span class="pst-row__icon"><pst-icon [name]="view.icon" [size]="18" /></span>
             <span class="pst-row__body">
               <span class="pst-row__title">{{ view.title }}</span>
               <span class="pst-row__sub">{{ view.sub }}</span>
             </span>
-            <span class="pst-row__trail"><pst-icon name="chevronRight" [size]="16" /></span>
+            <span class="pst-row__trail">
+              @if (view.tone) {
+                <span [class]="'alert-dot alert-dot--' + view.tone" role="img" aria-label="Requiere atención">
+                  <pst-icon name="alert" [size]="14" />
+                </span>
+              }
+              <pst-icon name="chevronRight" [size]="16" />
+            </span>
           </button>
         }
       </div>

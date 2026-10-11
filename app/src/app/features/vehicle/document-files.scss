@@ -1,0 +1,112 @@
+// Archivos de un documento: título, notas y vista previa. Lo comparten la
+// vista (solo lectura) y el formulario (editable, nuevos y guardados).
+
+.doc-files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-2);
+  list-style: none;
+}
+
+.doc-file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-2);
+  padding: var(--pst-space-3);
+  border-radius: var(--pst-r-md);
+  background: var(--pst-surface-2);
+}
+
+.doc-file__head {
+  display: flex;
+  align-items: center;
+  gap: var(--pst-space-3);
+  min-width: 0;
+}
+
+.doc-file__thumb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--pst-r-sm);
+  object-fit: cover;
+  background: var(--pst-surface-3);
+  color: var(--pst-label-2);
+}
+
+.doc-file__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.doc-file__title {
+  overflow: hidden;
+  font-size: var(--pst-subhead);
+  font-weight: 600;
+  color: var(--pst-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.doc-file__title {
+  text-decoration: underline;
+  text-decoration-color: var(--pst-separator);
+}
+
+.doc-file__sub {
+  overflow: hidden;
+  font-size: var(--pst-footnote);
+  color: var(--pst-label-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-file__remove {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--pst-r-pill);
+  background: var(--pst-surface-3);
+  color: var(--pst-label-2);
+}
+
+// La guía de la aseguradora se tiene que poder leer sin abrirla.
+.doc-file__preview {
+  display: block;
+  width: 100%;
+  max-height: 22rem;
+  border-radius: var(--pst-r-sm);
+  object-fit: contain;
+  background: var(--pst-surface-3);
+}
+
+.doc-file__notes {
+  margin: 0;
+  font-size: var(--pst-subhead);
+  color: var(--pst-label-2);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.doc-file__notes-input {
+  min-height: 4.5rem;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.keep {
+  cursor: pointer;
+
+  input {
+    flex: none;
+    width: 1.25rem;
+    height: 1.25rem;
+    accent-color: var(--pst-ignition);
+  }
+}

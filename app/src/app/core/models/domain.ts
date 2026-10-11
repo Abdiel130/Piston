@@ -315,6 +315,14 @@ export interface VehicleDocument extends SyncFields {
   expires_at: IsoDate | null;
   cost: number | null;
   notes: string | null;
+  contact_phone: string | null;
+  assistance_phone: string | null;
+  /** Número de asegurado o cliente. Algunas aseguradoras lo piden en un siniestro. */
+  insured_number: string | null;
+  /** Inciso: el renglón de la póliza que cubre este vehículo (1 en una individual). */
+  policy_item: string | null;
+  /** Documento que lo reemplaza. Nulo = vigente. */
+  renewed_by_id: Uuid | null;
 }
 
 export interface Trip extends SyncFields {
@@ -348,6 +356,9 @@ export interface Attachment extends SyncFields {
   local_blob_key: string | null;
   upload_status: UploadStatus;
   sort_order: number;
+  /** Qué es: "¿Cómo reportar un siniestro?". */
+  title: string | null;
+  notes: string | null;
 }
 
 /** Binario diferido. CLIENT-ONLY: la foto se ve al instante, sube después. */

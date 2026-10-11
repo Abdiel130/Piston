@@ -265,6 +265,11 @@ final class SyncRegistry
                 'expires_at' => F::date()->nullable(),
                 'cost' => F::decimal(10, 2)->nullable(),
                 'notes' => F::text()->nullable(),
+                'contact_phone' => F::string(30)->nullable(),
+                'assistance_phone' => F::string(30)->nullable(),
+                'insured_number' => F::string(80)->nullable(),
+                'policy_item' => F::string(20)->nullable(),
+                'renewed_by_id' => F::ref('documents')->nullable(),
             ]),
 
             new SyncTable('trips', Domain\Trip::class, Ownership::User, [
@@ -307,6 +312,8 @@ final class SyncRegistry
                 'height' => F::smallInteger()->nullable(),
                 'checksum' => F::string(64)->nullable(),
                 'sort_order' => F::smallInteger()->withDefault(),
+                'title' => F::string(120)->nullable(),
+                'notes' => F::text()->nullable(),
             ], polymorphicOwner: [
                 'vehicle' => 'vehicles',
                 'fuel_entry' => 'fuel_entries',

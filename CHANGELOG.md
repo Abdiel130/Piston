@@ -7,6 +7,50 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-10
+
+La sección del vehículo estrena su segunda vista: la póliza de seguro. Queda
+a la mano lo que te piden en un siniestro (los números de póliza, inciso y
+asegurado y los teléfonos a un toque), junto con el PDF y las guías de la
+aseguradora, que se ven sin señal y llegan solos a tus otros dispositivos.
+Un mes antes de que venza, el apodo del vehículo se marca y no se desmarca
+hasta renovarla. Cada renovación queda en una línea de tiempo con lo que
+cambió de un año a otro.
+
+### Added
+- **Póliza de seguro**: nueva vista desde la hoja del vehículo con
+  aseguradora, número de póliza, inciso, número de asegurado, cobertura,
+  vigencia, costo y notas. Los teléfonos de siniestro y de asistencia vial se
+  marcan con un toque, y debajo aparecen los números que te van a pedir en la
+  llamada. Si tienes más de una póliza vigente (por ejemplo, una cobertura
+  extra), se muestran todas.
+- **Aviso de vencimiento**: un mes antes de que venza la póliza se marca en
+  amarillo el apodo del vehículo en el garage, su fila en la hoja y la propia
+  vista; ya vencida, en rojo. La marca se queda hasta que la renueves, aunque
+  no la atiendas de inmediato, y cambia sola al pasar el día con la app
+  abierta.
+- **Archivos con título y notas**: a cada póliza se le pueden adjuntar
+  varios archivos (el PDF, fotos de la cámara o de la galería) y darle a cada
+  uno un título y notas, como "¿Cómo reportar un siniestro?" con la imagen que
+  manda la aseguradora. Las imágenes se ven grandes para leerlas sin abrirlas,
+  y todo funciona sin conexión.
+- **Renovación con línea de tiempo**: "Marcar como renovada" prellena la
+  nueva vigencia con lo que no cambia y deja elegir qué archivos de la
+  anterior se conservan (las guías sí, el PDF del año pasado no). La anterior
+  deja de avisar y pasa a una línea de tiempo con cada vigencia, su costo y qué
+  cambió: precio, aseguradora o cobertura.
+- **Archivos en todos tus dispositivos**: lo que adjuntas en un dispositivo
+  ahora se puede ver en los demás. Los archivos de documentos vigentes se
+  bajan solos al sincronizar, para tenerlos antes de necesitarlos sin señal;
+  el resto se baja al abrirlo. Los del historial no ocupan espacio: se liberan
+  del dispositivo y se traen del servidor cuando los consultas.
+
+### Fixed
+- **Adjuntar archivos desde la red local**: al abrir la app desde el teléfono
+  por la dirección de la red, cualquier foto o PDF fallaba con "No se pudo
+  leer el archivo", también en los comprobantes de las cargas. Ahora se
+  adjuntan igual que en cualquier otra conexión.
+
 ## [1.7.2] - 2026-10-10
 
 Las hojas ahora son de vidrio: dejan ver, desenfocado, lo que hay detrás, con

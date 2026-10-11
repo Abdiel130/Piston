@@ -92,7 +92,7 @@ function detailParts(table: DomainTable, row: Record<string, unknown>): (string 
     case 'reminders':
       return [str(row['title']), date(row['due_date'])];
     case 'attachments':
-      return [str(row['file_name'])];
+      return [str(row['title']) ?? str(row['file_name'])];
     case 'fuel_stations':
     case 'service_types':
     case 'expense_categories':

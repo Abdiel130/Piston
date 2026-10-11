@@ -143,4 +143,34 @@ class SyncPullTest extends TestCase
         $this->post('/api/attachments/'.Str::uuid7().'/file', ['file' => $file], ['Accept' => 'application/json'])
             ->assertNotFound();
     }
+
+    public function test_attachment_file_download_is_only_for_its_owner_once_uploaded(): void
+    {
+        Storage::fake('local');
+        $this->actingUser();
+        $vehicle = $this->mutation('vehicles', $this->vehicle());
+        $file = UploadedFile::fake()->createWithContent('poliza.pdf', '%PDF-poliza');
+        $attachment = $this->mutation('attachments', [
+            'owner_type' => 'vehicle',
+            'owner_id' => $vehicle['id'],
+            'file_name' => 'poliza.pdf',
+            'mime_type' => 'application/pdf',
+            'title' => '¿Cómo reportar un siniestro?',
+            'notes' => 'Llamar primero, no mover el auto.',
+            'checksum' => hash_file('sha256', $file->getRealPath()),
+        ]);
+        $this->push([$vehicle, $attachment])->assertJsonCount(2, 'data.applied');
+        $url = "/api/attachments/{$attachment['id']}/file";
+
+        $this->get($url, ['Accept' => 'application/json'])->assertNotFound();
+        $this->assertSame('¿Cómo reportar un siniestro?', $this->pull()->json('data.changes.attachments.0.title'));
+
+        $this->post($url, ['file' => $file], ['Accept' => 'application/json'])->assertOk();
+
+        $response = $this->get($url)->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertSame('%PDF-poliza', $response->streamedContent());
+
+        Sanctum::actingAs(User::factory()->create());
+        $this->get($url, ['Accept' => 'application/json'])->assertNotFound();
+    }
 }

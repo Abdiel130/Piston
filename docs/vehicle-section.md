@@ -9,14 +9,14 @@ nueva desde `main` (`feature/<nombre>`) y un PR propio.** Este documento es
 el contexto completo para arrancar cualquier fase sin leer las anteriores:
 basta con leer la sección de esa fase y la de [Decisiones](#decisiones).
 
-| Fase | Rama | Entrega |
-|------|------|---------|
-| 1 | `feature/vehicle-sheet` | Hoja del vehículo, cambio rápido y Datos del vehículo |
-| 2 | `feature/vehicle-insurance` | Póliza de seguro con aviso de vencimiento |
-| 3 | `feature/vehicle-documents` | Otros documentos (verificación, tenencia, tarjeta, licencia…) |
-| 4 | `feature/vehicle-reminders` | Recordatorios recurrentes y bitácora |
-| 5 | `feature/vehicle-alerts` | Notificaciones locales del sistema |
-| 6 | `feature/vehicle-gallery` | Galería de fotos con álbumes |
+| Fase | Issue | Rama | Entrega |
+|------|-------|------|---------|
+| 1 | #23 | `feature/vehicle-sheet` | Hoja del vehículo, cambio rápido y Datos del vehículo |
+| 2 | #24 | `feature/vehicle-insurance` | Póliza de seguro con aviso de vencimiento |
+| 3 | #25 | `feature/vehicle-documents` | Otros documentos (verificación, tenencia, tarjeta, licencia…) |
+| 4 | #26 | `feature/vehicle-reminders` | Recordatorios recurrentes y bitácora |
+| 5 | #27 | `feature/vehicle-alerts` | Notificaciones locales del sistema |
+| 6 | #28 | `feature/vehicle-gallery` | Galería de fotos con álbumes |
 
 ---
 
@@ -123,20 +123,34 @@ cambia de vehículo y se entra a sus vistas. Primera vista: Datos del vehículo.
 
 ### Alcance
 - **Vista** `/vehicle/insurance` (entrada nueva en la hoja):
-  - Póliza vigente: aseguradora (`issuer`), número (`reference`), cobertura,
-    inicio (`issued_at`), vencimiento (`expires_at`), costo y notas.
+  - Póliza vigente: aseguradora (`issuer`), número (`reference`), inciso
+    (`policy_item`), número de asegurado (`insured_number`, opcional: no todas
+    lo dan), cobertura, inicio
+    (`issued_at`), vencimiento (`expires_at`), costo y notas.
   - Teléfonos de siniestro y asistencia como enlaces `tel:`.
-  - Documento adjunto (PDF o foto, `owner_type: 'document'`) con vista previa
-    offline.
+  - Archivos adjuntos (PDF, foto de cámara o de galería,
+    `owner_type: 'document'`), cada uno con título y notas (ej. "¿Cómo reportar
+    un siniestro?" con la imagen de la aseguradora), con vista previa offline.
   - Historial de pólizas anteriores.
 - **Formulario** de alta y edición (`/vehicle/insurance/new`,
   `/vehicle/insurance/:id`). Pensarlo genérico por `type` para que la fase 3
   lo reuse.
 - **Renovar**: "Marcar como renovada" crea la póliza nueva con su vigencia;
-  la anterior queda en historial y deja de alertar.
+  la anterior queda en historial y deja de alertar. Al renovar se eligen los
+  archivos de la anterior que se conservan (se copian a la nueva). Los del
+  historial se liberan del dispositivo en cuanto subieron y se ven desde el
+  servidor bajo demanda.
+- **Línea de tiempo** de vigencias: fechas, aseguradora, número, costo y qué
+  cambió contra la anterior, con sus archivos.
 - **Esquema**: columnas en `documents` para teléfonos (`contact_phone`,
-  `assistance_phone`) y `renewed_by_id` (la que la reemplaza). Migración
+  `assistance_phone`), `insured_number`, `policy_item` y `renewed_by_id` (la que la
+  reemplaza); en `attachments`, `title` y `notes`. Migración
   Laravel, `SyncRegistry`, `domain.ts`, `schema.dbml`.
+- **Descarga de adjuntos entre dispositivos**: `GET /api/attachments/{id}/file`
+  (solo el dueño, solo si ya subió). El sync baja en cada ciclo los archivos de
+  documentos que falten (`AttachmentDownloads`), para que la póliza esté en el
+  teléfono antes de necesitarla sin señal. El resto de adjuntos se baja al
+  abrirlo. Los blobs de adjuntos borrados en otro dispositivo se liberan.
 - `core/data/document-status.ts`: `ok | expiring | expired` con umbral de 30
   días, puro y con spec.
 - `VehicleAlerts`: fuente de documentos vigentes (`renewed_by_id` nulo) en
@@ -147,6 +161,8 @@ cambia de vehículo y se entra a sus vistas. Primera vista: Datos del vehículo.
 - Póliza que vence en 30 días o menos: badge `warn`. Vencida: badge `bad`. El
   badge se queda hasta renovarla.
 - El PDF o la foto se ven sin conexión y suben solos.
+- Un PDF adjuntado en un dispositivo se ve sin conexión en otro después de
+  sincronizar.
 
 ---
 

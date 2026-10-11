@@ -107,6 +107,27 @@ export const routes: Routes = [
           import('./features/vehicles/vehicle-form.component').then((m) => m.VehicleFormComponent),
       },
       {
+        path: 'vehicle/insurance',
+        title: 'Póliza de seguro · Piston',
+        loadComponent: () =>
+          import('./features/vehicle/insurance.component').then((m) => m.InsuranceComponent),
+      },
+      {
+        // Alta y renovación (`?renew=<id>`). Va antes de `:id`.
+        path: 'vehicle/insurance/new',
+        title: 'Nueva póliza · Piston',
+        data: { type: 'insurance', back: '/vehicle/insurance', backLabel: 'Póliza' },
+        loadComponent: () =>
+          import('./features/vehicle/document-form.component').then((m) => m.DocumentFormComponent),
+      },
+      {
+        path: 'vehicle/insurance/:id',
+        title: 'Editar póliza · Piston',
+        data: { type: 'insurance', back: '/vehicle/insurance', backLabel: 'Póliza' },
+        loadComponent: () =>
+          import('./features/vehicle/document-form.component').then((m) => m.DocumentFormComponent),
+      },
+      {
         path: 'settings/sync',
         title: 'Sincronización · Piston',
         loadComponent: () =>

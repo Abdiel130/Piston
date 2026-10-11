@@ -374,6 +374,8 @@ export class SyncCenterComponent {
         return `Recibiendo datos (${this.progress().pulled}).`;
       case 'uploads':
         return 'Subiendo fotos y archivos.';
+      case 'downloads':
+        return 'Bajando documentos de otros dispositivos.';
       default:
         return 'Poniéndose al día.';
     }
