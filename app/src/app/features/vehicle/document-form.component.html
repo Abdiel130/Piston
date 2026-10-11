@@ -3,7 +3,7 @@
     <a class="top__back" [routerLink]="back()"><pst-icon name="chevronLeft" [size]="20" /> {{ backLabel() }}</a>
     <h1 class="top__title">{{ title() }}</h1>
     @if (renewing()) {
-      <p class="top__sub">La anterior pasa al historial y deja de avisar.</p>
+      <p class="top__sub">{{ kind().feminine ? 'La anterior' : 'El anterior' }} pasa al historial y deja de avisar.</p>
     }
   </header>
 
@@ -64,6 +64,19 @@
       @if (submitted() && errors().expires_at; as message) {
         <p class="error">{{ message }}</p>
       }
+      @if (emissions(); as calendar) {
+        @if (calendar.label) {
+          <span class="pst-field__hint">
+            Te toca en {{ calendar.label }}.
+            @if (calendar.suggested && calendar.suggested !== form().expires_at) {
+              Con esa fecha de inicio vence el {{ calendar.suggestedLabel }}.
+              <button type="button" class="suggest" (click)="set('expires_at', calendar.suggested)">Usar</button>
+            }
+          </span>
+        } @else {
+          <span class="pst-field__hint">Captura manual. Agrega la placa o el engomado en Datos del vehículo para sugerir el periodo.</span>
+        }
+      }
       <label class="pst-field">
         <span class="pst-field__label">Costo <span class="optional">opcional</span></span>
         <input class="pst-input pst-numeric" inputmode="decimal" placeholder="9800" [class.is-invalid]="submitted() && errors().cost" [value]="form().cost ?? ''" (input)="set('cost', readNumber($event))" />
@@ -104,7 +117,7 @@
               </li>
             }
           </ul>
-          <span class="pst-field__hint">Los marcados pasan a la nueva póliza y siguen disponibles sin conexión. Los demás se quedan en el historial y se ven desde el servidor.</span>
+          <span class="pst-field__hint">Los marcados pasan a {{ kind().feminine ? 'la nueva' : 'el nuevo' }} {{ kind().noun }} y siguen disponibles sin conexión. Los demás se quedan en el historial y se ven desde el servidor.</span>
         </div>
       }
 
@@ -131,7 +144,7 @@
                     <pst-icon name="close" [size]="14" />
                   </button>
                 </div>
-                <input class="pst-input" maxlength="120" placeholder="Título (ej. ¿Cómo reportar un siniestro?)" [attr.aria-label]="'Título de ' + file.prepared.file.name" [value]="file.title" (input)="captionFile(file.id, 'title', $event)" />
+                <input class="pst-input" maxlength="120" [placeholder]="kind().fileTitlePlaceholder" [attr.aria-label]="'Título de ' + file.prepared.file.name" [value]="file.title" (input)="captionFile(file.id, 'title', $event)" />
                 <textarea class="pst-input doc-file__notes-input" rows="2" placeholder="Notas" [attr.aria-label]="'Notas de ' + file.prepared.file.name" [value]="file.notes" (input)="captionFile(file.id, 'notes', $event)"></textarea>
               </li>
             }
@@ -154,7 +167,7 @@
         @if (fileError(); as message) {
           <p class="error">{{ message }}</p>
         } @else {
-          <span class="pst-field__hint">El PDF, fotos o capturas de la aseguradora (ej. cómo reportar un siniestro), cada uno con su título y notas. Se ven sin conexión y se suben solos cuando hay señal.</span>
+          <span class="pst-field__hint">{{ kind().filesHint }}</span>
         }
       </div>
 

@@ -179,6 +179,11 @@ cambia de vehículo y se entra a sus vistas. Primera vista: Datos del vehículo.
 - Todos alimentan `VehicleAlerts` igual que la póliza.
 - Verificación: sugerir el periodo con `plate_last_digit` y
   `emissions_sticker` si hay un calendario sencillo; si no, captura manual.
+  Se usa el calendario semestral de CDMX/Edomex
+  (`features/vehicle/emissions-calendar.ts`): el engomado manda y sin él se
+  deduce de la placa; propone el vencimiento y siempre se puede editar.
+- Vigencia propuesta al renovar (`document-kinds.ts`): verificación 6 meses,
+  tenencia 12, tarjeta de circulación 36, licencia 36, garantía 12, otro 12.
 
 ### Criterios de aceptación
 - Cada tipo se puede agregar, editar, renovar y borrar, con adjuntos.

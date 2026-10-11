@@ -16,11 +16,13 @@ import { DocumentService, type DocumentFields } from '../../core/data/document.s
 import { OfflineStore } from '../../core/data/offline-store.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
 import { AttachmentDownloads } from '../../core/sync/attachment-downloads.service';
+import { formatLongDate, todayIso } from '../../core/format';
 import type { Attachment, DocumentType, VehicleDocument } from '../../core/models';
 import { IconComponent } from '../../shared/icon/icon.component';
 import { LIMITS, readNumber, readText, type Errors } from '../capture/capture-form';
 import { DocumentFilesComponent } from './document-files.component';
 import { documentKind } from './document-kinds';
+import { emissionsPeriod, nextEmissionsDeadline, periodLabel } from './emissions-calendar';
 
 interface FormValue {
   title: string;
@@ -47,6 +49,13 @@ interface PendingFile {
   readonly notes: string;
 }
 
+interface EmissionsHint {
+  /** "enero–febrero y julio–agosto (engomado amarillo)". Nulo sin engomado ni placa. */
+  readonly label: string | null;
+  readonly suggested: string | null;
+  readonly suggestedLabel: string | null;
+}
+
 const BLANK: FormValue = {
   title: '',
   issuer: '',
@@ -67,8 +76,9 @@ const PHONE = /^[0-9+()\-.\s]*$/;
 /**
  * Alta, edición y renovación de un documento del vehículo.
  *
- * Es uno solo para todos los tipos: el tipo llega por los datos de la ruta y
- * `documentKind` decide etiquetas y campos. Con `id` edita; con `renew` crea
+ * Es uno solo para todos los tipos: el tipo llega por los datos de la ruta
+ * (póliza) o el query param `type` (documentos); al editar sin él, se toma
+ * del documento guardado. `documentKind` decide etiquetas y campos. Con `id` edita; con `renew` crea
  * el reemplazo de ese documento, prellenado con lo que no cambia de un año a
  * otro (aseguradora, número, teléfonos).
  */
@@ -87,8 +97,8 @@ export class DocumentFormComponent {
   private readonly downloads = inject(AttachmentDownloads);
   private readonly router = inject(Router);
 
-  /** Datos de ruta. */
-  readonly type = input.required<DocumentType>();
+  /** Datos de ruta o query param. */
+  readonly type = input<DocumentType>();
   readonly back = input.required<string>();
   readonly backLabel = input.required<string>();
   /** Parámetro de ruta: el documento a editar. */
@@ -96,7 +106,6 @@ export class DocumentFormComponent {
   /** Query param: el documento que se está renovando. */
   readonly renew = input<string>();
 
-  protected readonly kind = computed(() => documentKind(this.type()));
   protected readonly editing = computed(() => !!this.id());
   protected readonly renewing = computed(() => !this.editing() && !!this.renew());
 
@@ -106,6 +115,9 @@ export class DocumentFormComponent {
     async (id) => (id ? ((await this.store.get<VehicleDocument>('documents', id)) ?? null) : null),
     undefined as VehicleDocument | null | undefined,
   );
+  /** Sin tipo en la ruta (edición desde Documentos), manda el guardado. */
+  protected readonly docType = computed<DocumentType>(() => this.type() ?? this.saved()?.type ?? 'other');
+  protected readonly kind = computed(() => documentKind(this.docType()));
   protected readonly missing = computed(() => (this.editing() || this.renewing()) && this.saved() === null);
   protected readonly alreadyRenewed = computed(() => this.renewing() && !!this.saved()?.renewed_by_id);
 
@@ -167,6 +179,22 @@ export class DocumentFormComponent {
 
   protected readonly valid = computed(() => Object.keys(this.errors()).length === 0);
 
+  /** Verificación: el vehículo del documento, para su calendario. */
+  private readonly owner = computed(() => {
+    const vehicleId = this.saved()?.vehicle_id ?? this.context.vehicleId();
+    return this.context.vehicles().find((vehicle) => vehicle.id === vehicleId) ?? null;
+  });
+
+  /** Periodo y vencimiento que propone el calendario. Nulo fuera de verificación o sin datos. */
+  protected readonly emissions = computed<EmissionsHint | null>(() => {
+    if (this.docType() !== 'emissions_check') return null;
+    const period = emissionsPeriod(this.owner());
+    if (!period) return { label: null, suggested: null, suggestedLabel: null };
+    const suggested = nextEmissionsDeadline(this.owner(), this.form().issued_at || todayIso());
+    return { label: periodLabel(period), suggested, suggestedLabel: suggested && formatLongDate(suggested) };
+  });
+  private emissionsPrefilled = false;
+
   constructor() {
     // Se hidrata UNA vez: después el formulario es del usuario.
     effect(() => {
@@ -192,6 +220,15 @@ export class DocumentFormComponent {
       untracked(() =>
         this.keep.set(new Set(previous.filter((file) => file.mime_type?.startsWith('image/')).map((file) => file.id))),
       );
+    });
+    // Alta de verificación: el vencimiento arranca con el que da el calendario.
+    effect(() => {
+      const suggested = this.emissions()?.suggested;
+      if (this.emissionsPrefilled || !suggested || !this.hydrated() || this.editing() || this.renewing()) return;
+      this.emissionsPrefilled = true;
+      untracked(() => {
+        if (!this.form().expires_at) this.set('expires_at', suggested);
+      });
     });
     inject(DestroyRef).onDestroy(() => this.files().forEach((file) => file.url && URL.revokeObjectURL(file.url)));
   }
@@ -312,17 +349,23 @@ export class DocumentFormComponent {
     return {
       ...toForm(previous),
       issued_at: start,
-      expires_at: start ? addMonths(start, this.kind().renewMonths) : '',
+      expires_at: start ? this.renewedExpiry(start) : '',
       cost: null,
       notes: '',
     };
+  }
+
+  /** Verificación sigue su calendario; el resto suma los meses de su tipo. */
+  private renewedExpiry(start: string): string {
+    const calendar = this.docType() === 'emissions_check' ? nextEmissionsDeadline(this.owner(), start) : null;
+    return calendar ?? addMonths(start, this.kind().renewMonths);
   }
 
   private toFields(f: FormValue, vehicleId: string): DocumentFields {
     const insurance = this.kind().insurance;
     return {
       vehicle_id: vehicleId,
-      type: this.type(),
+      type: this.docType(),
       title: f.title,
       issuer: f.issuer,
       reference: f.reference,

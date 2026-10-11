@@ -1,0 +1,102 @@
+<div class="pst-stack capture-page">
+  <header class="top">
+    <a class="top__back" routerLink="/vehicle"><pst-icon name="chevronLeft" [size]="20" /> Vehículo</a>
+    <h1 class="top__title">Documentos</h1>
+    <p class="top__sub">{{ name() }}</p>
+  </header>
+
+  @if (!vehicle()) {
+    <section class="pst-card">
+      <p class="pst-empty">No hay un vehículo activo. Agrégalo en Ajustes.</p>
+    </section>
+  } @else {
+    @for (group of groups(); track group.type) {
+      <section class="group">
+        <h2 class="pst-section-title">{{ group.kind.label }}</h2>
+
+        @for (view of group.current; track view.document.id) {
+          <article class="policy">
+            <h3 class="pst-section-title head">
+              {{ view.title }}
+              <span [class]="'pst-badge ' + badge[view.status]">{{ view.expiry }}</span>
+            </h3>
+
+            <div class="pst-card pst-card--flush">
+              <dl class="pst-list">
+                @for (row of view.rows; track row.label) {
+                  <div class="pst-row spec">
+                    <dt class="pst-row__body">{{ row.label }}</dt>
+                    <dd class="pst-row__trail">{{ row.value }}</dd>
+                  </div>
+                }
+              </dl>
+            </div>
+
+            @if (group.type === 'emissions_check' && emissions(); as period) {
+              <p class="pst-field__hint period">Periodo: {{ period }}</p>
+            }
+
+            @if (view.document.notes) {
+              <p class="pst-card notes">{{ view.document.notes }}</p>
+            }
+
+            <pst-document-files [documentId]="view.document.id" empty="Sin archivos. Al editar puedes agregar el PDF o fotos, cada uno con título y notas." />
+
+            <div class="actions">
+              <a class="pst-btn" [routerLink]="['/vehicle/documents', view.document.id]">
+                <pst-icon name="settings" [size]="18" /> Editar
+              </a>
+              <a class="pst-btn pst-btn--primary" routerLink="/vehicle/documents/new" [queryParams]="{ type: group.type, renew: view.document.id }">
+                <pst-icon name="checkCircle" [size]="18" /> {{ group.kind.feminine ? 'Marcar como renovada' : 'Marcar como renovado' }}
+              </a>
+            </div>
+          </article>
+        }
+
+        @if (group.history.length) {
+          <details class="history pst-card">
+            <summary>Historial ({{ group.history.length }})</summary>
+            <ol class="history__list">
+              @for (entry of group.history; track entry.document.id) {
+                <li class="history__item">
+                  <div class="timeline__head">
+                    <span class="timeline__period pst-numeric">{{ entry.period }}</span>
+                    <a class="timeline__edit" [routerLink]="['/vehicle/documents', entry.document.id]" [attr.aria-label]="'Editar vigencia ' + entry.period">
+                      <pst-icon name="chevronRight" [size]="16" />
+                    </a>
+                  </div>
+                  @if (entry.cost) {
+                    <p class="timeline__cost pst-numeric">{{ entry.cost }}</p>
+                  }
+                  <pst-document-files [documentId]="entry.document.id" [remote]="true" />
+                </li>
+              }
+            </ol>
+          </details>
+        }
+      </section>
+    } @empty {
+      <section class="pst-card">
+        <p class="pst-empty">Aún no registras documentos. Guarda la verificación, la tenencia o la licencia para tenerlas sin conexión y un aviso un mes antes de que venzan.</p>
+      </section>
+    }
+
+    <section>
+      <h2 class="pst-section-title">Agregar</h2>
+      <div class="pst-card pst-card--flush">
+        <div class="pst-list">
+          @for (option of addOptions(); track option.type) {
+            <a class="pst-row" routerLink="/vehicle/documents/new" [queryParams]="{ type: option.type }">
+              <span class="pst-row__icon"><pst-icon [name]="option.kind.icon" [size]="18" /></span>
+              <span class="pst-row__body">
+                <span class="pst-row__title">{{ option.title }}</span>
+                <span class="pst-row__sub">{{ option.sub }}</span>
+              </span>
+              <span class="pst-row__trail"><pst-icon name="plus" [size]="16" /></span>
+            </a>
+          }
+        </div>
+      </div>
+    </section>
+  }
+</div>
