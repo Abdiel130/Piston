@@ -1,8 +1,25 @@
 <div class="pst-stack pst-stagger">
   <header class="pst-header">
     <p class="pst-header__eyebrow">Mi garage</p>
-    <h1 class="pst-header__title">{{ name() }}</h1>
+    @if (vehicle()) {
+      <!-- El apodo abre la hoja del vehículo: cambiar de vehículo y sus vistas. -->
+      <h1 class="pst-header__title">
+        <button type="button" class="switcher" aria-haspopup="dialog" (click)="sheetOpen.set(true)">
+          <span class="switcher__name">{{ name() }}</span>
+          @if (alertTone(); as tone) {
+            <span [class]="'switcher__alert switcher__alert--' + tone" role="img" aria-label="Requiere atención">
+              <pst-icon name="alert" [size]="18" />
+            </span>
+          }
+          <pst-icon class="switcher__chevron" name="chevronDown" [size]="22" />
+        </button>
+      </h1>
+    } @else {
+      <h1 class="pst-header__title">{{ name() }}</h1>
+    }
   </header>
+
+  <pst-vehicle-sheet [(open)]="sheetOpen" />
 
   @if (vehicle()) {
     <!-- Tarjeta protagonista: el estado del vehículo de un vistazo. -->

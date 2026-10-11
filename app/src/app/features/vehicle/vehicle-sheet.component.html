@@ -1,0 +1,60 @@
+<pst-sheet [(open)]="open" label="Vehículo">
+  <section>
+    <h2 class="pst-section-title">{{ canSwitch() ? 'Cambiar de vehículo' : 'Tu vehículo' }}</h2>
+    <div class="pst-card pst-card--flush">
+      <div class="pst-list">
+        @for (option of options(); track option.id) {
+          <button
+            type="button"
+            class="pst-row"
+            [class.is-current]="option.current"
+            [attr.aria-pressed]="option.current"
+            [disabled]="switching()"
+            (click)="choose(option)"
+          >
+            <span class="pst-row__icon"><pst-icon name="car" [size]="18" /></span>
+            <span class="pst-row__body">
+              <span class="pst-row__title">{{ option.name }}</span>
+              <span class="pst-row__sub">{{ option.sub }}</span>
+            </span>
+            <span class="pst-row__trail">
+              @if (option.tone) {
+                <span [class]="'alert-dot alert-dot--' + option.tone" role="img" aria-label="Requiere atención">
+                  <pst-icon name="alert" [size]="14" />
+                </span>
+              }
+              @if (option.current) {
+                <pst-icon class="check" name="checkCircle" [size]="20" />
+              }
+            </span>
+          </button>
+        }
+      </div>
+    </div>
+    @if (error(); as message) {
+      <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+    }
+    <button type="button" class="add" (click)="go('/settings')">
+      <pst-icon name="plus" [size]="16" />
+      {{ canSwitch() ? 'Agregar o administrar en Ajustes' : 'Agregar otro vehículo en Ajustes' }}
+    </button>
+  </section>
+
+  <section>
+    <h2 class="pst-section-title">Vehículo</h2>
+    <div class="pst-card pst-card--flush">
+      <div class="pst-list">
+        @for (view of views; track view.route) {
+          <button type="button" class="pst-row" (click)="go(view.route)">
+            <span class="pst-row__icon"><pst-icon [name]="view.icon" [size]="18" /></span>
+            <span class="pst-row__body">
+              <span class="pst-row__title">{{ view.title }}</span>
+              <span class="pst-row__sub">{{ view.sub }}</span>
+            </span>
+            <span class="pst-row__trail"><pst-icon name="chevronRight" [size]="16" /></span>
+          </button>
+        }
+      </div>
+    </div>
+  </section>
+</pst-sheet>

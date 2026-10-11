@@ -1,0 +1,234 @@
+# Sección del vehículo (issue #10)
+
+Hoja de ruta para llevar el vehículo fuera de Ajustes: una sección propia que
+se abre desde el apodo en el garage, con cambio rápido de vehículo y vistas
+para datos, póliza, documentos, recordatorios y fotos.
+
+La issue es grande, así que se entrega por fases. **Cada fase es una rama
+nueva desde `main` (`feature/<nombre>`) y un PR propio.** Este documento es
+el contexto completo para arrancar cualquier fase sin leer las anteriores:
+basta con leer la sección de esa fase y la de [Decisiones](#decisiones).
+
+| Fase | Rama | Entrega |
+|------|------|---------|
+| 1 | `feature/vehicle-sheet` | Hoja del vehículo, cambio rápido y Datos del vehículo |
+| 2 | `feature/vehicle-insurance` | Póliza de seguro con aviso de vencimiento |
+| 3 | `feature/vehicle-documents` | Otros documentos (verificación, tenencia, tarjeta, licencia…) |
+| 4 | `feature/vehicle-reminders` | Recordatorios recurrentes y bitácora |
+| 5 | `feature/vehicle-alerts` | Notificaciones locales del sistema |
+| 6 | `feature/vehicle-gallery` | Galería de fotos con álbumes |
+
+---
+
+## Decisiones
+
+- **Vehículo en gestión = `is_primary`.** Cambiar de vehículo desde el garage
+  llama a `VehicleService.setPrimary(id)`. Se sincroniza entre dispositivos y
+  todo lo que ya lee `VehicleContext.vehicle` (garage, combustible, servicios,
+  gastos y todos los formularios de captura) sigue el cambio sin tocarse.
+  Cualquier registro nuevo o modificado va al vehículo en gestión.
+- **Agregar vehículos sigue en Ajustes.** La hoja solo cambia entre los que
+  existen.
+- **Captura manual de documentos.** Sin OCR ni IA: se sube el PDF o la foto y
+  se llenan los campos importantes (vencimiento, teléfonos, número…).
+- **Avisos = badge persistente + notificación local.** El badge de atención
+  no se quita hasta que se resuelve (ej. la póliza se marca como renovada). La
+  notificación del sistema sale una sola vez, con la Notification API, al
+  abrir la app o en el periodic sync del service worker. Sin Web Push.
+- **Un solo origen de alertas: `VehicleAlerts`**
+  (`app/src/app/core/data/vehicle-alerts.service.ts`). Cada fase que agrega
+  algo vencible registra su fuente ahí; badges y notificaciones solo leen de
+  ese servicio.
+
+## Base existente
+
+Lo que ya está y conviene reusar en todas las fases:
+
+- **Datos locales**: Dexie en `app/src/app/core/db/piston-db.ts` (versión 4 al
+  arrancar la fase 1). Escrituras siempre por `OfflineStore`
+  (`create/update/remove/transaction`, lecturas vivas con
+  `liveSignal/liveFrom`), que encola el sync.
+- **Sync**: `server/app/Sync/SyncRegistry.php` ya sincroniza `documents`,
+  `reminders` y `attachments`. Agregar una columna implica: migración Laravel,
+  campo en el `SyncTable` del registro, tipo en `core/models/domain.ts`,
+  versión nueva de Dexie si cambia un índice y `docs/schema.dbml`.
+- **Modelos**:
+  - `VehicleDocument` (`domain.ts`): `type` (`insurance`, `emissions_check`,
+    `ownership_tax`, `circulation_card`, `driver_license`, `warranty`,
+    `other`), `title`, `issuer`, `reference`, `coverage`, `issued_at`,
+    `expires_at`, `cost`, `notes`.
+  - `Reminder`: `kind` (`service`/`document`/`custom`), `source_id`, `title`,
+    `due_date`, `due_odometer_km`, `notify_days_before`, `notify_km_before`,
+    `status` (`pending`/`notified`/`done`/`dismissed`), `last_notified_at`.
+    **No tiene recurrencia todavía.**
+  - `Attachment` con `owner_type` (`vehicle`, `document`, …) y blobs locales
+    que suben después: `core/data/attachment.service.ts`
+    (`prepare/attach/attachPrepared/localUrl/listFor/remove`).
+- **Archivos**: inputs nativos como en
+  `features/capture/fuel-capture.component.html` (foto con
+  `capture="environment"`, o imágenes y PDF), límite `LIMITS.attachmentBytes`.
+- **UI**: clases globales en `app/src/styles.scss` (`pst-card`, `pst-list`,
+  `pst-row`, `pst-badge--good/warn/bad/brand`, `pst-stat-grid`, `pst-btn`,
+  `pst-note`, `pst-empty`), iconos en `shared/icon/icon.component.ts`, hoja
+  inferior en `shared/sheet` (fase 1).
+- **Pruebas**: `./piston ng test` (vitest + fake-indexeddb, specs junto al
+  código). Typecheck con `./piston build`.
+
+---
+
+## Fase 1 · `feature/vehicle-sheet`
+
+**Objetivo**: el apodo del garage abre la hoja del vehículo; desde ahí se
+cambia de vehículo y se entra a sus vistas. Primera vista: Datos del vehículo.
+
+### Alcance
+- **Hoja inferior genérica** `shared/sheet/sheet.component.ts`: sobre
+  `<dialog>` nativo (capa superior, foco atrapado y Esc gratis), con asa,
+  cierre al tocar fuera, con Esc o arrastrando hacia abajo, y respeto de
+  `safe-area` y `prefers-reduced-motion`.
+- **Garage**: el apodo pasa a ser un botón con chevron que abre
+  `features/vehicle/vehicle-sheet`. Lleva el badge de atención de
+  `VehicleAlerts` cuando haya algo pendiente.
+- **Hoja del vehículo**:
+  - Con más de un vehículo activo: lista para cambiar (marca el actual) que
+    llama a `setPrimary`.
+  - Con uno solo: solo se muestra el actual y un enlace a Ajustes para agregar
+    más.
+  - Debajo, las vistas disponibles. Las de fases futuras no aparecen hasta que
+    existan.
+- **Datos del vehículo** (`/vehicle`): ficha completa del vehículo en gestión
+  y métricas rápidas: rendimiento promedio, gasto mensual promedio, costo por
+  km, total gastado, km recorridos y cargas. Botón para editar.
+- **Edición** (`/vehicle/edit/:id`): reusa `VehicleFormComponent`; el regreso
+  vuelve a `/vehicle` en lugar de a Ajustes.
+- `features/vehicle/vehicle-stats.ts`: cálculos puros con spec.
+- `core/data/vehicle-alerts.service.ts`: servicio con la forma final
+  (`alerts`, `forVehicle(id)`, `count`) pero sin fuentes todavía.
+
+### Criterios de aceptación
+- Tocar el apodo abre la hoja; se cierra con el fondo, Esc o arrastre.
+- Con dos vehículos, cambiar en la hoja actualiza garage, combustible,
+  servicios y gastos, y una carga nueva queda con el `vehicle_id` elegido.
+- Datos del vehículo muestra la ficha y las métricas; editar y guardar
+  regresa a Datos.
+
+### Fuera de alcance
+- Agregar vehículos desde la hoja. Documentos, recordatorios, fotos.
+
+---
+
+## Fase 2 · `feature/vehicle-insurance`
+
+**Objetivo**: guardar la póliza de seguro y avisar un mes antes de que venza.
+
+### Alcance
+- **Vista** `/vehicle/insurance` (entrada nueva en la hoja):
+  - Póliza vigente: aseguradora (`issuer`), número (`reference`), cobertura,
+    inicio (`issued_at`), vencimiento (`expires_at`), costo y notas.
+  - Teléfonos de siniestro y asistencia como enlaces `tel:`.
+  - Documento adjunto (PDF o foto, `owner_type: 'document'`) con vista previa
+    offline.
+  - Historial de pólizas anteriores.
+- **Formulario** de alta y edición (`/vehicle/insurance/new`,
+  `/vehicle/insurance/:id`). Pensarlo genérico por `type` para que la fase 3
+  lo reuse.
+- **Renovar**: "Marcar como renovada" crea la póliza nueva con su vigencia;
+  la anterior queda en historial y deja de alertar.
+- **Esquema**: columnas en `documents` para teléfonos (`contact_phone`,
+  `assistance_phone`) y `renewed_by_id` (la que la reemplaza). Migración
+  Laravel, `SyncRegistry`, `domain.ts`, `schema.dbml`.
+- `core/data/document-status.ts`: `ok | expiring | expired` con umbral de 30
+  días, puro y con spec.
+- `VehicleAlerts`: fuente de documentos vigentes (`renewed_by_id` nulo) en
+  `expiring` o `expired`. El badge aparece en el apodo del garage, en la hoja
+  y en la fila de la vista.
+
+### Criterios de aceptación
+- Póliza que vence en 30 días o menos: badge `warn`. Vencida: badge `bad`. El
+  badge se queda hasta renovarla.
+- El PDF o la foto se ven sin conexión y suben solos.
+
+---
+
+## Fase 3 · `feature/vehicle-documents`
+
+**Objetivo**: digitalizar el resto de documentos con vigencia y costo.
+
+### Alcance
+- **Vista** `/vehicle/documents`: agrupada por tipo: verificación
+  (`emissions_check`), tenencia o refrendo (`ownership_tax`), tarjeta de
+  circulación (`circulation_card`), licencia (`driver_license`), garantía y
+  otro.
+- Reusa el formulario, adjuntos, renovación y `document-status` de la fase 2.
+- Todos alimentan `VehicleAlerts` igual que la póliza.
+- Verificación: sugerir el periodo con `plate_last_digit` y
+  `emissions_sticker` si hay un calendario sencillo; si no, captura manual.
+
+### Criterios de aceptación
+- Cada tipo se puede agregar, editar, renovar y borrar, con adjuntos.
+- Los vencimientos generan badge igual que la póliza.
+
+---
+
+## Fase 4 · `feature/vehicle-reminders`
+
+**Objetivo**: recordatorios configurables, estándar y personalizados, con
+bitácora.
+
+### Alcance
+- **Esquema** en `reminders`: `repeat_every` (int), `repeat_unit`
+  (`day|week|month|year`), `repeat_km` (int, opcional), `notes`. Migración,
+  `SyncRegistry`, `domain.ts`, Dexie (versión nueva si se indexa algo) y
+  `schema.dbml`.
+- **Vista** `/vehicle/reminders`: próximos, vencidos y bitácora de hechos.
+- **Plantillas**: refrendo anual, verificación semestral, revisar aceite cada
+  2 meses, anticongelante cada mes, presión de llantas, etc. Todas editables.
+- **Personalizados**: por periodo (cada N días/semanas/meses/años o km) o por
+  fecha exacta que se repite.
+- **Marcar como hecho**: guarda la entrada en la bitácora y calcula la
+  siguiente fecha o km con funciones puras con spec.
+- Vencidos y próximos (`notify_days_before`/`notify_km_before`) entran a
+  `VehicleAlerts`.
+
+### Criterios de aceptación
+- Un recordatorio cada 2 meses, marcado hecho hoy, vence en 2 meses.
+- Un recordatorio vencido muestra badge hasta marcarse hecho o descartarse.
+
+---
+
+## Fase 5 · `feature/vehicle-alerts`
+
+**Objetivo**: que lo importante avise aunque no se abra la sección.
+
+### Alcance
+- **Permiso** de notificaciones en Ajustes, con explicación y estado.
+- **Disparo**: al abrir la app y en el periodic sync del service worker
+  (`app/public/piston-sw*.js`), revisar `VehicleAlerts` y notificar una sola
+  vez por alerta (marca con `last_notified_at` o `status: 'notified'`).
+- El badge sigue visible hasta que se resuelve, aunque ya se haya notificado.
+- **Conteo global**: badge en la pestaña Garage con el total de alertas de
+  todos los vehículos, no solo el de gestión.
+- Tocar la notificación abre la vista correspondiente.
+
+### Criterios de aceptación
+- Una póliza que entra en ventana de 30 días notifica una vez y conserva el
+  badge.
+- Sin permiso, todo funciona igual con solo badges.
+
+---
+
+## Fase 6 · `feature/vehicle-gallery`
+
+**Objetivo**: fotos del vehículo agrupadas para ver su evolución o desgaste.
+
+### Alcance
+- **Esquema**: tabla `vehicle_albums` (`vehicle_id`, `name`, `description`,
+  `cover_attachment_id`, `sort_order`) con sync completo, y `album` como nuevo
+  `AttachmentOwner`. Las fotos sin álbum usan `owner_type: 'vehicle'`.
+- **Vista** `/vehicle/gallery`: álbumes, rejilla de fotos, visor a pantalla
+  completa y subida múltiple. Orden por fecha para ver la evolución.
+- Crear, renombrar y borrar álbumes. Mover fotos entre álbumes.
+
+### Criterios de aceptación
+- Las fotos se ven sin conexión y suben solas.
+- Un álbum muestra sus fotos en orden de fecha.

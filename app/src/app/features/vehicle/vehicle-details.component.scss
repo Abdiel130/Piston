@@ -1,0 +1,36 @@
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pst-space-2);
+  margin-top: var(--pst-space-1);
+}
+
+.since {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Ficha: etiqueta a la izquierda, valor a la derecha, como Ajustes de iOS. */
+.spec {
+  margin: 0;
+}
+
+.spec dt {
+  font-size: var(--pst-callout);
+  color: var(--pst-label-2);
+}
+
+.spec dd {
+  margin: 0;
+  max-width: 60%;
+  color: var(--pst-label);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.notes {
+  white-space: pre-line;
+  color: var(--pst-label-2);
+  font-size: var(--pst-subhead);
+}

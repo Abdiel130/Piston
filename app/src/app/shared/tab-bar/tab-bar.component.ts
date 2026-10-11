@@ -1,11 +1,15 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
+import { filter, map } from 'rxjs';
 import { IconComponent, type IconName } from '../icon/icon.component';
 
 interface Tab {
   readonly path: string;
   readonly icon: IconName;
   readonly label: string;
+  /** Secciones que cuelgan de esta pestaña aunque su ruta no empiece igual. */
+  readonly also?: readonly string[];
 }
 
 /**
@@ -16,16 +20,34 @@ interface Tab {
 @Component({
   selector: 'pst-tab-bar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, RouterLinkActive, IconComponent],
+  imports: [RouterLink, IconComponent],
   templateUrl: './tab-bar.component.html',
   styleUrl: './tab-bar.component.scss',
 })
 export class TabBarComponent {
+  private readonly router = inject(Router);
+
   protected readonly tabs: readonly Tab[] = [
-    { path: '/', icon: 'garage', label: 'Garage' },
+    // La sección del vehículo se abre desde el garage: sigue siendo Garage.
+    { path: '/', icon: 'garage', label: 'Garage', also: ['/vehicle'] },
     { path: '/fuel', icon: 'fuel', label: 'Combustible' },
     { path: '/services', icon: 'wrench', label: 'Servicios' },
     { path: '/expenses', icon: 'receipt', label: 'Gastos' },
     { path: '/settings', icon: 'settings', label: 'Ajustes' },
   ];
+
+  private readonly url = toSignal(
+    this.router.events.pipe(
+      filter((event) => event instanceof NavigationEnd),
+      map((event) => event.urlAfterRedirects),
+    ),
+    { initialValue: this.router.url },
+  );
+
+  /** `/` solo exacto; las demás por prefijo de segmento, como `routerLinkActive`. */
+  protected isActive(tab: Tab): boolean {
+    const path = this.url().split(/[?#]/)[0];
+    const under = (prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
+    return (tab.path === '/' ? path === '/' : under(tab.path)) || (tab.also ?? []).some(under);
+  }
 }

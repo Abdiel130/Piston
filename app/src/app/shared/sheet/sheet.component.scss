@@ -1,0 +1,86 @@
+/* El <dialog> ocupa toda la pantalla y es transparente: el velo es su
+   ::backdrop y la hoja es el panel pegado abajo. Así un clic en el propio
+   <dialog> siempre significa "fuera de la hoja". */
+.sheet {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  overflow: hidden;
+}
+
+.sheet[open] {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.sheet::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: sheet-fade var(--pst-dur-base) var(--pst-snap);
+}
+
+.sheet__panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 40rem;
+  max-height: calc(100dvh - var(--pst-safe-top) - var(--pst-space-12));
+  padding-bottom: var(--pst-safe-bottom);
+  background: var(--pst-surface-2);
+  border: 0.5px solid var(--pst-separator-soft);
+  border-bottom: 0;
+  border-radius: var(--pst-r-xl) var(--pst-r-xl) 0 0;
+  box-shadow: var(--pst-shadow-float);
+  animation: sheet-rise var(--pst-dur-slow) var(--pst-spring);
+  transition: transform var(--pst-dur-base) var(--pst-spring);
+}
+
+/* Mientras el dedo arrastra, la hoja lo sigue sin retraso. */
+.sheet__panel.is-dragging {
+  transition: none;
+}
+
+.sheet__grip {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  height: 1.75rem;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sheet__handle {
+  width: 2.25rem;
+  height: 0.3125rem;
+  border-radius: var(--pst-r-pill);
+  background: var(--pst-label-4);
+}
+
+.sheet__body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--pst-gutter) var(--pst-space-5);
+}
+
+@keyframes sheet-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes sheet-fade {
+  from {
+    opacity: 0;
+  }
+}

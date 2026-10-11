@@ -1,0 +1,43 @@
+section + section {
+  margin-top: var(--pst-space-5);
+}
+
+.pst-row:disabled {
+  opacity: 1;
+}
+
+.is-current .pst-row__icon {
+  color: var(--pst-ignition);
+}
+
+.check {
+  color: var(--pst-ignition);
+}
+
+.alert-dot {
+  display: inline-grid;
+  place-items: center;
+}
+
+.alert-dot--warn {
+  color: var(--pst-warn);
+}
+
+.alert-dot--bad {
+  color: var(--pst-bad);
+}
+
+.pst-note {
+  margin-top: var(--pst-space-3);
+}
+
+.add {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pst-space-2);
+  margin-top: var(--pst-space-3);
+  padding: var(--pst-space-2) var(--pst-space-1);
+  color: var(--pst-ignition);
+  font-size: var(--pst-subhead);
+  font-weight: 500;
+}

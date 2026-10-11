@@ -120,6 +120,11 @@ export class VehicleFormComponent {
 
   /** Parámetro de ruta. Vacío en el alta. */
   readonly id = input<string>();
+  /** Datos de ruta: a dónde regresa. Ajustes si la ruta no lo dice. */
+  readonly back = input<string>();
+  readonly backLabel = input<string>();
+  protected readonly backUrl = computed(() => this.back() ?? '/settings');
+  protected readonly backText = computed(() => this.backLabel() ?? 'Ajustes');
 
   protected readonly vehicleTypes = VEHICLE_TYPES;
   protected readonly transmissions = TRANSMISSIONS;
@@ -305,7 +310,7 @@ export class VehicleFormComponent {
     if (!id) return;
     try {
       await this.vehicles.remove(id);
-      await this.router.navigateByUrl('/settings');
+      await this.router.navigateByUrl(this.backUrl());
     } catch (error) {
       this.confirmDelete.set(false);
       this.saveError.set(error instanceof Error ? error.message : 'No se pudo borrar.');

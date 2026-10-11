@@ -93,3 +93,48 @@
   gap: var(--pst-space-2);
   width: 100%;
 }
+
+/* El apodo es el botón que abre la hoja del vehículo. Se lee como título, el
+   chevron avisa que se toca. */
+.switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pst-space-2);
+  max-width: 100%;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-align: left;
+  border-radius: var(--pst-r-sm);
+  transition: opacity var(--pst-dur-fast) var(--pst-snap);
+}
+
+.switcher:active {
+  opacity: 0.6;
+}
+
+.switcher__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.switcher__chevron {
+  flex-shrink: 0;
+  color: var(--pst-label-3);
+}
+
+.switcher__alert {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.switcher__alert--warn {
+  color: var(--pst-warn);
+}
+
+.switcher__alert--bad {
+  color: var(--pst-bad);
+}
