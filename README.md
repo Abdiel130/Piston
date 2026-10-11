@@ -80,7 +80,7 @@ Para desactivar las migraciones automáticas, añade `RUN_MIGRATIONS=false` al e
 
 Salida esperada del health check:
 ```json
-{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.8.0","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
+{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.9.0","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
 ```
 
 ### 5. Crear tu Cuenta
@@ -204,7 +204,7 @@ Piston/
 │   │       │   └── tab-bar/         # Barra de pestañas estilo iOS
 │   │       ├── features/            # Una pantalla por pestaña
 │   │       │   ├── garage/          # Vehículo, nivel de tanque, salud
-│   │       │   ├── vehicle/         # Hoja del vehículo, Datos y póliza de seguro
+│   │       │   ├── vehicle/         # Hoja del vehículo, Datos, póliza y documentos
 │   │       │   ├── fuel/            # Captura por rayitas e historial
 │   │       │   ├── service/         # Semáforo, fallas en seguimiento
 │   │       │   ├── expenses/        # Gasto por categoría y vencimientos
@@ -269,13 +269,14 @@ La app es **mobile-first** y **offline-first**: toda escritura ocurre primero en
 
 ### 📄 Documentos y trámites
 - Seguro, verificación, tenencia, tarjeta de circulación y licencia, con vigencias y costos.
+- **Documentos**: vista propia desde la hoja del vehículo con verificación, tenencia o refrendo, tarjeta de circulación, licencia, garantía y otros, **agrupados por tipo**. Cada uno se agrega, edita, renueva y borra igual que la póliza, con sus archivos y su historial plegado, y avisa igual al acercarse su vencimiento.
 - **Alertas de vencimiento** configurables (30 / 15 / 7 días antes).
 - Foto o escaneo del documento, disponible **sin conexión**.
 - **Póliza de seguro**: aseguradora, número de póliza, inciso, número de asegurado (si tu aseguradora lo da), cobertura, vigencia y costo, con los teléfonos de **siniestro y asistencia vial a un toque** y los números que te van a pedir a la vista. Aviso un mes antes de vencer (amarillo) y al vencer (rojo).
 - **Renovación con línea de tiempo**: "Marcar como renovada" prellena la nueva vigencia y deja elegir qué archivos de la anterior se conservan (las guías sí, el PDF del año pasado no). La anterior deja de avisar y pasa a una **línea de tiempo** con cada vigencia, su costo y qué cambió (precio, aseguradora, cobertura).
 - El historial no ocupa espacio: sus archivos se liberan del dispositivo en cuanto subieron y se ven desde el servidor al tocarlos.
 - Varios archivos por documento (PDF, fotos de cámara o de la galería), **cada uno con título y notas**: ej. "¿Cómo reportar un siniestro?" con la imagen que manda la aseguradora. Las imágenes se ven grandes, y todo **se baja solo a tus otros dispositivos** para tenerlo sin señal.
-- Calendario de verificación por **engomado y terminación de placa**.
+- Calendario de verificación por **engomado y terminación de placa** (CDMX y Edomex): al registrar o renovar la verificación propone el vencimiento del siguiente periodo; sin engomado ni placa, se captura a mano.
 
 ### 🛰️ Gasolineras
 - Catálogo de gasolineras con marca, dirección y geolocalización.
@@ -485,4 +486,4 @@ El script es **todo o nada**: si algo no cuadra no toca ningún archivo. Se nieg
 ---
 
 ## 📄 Licencia y Versión
-- Versión actual: **1.8.0** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).
+- Versión actual: **1.9.0** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).

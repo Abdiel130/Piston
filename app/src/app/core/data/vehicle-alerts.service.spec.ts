@@ -34,6 +34,21 @@ describe('documentAlerts', () => {
     });
   });
 
+  it('los demás documentos llevan a Documentos con su nombre o su tipo', () => {
+    const alerts = documentAlerts(
+      [
+        doc({ id: 'doc-2', type: 'emissions_check', expires_at: '2026-10-30' }),
+        doc({ id: 'doc-3', type: 'other', title: 'Permiso de carga', expires_at: '2026-10-01' }),
+      ],
+      TODAY,
+    );
+
+    expect(alerts.map(({ title, tone, route }) => ({ title, tone, route }))).toEqual([
+      { title: 'Verificación', tone: 'warn', route: '/vehicle/documents' },
+      { title: 'Permiso de carga', tone: 'bad', route: '/vehicle/documents' },
+    ]);
+  });
+
   it('vencida es bad', () => {
     const alerts = documentAlerts([doc({ expires_at: '2026-10-01' })], TODAY);
 

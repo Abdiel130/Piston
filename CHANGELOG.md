@@ -7,6 +7,36 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-10
+
+La sección del vehículo suma su tercera vista: el resto de los documentos.
+Verificación, tenencia o refrendo, tarjeta de circulación, licencia,
+garantía y cualquier otro trámite quedan agrupados por tipo, con sus
+archivos sin señal y el mismo aviso de vencimiento que la póliza. La
+verificación ya sabe cuándo te toca: con el engomado o la placa propone el
+vencimiento según el calendario de CDMX y Edomex.
+
+### Added
+- **Documentos del vehículo**: nueva vista desde la hoja del vehículo con
+  verificación, tenencia o refrendo, tarjeta de circulación, licencia,
+  garantía y otros, agrupados por tipo. Cada documento muestra emisor, folio,
+  vigencia, costo, notas y sus archivos (PDF o fotos, cada uno con título y
+  notas), que se ven sin conexión y llegan solos a tus otros dispositivos.
+- **Aviso de vencimiento en todos los documentos**: igual que la póliza, un
+  mes antes de vencer se marcan en amarillo el apodo del vehículo, la fila
+  "Documentos" de la hoja y la propia vista; ya vencidos, en rojo. La marca
+  se queda hasta renovarlos.
+- **Renovación e historial**: "Marcar como renovada" prellena la nueva
+  vigencia con la duración típica de cada trámite (seis meses la
+  verificación, un año la tenencia, tres la tarjeta y la licencia) y deja
+  elegir qué archivos se conservan. Las vigencias anteriores quedan en un
+  historial plegado por tipo, con su costo y sus archivos.
+- **Calendario de verificación**: con el engomado del vehículo, o con la
+  terminación de la placa si no lo tiene, la app muestra en qué meses te toca
+  verificar y propone la fecha de vencimiento del siguiente periodo. Si
+  cambias la fecha en que verificaste, sugiere la nueva con un toque. Sin
+  engomado ni placa, se captura a mano.
+
 ## [1.8.0] - 2026-10-10
 
 La sección del vehículo estrena su segunda vista: la póliza de seguro. Queda

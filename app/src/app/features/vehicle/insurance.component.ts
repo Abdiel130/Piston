@@ -9,6 +9,7 @@ import type { VehicleDocument } from '../../core/models';
 import { IconComponent } from '../../shared/icon/icon.component';
 import { IslandService } from '../../shared/island/island.service';
 import { DocumentFilesComponent } from './document-files.component';
+import { STATUS_BADGE, byExpiry } from './document-view';
 
 interface PolicyView {
   readonly document: VehicleDocument;
@@ -30,12 +31,6 @@ interface TimelineEntry {
   readonly change: string | null;
 }
 
-const BADGE: Record<DocumentStatus, string> = {
-  ok: 'pst-badge--good',
-  expiring: 'pst-badge--warn',
-  expired: 'pst-badge--bad',
-};
-
 /**
  * Póliza de seguro del vehículo en gestión: la vigente a la mano (teléfonos
  * que se marcan con un toque, el PDF sin conexión) y las anteriores como
@@ -56,7 +51,7 @@ export class InsuranceComponent {
 
   protected readonly vehicle = this.context.vehicle;
   protected readonly name = this.context.displayName;
-  protected readonly badge = BADGE;
+  protected readonly badge = STATUS_BADGE;
 
   private readonly policies = this.store.liveFrom(
     this.context.vehicleId,
@@ -148,11 +143,6 @@ export class InsuranceComponent {
   protected tel(phone: string): string {
     return `tel:${phone.replace(/[^0-9+]/g, '')}`;
   }
-}
-
-/** La que vence más tarde primero. Sin fecha, al final. */
-function byExpiry(a: VehicleDocument, b: VehicleDocument): number {
-  return (b.expires_at ?? '').localeCompare(a.expires_at ?? '');
 }
 
 function describeChange(previous: VehicleDocument, next: VehicleDocument): string | null {

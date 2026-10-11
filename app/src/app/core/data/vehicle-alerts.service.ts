@@ -27,8 +27,8 @@ export interface VehicleAlert {
  * solo leen de aquí; cada sección que agrega algo vencible (póliza,
  * documentos, recordatorios) suma su fuente a `alerts`.
  *
- * Ver `docs/vehicle-section.md`. Fuentes: documentos vigentes por vencer o
- * vencidos.
+ * Ver `docs/vehicle-section.md`. Fuentes: documentos vigentes (póliza y los
+ * demás) por vencer o vencidos.
  */
 @Injectable({ providedIn: 'root' })
 export class VehicleAlerts {
@@ -71,10 +71,10 @@ export function worstTone(alerts: readonly VehicleAlert[]): AlertTone | null {
   return alerts.length ? 'warn' : null;
 }
 
-/** Vista donde se atiende cada tipo. Los que aún no tienen vista van a Datos. */
-const DOCUMENT_ROUTE: Partial<Record<DocumentType, string>> = {
-  insurance: '/vehicle/insurance',
-};
+/** Vista donde se atiende cada tipo: la póliza tiene la suya, el resto va a Documentos. */
+function documentRoute(type: DocumentType): string {
+  return type === 'insurance' ? '/vehicle/insurance' : '/vehicle/documents';
+}
 
 /** Documentos vigentes que vencen en la ventana de aviso o ya vencieron. */
 export function documentAlerts(documents: readonly VehicleDocument[], today: IsoDate): VehicleAlert[] {
@@ -88,7 +88,7 @@ export function documentAlerts(documents: readonly VehicleDocument[], today: Iso
       tone: status === 'expired' ? 'bad' : 'warn',
       title: document.type === 'insurance' ? 'Póliza de seguro' : (document.title ?? DOCUMENT_LABEL[document.type]),
       detail: expiryLabel(document.expires_at!, today),
-      route: DOCUMENT_ROUTE[document.type] ?? '/vehicle',
+      route: documentRoute(document.type),
     });
   }
   return alerts;

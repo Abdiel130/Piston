@@ -128,6 +128,28 @@ export const routes: Routes = [
           import('./features/vehicle/document-form.component').then((m) => m.DocumentFormComponent),
       },
       {
+        path: 'vehicle/documents',
+        title: 'Documentos · Piston',
+        loadComponent: () =>
+          import('./features/vehicle/documents.component').then((m) => m.DocumentsComponent),
+      },
+      {
+        // Alta y renovación (`?type=<tipo>&renew=<id>`). Va antes de `:id`.
+        // Sin `type` en data: lo da el query param, o el documento al editar.
+        path: 'vehicle/documents/new',
+        title: 'Nuevo documento · Piston',
+        data: { back: '/vehicle/documents', backLabel: 'Documentos' },
+        loadComponent: () =>
+          import('./features/vehicle/document-form.component').then((m) => m.DocumentFormComponent),
+      },
+      {
+        path: 'vehicle/documents/:id',
+        title: 'Editar documento · Piston',
+        data: { back: '/vehicle/documents', backLabel: 'Documentos' },
+        loadComponent: () =>
+          import('./features/vehicle/document-form.component').then((m) => m.DocumentFormComponent),
+      },
+      {
         path: 'settings/sync',
         title: 'Sincronización · Piston',
         loadComponent: () =>

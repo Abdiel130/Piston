@@ -1,0 +1,35 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-3);
+}
+
+.period {
+  margin: 0;
+}
+
+// El historial va plegado: casi nunca se consulta y ocupa mucho con archivos.
+.history summary {
+  cursor: pointer;
+  font-size: var(--pst-subhead);
+  font-weight: 600;
+  color: var(--pst-label-2);
+}
+
+.history__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-3);
+  margin: var(--pst-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history__item + .history__item {
+  padding-top: var(--pst-space-3);
+  border-top: 1px solid var(--pst-separator);
+}
+
+.history pst-document-files {
+  margin-top: var(--pst-space-2);
+}
