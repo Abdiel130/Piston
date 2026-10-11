@@ -93,6 +93,20 @@ export const routes: Routes = [
           import('./features/vehicles/vehicle-form.component').then((m) => m.VehicleFormComponent),
       },
       {
+        path: 'vehicle',
+        title: 'Datos del vehículo · Piston',
+        loadComponent: () =>
+          import('./features/vehicle/vehicle-details.component').then((m) => m.VehicleDetailsComponent),
+      },
+      {
+        // El mismo formulario de Ajustes; solo cambia a dónde regresa.
+        path: 'vehicle/edit/:id',
+        title: 'Editar vehículo · Piston',
+        data: { back: '/vehicle', backLabel: 'Vehículo' },
+        loadComponent: () =>
+          import('./features/vehicles/vehicle-form.component').then((m) => m.VehicleFormComponent),
+      },
+      {
         path: 'settings/sync',
         title: 'Sincronización · Piston',
         loadComponent: () =>

@@ -7,6 +7,38 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-10
+
+El vehículo deja de vivir solo en Ajustes. Tocar su apodo en el garage abre
+una hoja con todos tus vehículos: desde ahí se cambia el que estás
+administrando, y todo lo que registres después va a ese vehículo. La hoja
+también lleva a la nueva vista *Datos del vehículo*, con su ficha completa y
+el resumen de lo que ha rendido y costado desde el primer registro. Es la
+primera parte de la sección del vehículo; póliza, documentos, recordatorios y
+fotos llegarán en las siguientes.
+
+### Added
+- **Hoja del vehículo**: el apodo en el garage ahora se puede tocar y abre una
+  hoja desde abajo. Se cierra tocando fuera, deslizándola hacia abajo o con
+  Esc. Si un vehículo tiene algo pendiente, se marca con un aviso junto a su
+  nombre.
+- **Cambio rápido de vehículo**: con más de un vehículo activo, la hoja permite
+  elegir con cuál trabajar sin pasar por Ajustes. Garage, Combustible,
+  Servicios y Gastos cambian al instante, y las cargas, servicios y gastos
+  nuevos se guardan en el vehículo elegido. La elección se sincroniza con tus
+  otros dispositivos. Agregar vehículos sigue en Ajustes.
+- **Datos del vehículo**: una vista con el rendimiento promedio, el costo por
+  km, el gasto promedio al mes, el gasto total, los km recorridos y las cargas
+  de toda la vida registrada del vehículo. También muestra en qué se va el
+  dinero (combustible, servicios y otros gastos) y la ficha completa. El
+  rendimiento promedio pesa más los tramos largos y descarta los atípicos.
+- **Editar desde Datos del vehículo**: el botón *Editar datos* abre el mismo
+  formulario de Ajustes y, al terminar, regresa a la vista del vehículo.
+
+### Changed
+- **La pestaña Garage acompaña a la sección del vehículo**: sigue marcada
+  mientras navegas por los datos del vehículo y su edición.
+
 ## [1.6.1] - 2026-10-10
 
 Montar Piston ahora toma un solo comando. `./up.sh --setup` recorre la

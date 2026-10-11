@@ -1,6 +1,6 @@
 <div class="pst-stack capture-page">
   <header class="top">
-    <a class="top__back" routerLink="/settings"><pst-icon name="chevronLeft" [size]="20" /> Ajustes</a>
+    <a class="top__back" [routerLink]="backUrl()"><pst-icon name="chevronLeft" [size]="20" /> {{ backText() }}</a>
     <h1 class="top__title">{{ title() }}</h1>
     @if (saved(); as vehicle) {
       <p class="top__sub">

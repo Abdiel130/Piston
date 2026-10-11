@@ -1,0 +1,106 @@
+<div class="pst-stack capture-page">
+  <header class="top">
+    <a class="top__back" routerLink="/"><pst-icon name="chevronLeft" [size]="20" /> Garage</a>
+    <h1 class="top__title">{{ name() }}</h1>
+    @if (vehicle(); as v) {
+      <p class="top__sub">{{ subtitle() }}</p>
+      <div class="badges">
+        @if (v.license_plate) {
+          <span class="pst-badge">{{ v.license_plate }}</span>
+        }
+        <span class="pst-badge pst-numeric">{{ units.formatDistance(v.current_odometer_km) }}</span>
+      </div>
+    }
+  </header>
+
+  @if (vehicle(); as v) {
+    <section>
+      <h2 class="pst-section-title">
+        Resumen
+        @if (summary().since; as since) {
+          <span class="since">desde {{ since }}</span>
+        }
+      </h2>
+      <div class="pst-stat-grid">
+        <div class="pst-stat">
+          <span class="pst-stat__label"><pst-icon name="gauge" [size]="14" /> Rendimiento promedio</span>
+          <span class="pst-stat__value pst-numeric">{{ summary().efficiency }}<span class="pst-stat__unit">{{ units.efficiencySymbol() }}</span></span>
+        </div>
+        <div class="pst-stat">
+          <span class="pst-stat__label"><pst-icon name="road" [size]="14" /> Costo por {{ units.distanceSymbol() }}</span>
+          <span class="pst-stat__value pst-numeric">{{ summary().costPerKm }}</span>
+        </div>
+        <div class="pst-stat">
+          <span class="pst-stat__label"><pst-icon name="calendar" [size]="14" /> Gasto al mes</span>
+          <span class="pst-stat__value pst-numeric">{{ summary().monthly }}</span>
+        </div>
+        <div class="pst-stat">
+          <span class="pst-stat__label"><pst-icon name="chart" [size]="14" /> Gasto total</span>
+          <span class="pst-stat__value pst-numeric">{{ summary().total }}</span>
+        </div>
+        <div class="pst-stat">
+          <span class="pst-stat__label"><pst-icon name="road" [size]="14" /> Recorrido</span>
+          <span class="pst-stat__value pst-numeric">{{ summary().distance }}</span>
+        </div>
+        <div class="pst-stat">
+          <span class="pst-stat__label"><pst-icon name="fuel" [size]="14" /> Cargas</span>
+          <span class="pst-stat__value pst-numeric">{{ summary().fillUps }}</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="pst-section-title">En qué se va</h2>
+      <div class="pst-card pst-card--flush">
+        <div class="pst-list">
+          <div class="pst-row">
+            <span class="pst-row__icon"><pst-icon name="fuel" [size]="18" /></span>
+            <span class="pst-row__body"><span class="pst-row__title">Combustible</span></span>
+            <span class="pst-row__trail pst-numeric">{{ summary().fuel }}</span>
+          </div>
+          <div class="pst-row">
+            <span class="pst-row__icon"><pst-icon name="wrench" [size]="18" /></span>
+            <span class="pst-row__body"><span class="pst-row__title">Servicios</span></span>
+            <span class="pst-row__trail pst-numeric">{{ summary().services }}</span>
+          </div>
+          <div class="pst-row">
+            <span class="pst-row__icon"><pst-icon name="receipt" [size]="18" /></span>
+            <span class="pst-row__body"><span class="pst-row__title">Otros gastos</span></span>
+            <span class="pst-row__trail pst-numeric">{{ summary().other }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    @for (group of specs(); track group.title) {
+      <section>
+        <h2 class="pst-section-title">{{ group.title }}</h2>
+        <div class="pst-card pst-card--flush">
+          <dl class="pst-list">
+            @for (row of group.rows; track row.label) {
+              <div class="pst-row spec">
+                <dt class="pst-row__body">{{ row.label }}</dt>
+                <dd class="pst-row__trail">{{ row.value }}</dd>
+              </div>
+            }
+          </dl>
+        </div>
+      </section>
+    }
+
+    @if (v.notes) {
+      <section>
+        <h2 class="pst-section-title">Notas</h2>
+        <p class="pst-card notes">{{ v.notes }}</p>
+      </section>
+    }
+
+    <a class="pst-btn pst-btn--primary pst-btn--block" [routerLink]="['/vehicle/edit', v.id]">
+      <pst-icon name="settings" [size]="18" /> Editar datos
+    </a>
+  } @else {
+    <section class="pst-card">
+      <p class="pst-empty">No hay un vehículo activo. Agrégalo en Ajustes.</p>
+    </section>
+  }
+</div>

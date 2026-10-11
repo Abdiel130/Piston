@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { OfflineStore } from '../../core/data/offline-store.service';
+import { VehicleAlerts, worstTone } from '../../core/data/vehicle-alerts.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
 import { db } from '../../core/db/piston-db';
 import { UnitsService } from '../../core/units.service';
@@ -10,6 +11,7 @@ import { GaugeComponent } from '../../shared/gauge/gauge.component';
 import { IconComponent, type IconName } from '../../shared/icon/icon.component';
 import { IslandService } from '../../shared/island/island.service';
 import { SCHEDULE_TONE, scheduleDue } from '../service/schedule-display';
+import { VehicleSheetComponent } from '../vehicle/vehicle-sheet.component';
 
 interface HealthItem {
   readonly id: string;
@@ -54,7 +56,7 @@ const EMPTY_DATA: GarageData = {
 @Component({
   selector: 'pst-garage',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, GaugeComponent, RouterLink],
+  imports: [IconComponent, GaugeComponent, RouterLink, VehicleSheetComponent],
   templateUrl: './garage.component.html',
   styleUrl: './garage.component.scss',
 })
@@ -62,10 +64,15 @@ export class GarageComponent {
   private readonly island = inject(IslandService);
   private readonly store = inject(OfflineStore);
   private readonly context = inject(VehicleContext);
+  private readonly alerts = inject(VehicleAlerts);
   protected readonly units = inject(UnitsService);
 
   protected readonly vehicle = this.context.vehicle;
   protected readonly name = this.context.displayName;
+
+  protected readonly sheetOpen = signal(false);
+  /** Algo de este vehículo pide atención: se queda hasta resolverse. */
+  protected readonly alertTone = computed(() => worstTone(this.alerts.forVehicle(this.context.vehicleId())));
 
   private readonly data = this.store.liveFrom(
     this.context.vehicleId,
