@@ -3,11 +3,18 @@ import { db } from '../db/piston-db';
 import { uuidV7 } from '../db/uuid';
 import type { Attachment, AttachmentKind, AttachmentOwner, Uuid } from '../models';
 import { OfflineStore } from './offline-store.service';
+import { sha256Hex } from './sha256';
 
 /** Un archivo listo para guardarse como adjunto. */
 export interface PreparedFile {
   readonly file: File;
   readonly checksum: string;
+}
+
+/** Qué es el archivo. Opcional: un ticket no lo necesita, una guía sí. */
+export interface AttachmentCaption {
+  readonly title?: string | null;
+  readonly notes?: string | null;
 }
 
 /**
@@ -37,7 +44,7 @@ export class AttachmentService {
    * hacerlo ANTES de abrirla.
    */
   async prepare(file: File): Promise<PreparedFile> {
-    return { file, checksum: await sha256(file) };
+    return { file, checksum: await sha256Hex(file) };
   }
 
   /**
@@ -51,6 +58,7 @@ export class AttachmentService {
     prepared: PreparedFile,
     kind: AttachmentKind = 'photo',
     sortOrder = 0,
+    caption: AttachmentCaption = {},
   ): Promise<Attachment> {
     const { file, checksum } = prepared;
     const blobKey = uuidV7();
@@ -71,6 +79,7 @@ export class AttachmentService {
         local_blob_key: blobKey,
         upload_status: 'pending',
         sort_order: sortOrder,
+        ...cleanCaption(caption),
       });
 
       await db.attachment_blobs.add({
@@ -94,6 +103,11 @@ export class AttachmentService {
     return stored ? URL.createObjectURL(stored.blob) : null;
   }
 
+  /** Cambia título y notas. Viaja por el outbox como cualquier edición. */
+  async setCaption(attachmentId: Uuid, caption: AttachmentCaption): Promise<void> {
+    await this.store.update<Attachment>('attachments', attachmentId, cleanCaption(caption));
+  }
+
   async listFor(ownerType: AttachmentOwner, ownerId: Uuid): Promise<Attachment[]> {
     const rows = await db.attachments
       .where('[owner_type+owner_id]')
@@ -110,10 +124,6 @@ export class AttachmentService {
   }
 }
 
-/** SHA-256 en hex: deduplica y delata subidas a medias. */
-async function sha256(file: Blob): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
+function cleanCaption(caption: AttachmentCaption): Pick<Attachment, 'title' | 'notes'> {
+  return { title: caption.title?.trim() || null, notes: caption.notes?.trim() || null };
 }

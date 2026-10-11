@@ -25,8 +25,8 @@
           <span>Recibiendo datos</span>
           <span class="pst-numeric">{{ progress().pulled }}</span>
         </li>
-        <li [class.is-active]="progress().phase === 'uploads'">
-          <span>Subiendo fotos</span>
+        <li [class.is-active]="progress().phase === 'uploads' || progress().phase === 'downloads'">
+          <span>Fotos y archivos</span>
           <span class="pst-numeric">{{ uploads() }}</span>
         </li>
       </ul>

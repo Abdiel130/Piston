@@ -25,6 +25,7 @@ import {
   type SyncRun,
   type SyncTrigger,
 } from '../models';
+import { AttachmentDownloads } from './attachment-downloads.service';
 import { requestDailySync, requestOutboxSync } from './background-sync';
 import { nextRetryAt } from './backoff';
 import { changedFields, conflictView, resolvedRow, type ConflictSide } from './conflict';
@@ -62,7 +63,7 @@ export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error' | 'unauthorize
 
 /** Fase del ciclo en curso. Lo que muestra la ventana de sincronización. */
 export interface SyncProgress {
-  readonly phase: 'push' | 'pull' | 'uploads' | null;
+  readonly phase: 'push' | 'pull' | 'uploads' | 'downloads' | null;
   /** Filas recibidas en el pull del ciclo actual. */
   readonly pulled: number;
 }
@@ -115,6 +116,7 @@ export interface SyncSummary {
 export class SyncService {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
+  private readonly downloads = inject(AttachmentDownloads);
 
   private readonly _status = signal<SyncStatus>('idle');
   private readonly _lastAttempt = signal<SyncAttempt | null>(null);
@@ -730,6 +732,10 @@ export class SyncService {
       await this.pull(run);
       this._progress.update((progress) => ({ ...progress, phase: 'uploads' }));
       await this.uploadAttachments(run);
+      this._progress.update((progress) => ({ ...progress, phase: 'downloads' }));
+      await this.downloads.purgeDeleted();
+      await this.downloads.evictHistory();
+      await this.downloads.fetchEager();
 
       await this.markSynced();
       this._lastAttempt.set(null);

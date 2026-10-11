@@ -22,12 +22,17 @@ interface ViewLink {
   readonly sub: string;
 }
 
+interface ViewOption extends ViewLink {
+  readonly tone: 'warn' | 'bad' | null;
+}
+
 /**
  * Vistas de la sección del vehículo. Cada fase de `docs/vehicle-section.md`
  * agrega la suya aquí cuando existe; no se anuncian antes.
  */
 const VIEWS: readonly ViewLink[] = [
   { route: '/vehicle', icon: 'car', title: 'Datos del vehículo', sub: 'Ficha, rendimiento y gastos' },
+  { route: '/vehicle/insurance', icon: 'shield', title: 'Póliza de seguro', sub: 'Vigencia, teléfonos y archivos' },
 ];
 
 /**
@@ -50,7 +55,11 @@ export class VehicleSheetComponent {
 
   readonly open = model(false);
 
-  protected readonly views = VIEWS;
+  /** Cada vista lleva el badge de las alertas que se resuelven en ella. */
+  protected readonly views = computed<ViewOption[]>(() => {
+    const alerts = this.alerts.forVehicle(this.context.vehicleId());
+    return VIEWS.map((view) => ({ ...view, tone: worstTone(alerts.filter((alert) => alert.route === view.route)) }));
+  });
   protected readonly error = signal<string | null>(null);
   protected readonly switching = signal(false);
 

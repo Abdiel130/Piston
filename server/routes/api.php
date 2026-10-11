@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AttachmentDownloadController;
 use App\Http\Controllers\AttachmentFileController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -40,6 +41,7 @@ Route::middleware(['auth:sanctum', 'throttle:sync'])->group(function () {
     Route::post('sync', [SyncController::class, 'push']);
     Route::get('sync/{table}/{id}', [SyncController::class, 'show']);
     Route::post('attachments/{id}/file', AttachmentFileController::class);
+    Route::get('attachments/{id}/file', AttachmentDownloadController::class);
 });
 
 /*

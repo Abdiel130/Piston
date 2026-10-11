@@ -268,6 +268,15 @@ guarda en el disco `local` y marca `upload_status = uploaded`. Idempotente.
 `404` si la fila del adjunto todavía no llegó (el cliente reintenta),
 `413` si excede `SYNC_ATTACHMENT_MAX_KB` (15 MB por defecto).
 
+### `GET /api/attachments/{id}/file`
+
+El binario de un adjunto, para el dispositivo que no lo tiene. Es la única
+respuesta exitosa **sin sobre**: el cuerpo es el archivo, con el `mime_type` de
+la fila como `Content-Type` y `Cache-Control: private, no-store`. Los errores
+sí llevan el sobre estándar. `404` si el adjunto no es de la cuenta, está
+borrado o el dispositivo que lo creó todavía no lo sube (el cliente reintenta
+en el siguiente ciclo).
+
 ## Uso en el backend
 
 La pieza central es `App\Http\Responses\ApiResponse`: inmutable, implementa

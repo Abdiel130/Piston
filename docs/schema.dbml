@@ -582,6 +582,11 @@ Table documents {
   expires_at date
   cost       numeric(10,2)
   notes      text
+  contact_phone    varchar(30) [note: 'Siniestros']
+  assistance_phone varchar(30) [note: 'Asistencia vial']
+  insured_number   varchar(80) [note: 'Número de asegurado o cliente; algunas aseguradoras lo piden en un siniestro']
+  policy_item      varchar(20) [note: 'Inciso: renglón de la póliza que cubre este vehículo (1 en una individual)']
+  renewed_by_id    uuid        [note: 'Documento que lo reemplaza. Nulo = vigente; solo los vigentes avisan']
 
   created_at        timestamptz
   updated_at        timestamptz
@@ -640,6 +645,8 @@ Table attachments {
   local_blob_key varchar(120) [note: 'Clave del Blob en IndexedDB (solo cliente)']
   upload_status  upload_status [not null, default: 'pending']
   sort_order     smallint [not null, default: 0]
+  title          varchar(120) [note: 'Qué es: "¿Cómo reportar un siniestro?"']
+  notes          text
 
   created_at        timestamptz
   updated_at        timestamptz
@@ -764,6 +771,7 @@ Ref: recurring_expenses.category_id > expense_categories.id
 
 Ref: documents.user_id    > users.id
 Ref: documents.vehicle_id > vehicles.id
+Ref: documents.renewed_by_id > documents.id
 
 Ref: trips.user_id    > users.id
 Ref: trips.vehicle_id > vehicles.id

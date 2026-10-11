@@ -1,0 +1,110 @@
+<div class="pst-stack capture-page">
+  <header class="top">
+    <a class="top__back" routerLink="/vehicle"><pst-icon name="chevronLeft" [size]="20" /> Vehículo</a>
+    <h1 class="top__title">Póliza de seguro</h1>
+    <p class="top__sub">{{ name() }}</p>
+  </header>
+
+  @if (!vehicle()) {
+    <section class="pst-card">
+      <p class="pst-empty">No hay un vehículo activo. Agrégalo en Ajustes.</p>
+    </section>
+  } @else {
+    @for (policy of current(); track policy.document.id) {
+      <section class="policy">
+        <h2 class="pst-section-title head">
+          Vigente
+          <span [class]="'pst-badge ' + badge[policy.status]">{{ policy.expiry }}</span>
+        </h2>
+
+        @if (policy.document.contact_phone || policy.document.assistance_phone) {
+          <div class="phones">
+            @if (policy.document.contact_phone; as phone) {
+              <a class="pst-btn pst-btn--primary" [href]="tel(phone)">
+                <pst-icon name="phone" [size]="18" /> Siniestro
+              </a>
+            }
+            @if (policy.document.assistance_phone; as phone) {
+              <a class="pst-btn" [href]="tel(phone)">
+                <pst-icon name="phone" [size]="18" /> Asistencia
+              </a>
+            }
+          </div>
+          @if (policy.claimIds; as ids) {
+            <p class="pst-field__hint claim">Te van a pedir: <span class="pst-numeric">{{ ids }}</span></p>
+          }
+        }
+
+        <div class="pst-card pst-card--flush">
+          <dl class="pst-list">
+            @for (row of policy.rows; track row.label) {
+              <div class="pst-row spec">
+                <dt class="pst-row__body">{{ row.label }}</dt>
+                <dd class="pst-row__trail">{{ row.value }}</dd>
+              </div>
+            }
+          </dl>
+        </div>
+
+        @if (policy.document.notes) {
+          <p class="pst-card notes">{{ policy.document.notes }}</p>
+        }
+
+        <pst-document-files [documentId]="policy.document.id" empty="Sin archivos. Al editar puedes agregar el PDF, fotos o capturas, cada una con título y notas." />
+
+        <div class="actions">
+          <a class="pst-btn" [routerLink]="['/vehicle/insurance', policy.document.id]">
+            <pst-icon name="settings" [size]="18" /> Editar
+          </a>
+          <a class="pst-btn pst-btn--primary" routerLink="/vehicle/insurance/new" [queryParams]="{ renew: policy.document.id }">
+            <pst-icon name="checkCircle" [size]="18" /> Marcar como renovada
+          </a>
+        </div>
+      </section>
+    } @empty {
+      <section class="pst-card">
+        <p class="pst-empty">Aún no registras la póliza. Guárdala para tener los teléfonos a la mano y un aviso un mes antes de que venza.</p>
+      </section>
+    }
+
+    <a class="pst-btn pst-btn--block" [class.pst-btn--primary]="!current().length" routerLink="/vehicle/insurance/new">
+      <pst-icon name="plus" [size]="18" /> {{ current().length ? 'Agregar otra póliza' : 'Agregar póliza' }}
+    </a>
+
+    @if (timeline().length) {
+      <section>
+        <h2 class="pst-section-title">Línea de tiempo</h2>
+        <ol class="timeline">
+          @for (entry of timeline(); track entry.document.id) {
+            <li class="timeline__item" [class.is-current]="entry.current">
+              <span class="timeline__dot" aria-hidden="true"></span>
+              <div class="timeline__card pst-card">
+                <div class="timeline__head">
+                  <span class="timeline__event">{{ entry.current ? 'Vigente' : entry.event }}</span>
+                  <a class="timeline__edit" [routerLink]="['/vehicle/insurance', entry.document.id]" [attr.aria-label]="'Editar vigencia ' + entry.period">
+                    <pst-icon name="chevronRight" [size]="16" />
+                  </a>
+                </div>
+                <p class="timeline__period pst-numeric">{{ entry.period }}</p>
+                @if (entry.summary) {
+                  <p class="timeline__summary">{{ entry.summary }}</p>
+                }
+                @if (entry.cost || entry.change) {
+                  <p class="timeline__cost pst-numeric">
+                    {{ entry.cost }}
+                    @if (entry.change; as change) {
+                      <span class="timeline__change">{{ change }}</span>
+                    }
+                  </p>
+                }
+                @if (!entry.current) {
+                  <pst-document-files [documentId]="entry.document.id" [remote]="true" />
+                }
+              </div>
+            </li>
+          }
+        </ol>
+      </section>
+    }
+  }
+</div>

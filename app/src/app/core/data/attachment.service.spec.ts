@@ -30,6 +30,18 @@ describe('AttachmentService', () => {
     expect(await db.sync_outbox.filter((entry) => entry.row_id === row.id).count()).toBe(1);
   });
 
+  it('guarda y corrige título y notas, recortados', async () => {
+    const prepared = await attachments.prepare(new File(['guia'], 'guia.jpg', { type: 'image/jpeg' }));
+    const row = await store.transaction(['attachments'], () =>
+      attachments.attachPrepared('document', OWNER, prepared, 'photo', 0, { title: ' ¿Cómo reportar? ', notes: '' }),
+    );
+    expect(row).toMatchObject({ title: '¿Cómo reportar?', notes: null });
+
+    await attachments.setCaption(row.id, { title: 'Siniestro', notes: 'Llamar primero' });
+
+    expect(await db.attachments.get(row.id)).toMatchObject({ title: 'Siniestro', notes: 'Llamar primero' });
+  });
+
   it('si la transacción falla no queda ni la fila ni el binario', async () => {
     const prepared = await attachments.prepare(new File(['ticket'], 'ticket.jpg', { type: 'image/jpeg' }));
 
