@@ -105,15 +105,22 @@
   --pst-shadow-island: 0 12px 40px rgba(0, 0, 0, 0.8);
 
   /* --- Movimiento --------------------------------------------------------- */
-  /* Estas tres curvas son toda la personalidad de la interfaz.
+  /* Estas curvas son toda la personalidad de la interfaz.
      · spring:    el muelle de iOS. Arranca rápido y se asienta sin rebote.
-                  Es la curva de las hojas modales y de la Dynamic Island.
+                  Es la curva de la Dynamic Island y del regreso de una hoja
+                  cuando se suelta sin cerrarla.
      · overshoot: rebasa el destino y vuelve. Solo para elementos que APARECEN;
                   usarla al desaparecer se siente nervioso.
-     · snap:      cambios de estado cortos (un toggle, un chip activo). */
+     · snap:      cambios de estado cortos (un toggle, un chip activo).
+     · settle:    un muelle real que rebasa apenas un 1 % y se asienta. Es
+                  como entran las hojas y la isla en iOS: se nota vivo sin
+                  verse elástico. Abajo se cambia por `linear()` donde existe.
+     · dismiss:   la salida. Acelera hacia el borde, nunca rebota. */
   --pst-spring:    cubic-bezier(0.32, 0.72, 0, 1);
   --pst-overshoot: cubic-bezier(0.18, 0.89, 0.32, 1.28);
   --pst-snap:      cubic-bezier(0.4, 0, 0.2, 1);
+  --pst-settle:    cubic-bezier(0.32, 0.72, 0, 1);
+  --pst-dismiss:   cubic-bezier(0.32, 0, 0.67, 0);
 
   --pst-dur-fast:   0.18s;
   --pst-dur-base:   0.32s;
@@ -130,6 +137,18 @@
      para su padding, así nada queda tapado. */
   --pst-island-lane: 3.5rem;
   --pst-tabbar-h:    3.25rem;
+}
+
+/* Muelle amortiguado (ζ ≈ 0.82) muestreado en 31 puntos. Se calcula una vez
+   y se usa con --pst-dur-island; con otra duración el muelle se deforma. */
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --pst-settle: linear(
+      0, 0.042, 0.14, 0.264, 0.395, 0.519, 0.63, 0.725, 0.802, 0.864, 0.911,
+      0.946, 0.971, 0.988, 0.999, 1.006, 1.01, 1.011, 1.011, 1.01, 1.009,
+      1.007, 1.006, 1.005, 1.004, 1.003, 1.002, 1.001, 1.001, 1, 1
+    );
+  }
 }
 
 /* ---------------------------------------------------------------------------

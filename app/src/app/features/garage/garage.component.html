@@ -19,8 +19,6 @@
     }
   </header>
 
-  <pst-vehicle-sheet [(open)]="sheetOpen" />
-
   @if (vehicle()) {
     <!-- Tarjeta protagonista: el estado del vehículo de un vistazo. -->
     <section class="hero pst-card">
@@ -138,3 +136,7 @@
     </section>
   }
 </div>
+
+<!-- Fuera de la pila: ahí cobraría un hueco del gap y un turno de la entrada
+     escalonada sin mostrar nada. -->
+<pst-vehicle-sheet [(open)]="sheetOpen" />

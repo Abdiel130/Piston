@@ -7,6 +7,28 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-10-10
+
+La hoja del vehículo ya no parpadea al aparecer y ahora se mueve como una hoja
+nativa: entra con un muelle suave, sale animada sin importar cómo la cierres
+y se puede bajar con el dedo desde cualquier parte. El fondo desenfocado
+acompaña el gesto y se aclara conforme la hoja baja.
+
+### Fixed
+- **La hoja del vehículo parpadeaba al abrirse**: aparecía con un salto y el
+  fondo titilaba mientras subía. Ahora entra de un solo movimiento, y el garage
+  ya no deja un hueco de más bajo el apodo.
+
+### Changed
+- **Hojas con movimiento de iOS**: la hoja sube con un rebote apenas visible y
+  su contenido aparece un instante después, como la Dynamic Island. Al
+  cerrarla (tocando fuera, con Esc, con el gesto de atrás de Android o
+  deslizando) baja animada en lugar de desaparecer de golpe.
+- **Deslizar para cerrar desde cualquier parte**: en pantallas táctiles la
+  hoja se arrastra desde su contenido cuando la lista está hasta arriba, no
+  solo desde el asa. Hacia arriba cede un poco con resistencia, y el fondo
+  pierde oscuridad y desenfoque mientras la bajas.
+
 ## [1.7.0] - 2026-10-10
 
 El vehículo deja de vivir solo en Ajustes. Tocar su apodo en el garage abre

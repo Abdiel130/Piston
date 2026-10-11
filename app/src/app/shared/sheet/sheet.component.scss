@@ -1,6 +1,10 @@
 /* El <dialog> ocupa toda la pantalla y es transparente: el velo es su
    ::backdrop y la hoja es el panel pegado abajo. Así un clic en el propio
-   <dialog> siempre significa "fuera de la hoja". */
+   <dialog> siempre significa "fuera de la hoja".
+
+   `overflow: clip` y no `hidden`: con `hidden` el <dialog> sigue siendo un
+   contenedor desplazable y el navegador lo movía al enfocar algo de la hoja
+   mientras aún venía subiendo. */
 .sheet {
   position: fixed;
   inset: 0;
@@ -13,7 +17,13 @@
   border: 0;
   background: transparent;
   color: inherit;
-  overflow: hidden;
+  overflow: clip;
+}
+
+/* El foco cae en el <dialog> solo para no saltar al primer botón; no es un
+   control y no lleva anillo. */
+.sheet:focus {
+  outline: none;
 }
 
 .sheet[open] {
@@ -23,14 +33,38 @@
   align-items: center;
 }
 
+/* El velo desenfoca lo de atrás. Se anima el radio del desenfoque y el color,
+   nunca `opacity`: fundir con opacidad un `backdrop-filter` obliga al
+   navegador a recomponerlo en cada cuadro y es lo que parpadeaba.
+
+   `--sheet-veil` (0–1) llega del componente mientras se arrastra: el velo se
+   aclara y se desenfoca menos conforme baja la hoja. Donde el ::backdrop aún
+   no hereda variables, el respaldo de 1 deja el velo fijo. La entrada no
+   rellena hacia adelante: así, al terminar, manda el valor vivo. */
 .sheet::backdrop {
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  animation: sheet-fade var(--pst-dur-base) var(--pst-snap);
+  background: rgba(0, 0, 0, calc(0.55 * var(--sheet-veil, 1)));
+  backdrop-filter: blur(calc(2px * var(--sheet-veil, 1)));
+  -webkit-backdrop-filter: blur(calc(2px * var(--sheet-veil, 1)));
+  animation: sheet-veil-in var(--pst-dur-base) var(--pst-snap) backwards;
 }
 
+/* Al soltar sin cerrar, el velo regresa con la hoja; con el dedo encima lo
+   sigue sin retraso. */
+.sheet:not(.is-dragging)::backdrop {
+  transition:
+    background-color var(--pst-dur-base) var(--pst-spring),
+    backdrop-filter var(--pst-dur-base) var(--pst-spring),
+    -webkit-backdrop-filter var(--pst-dur-base) var(--pst-spring);
+}
+
+.sheet.is-closing::backdrop {
+  animation: sheet-veil-out var(--pst-dur-base) var(--pst-dismiss) both;
+}
+
+/* Entra con un muelle que rebasa apenas y se asienta, como la isla al
+   expandirse. Sale acelerando hacia abajo, sin rebote. */
 .sheet__panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -42,12 +76,29 @@
   border-bottom: 0;
   border-radius: var(--pst-r-xl) var(--pst-r-xl) 0 0;
   box-shadow: var(--pst-shadow-float);
-  animation: sheet-rise var(--pst-dur-slow) var(--pst-spring);
+  will-change: transform;
+  animation: sheet-rise var(--pst-dur-island) var(--pst-settle);
   transition: transform var(--pst-dur-base) var(--pst-spring);
 }
 
+/* El rebase del muelle y el estirón hacia arriba despegan la hoja del borde.
+   Esta extensión del mismo fondo tapa el hueco que dejarían debajo. */
+.sheet__panel::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: var(--pst-space-12);
+  background: inherit;
+}
+
+.sheet.is-closing .sheet__panel {
+  animation: sheet-sink var(--pst-dur-base) var(--pst-dismiss) both;
+}
+
 /* Mientras el dedo arrastra, la hoja lo sigue sin retraso. */
-.sheet__panel.is-dragging {
+.sheet.is-dragging .sheet__panel {
   transition: none;
 }
 
@@ -67,10 +118,17 @@
   background: var(--pst-label-4);
 }
 
+/* El contenido no viaja pegado a la caja: entra un instante después y con un
+   desenfoque que se disipa, el mismo desfase que la isla al expandirse. */
 .sheet__body {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 0 var(--pst-gutter) var(--pst-space-5);
+  animation: sheet-content var(--pst-dur-slow) var(--pst-spring) 0.08s backwards;
+}
+
+.sheet.is-closing .sheet__body {
+  animation: sheet-content-out var(--pst-dur-fast) var(--pst-snap) both;
 }
 
 @keyframes sheet-rise {
@@ -79,8 +137,39 @@
   }
 }
 
-@keyframes sheet-fade {
+/* Sin `from`: parte de donde esté, incluso a medio arrastre. */
+@keyframes sheet-sink {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes sheet-veil-in {
   from {
+    background: transparent;
+    backdrop-filter: blur(0);
+    -webkit-backdrop-filter: blur(0);
+  }
+}
+
+@keyframes sheet-veil-out {
+  to {
+    background: transparent;
+    backdrop-filter: blur(0);
+    -webkit-backdrop-filter: blur(0);
+  }
+}
+
+@keyframes sheet-content {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+    filter: blur(4px);
+  }
+}
+
+@keyframes sheet-content-out {
+  to {
     opacity: 0;
   }
 }
