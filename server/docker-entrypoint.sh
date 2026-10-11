@@ -6,10 +6,14 @@ set -e
 
 cd /var/www/html
 
-# 1. Dependencias de Composer (vendor/ está en .gitignore y lo tapa el bind mount)
-if [ ! -f vendor/autoload.php ]; then
+# 1. Dependencias de Composer (vendor/ está en .gitignore y lo tapa el bind mount).
+# Se reinstala también cuando cambia composer.lock: tras un pull que agrega un
+# paquete, el vendor/ del host quedaría viejo y el arranque fallaría.
+lock_hash="$(sha1sum composer.lock | cut -d' ' -f1)"
+if [ ! -f vendor/autoload.php ] || [ "$(cat vendor/.composer-lock.sha1 2>/dev/null)" != "$lock_hash" ]; then
   echo "[piston] Instalando dependencias de Composer..."
   composer install --no-interaction --prefer-dist
+  echo "$lock_hash" > vendor/.composer-lock.sha1
 fi
 
 # 2. Directorios que Laravel necesita en tiempo de ejecución

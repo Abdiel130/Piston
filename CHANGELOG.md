@@ -7,6 +7,39 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+Montar Piston ahora toma un solo comando. `./up.sh --setup` recorre la
+instalación completa con preguntas: revisa Docker, configura puertos, URLs y
+credenciales de la base, levanta el stack, espera a que el servidor quede listo
+y crea la primera cuenta. En el día a día, `./up.sh` siempre recrea los
+contenedores y arregla solo los archivos que los contenedores dejaron de root,
+que eran lo que rompía el arranque con `--build`.
+
+### Added
+- **Instalación guiada**: `./up.sh --setup` pide los datos necesarios con
+  valores sugeridos. Avisa si un puerto está ocupado, genera una contraseña
+  segura para la base si se deja vacía y guarda una copia del `.env` anterior.
+  Al final espera a que la API responda y ofrece crear la primera cuenta.
+- **Protección de la base al cambiar credenciales**: si cambian el usuario, la
+  contraseña o el nombre de la base y los datos ya existen, el asistente lo
+  detecta. Permite volver a las credenciales anteriores o empezar la base de
+  cero, y borrarla exige escribir una confirmación.
+- **Arranque con opciones**: `./up.sh` acepta `--build`, `--no-cache`,
+  `--wait`, `--logs` y nombres de servicio. Siempre recrea los contenedores,
+  así que no quedan contenedores a medias de un arranque anterior.
+
+### Changed
+- **`./piston up` usa el nuevo arranque**: ahora equivale a `./up.sh --build`,
+  con las mismas protecciones.
+- **Dependencias siempre al día**: el backend reinstala sus dependencias cuando
+  cambian tras un `git pull`, y una reconstrucción renueva también las del
+  frontend. Antes los contenedores podían arrancar con paquetes viejos.
+
+### Fixed
+- **El arranque con `--build` fallaba con "permission denied"**: los archivos
+  que los contenedores generaban como root, por ejemplo al correr las pruebas
+  del backend, impedían construir las imágenes. Ya no forman parte del build, y
+  el arranque devuelve esos archivos al usuario sin pedir `sudo`.
+
 ## [1.6.0] - 2026-09-30
 
 Registrar una carga pide menos y adivina más. El formulario sigue el orden
