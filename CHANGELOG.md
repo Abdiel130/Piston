@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-10
+
 El vehículo deja de vivir solo en Ajustes. Tocar su apodo en el garage abre
 una hoja con todos tus vehículos: desde ahí se cambia el que estás
 administrando, y todo lo que registres después va a ese vehículo. La hoja
