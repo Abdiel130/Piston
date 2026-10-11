@@ -26,24 +26,45 @@
 - [Docker](https://docs.docker.com/get-docker/) y Docker Compose v2+.
 - Nada más: PHP, Composer, Node y PostgreSQL viven dentro de los contenedores.
 
-### 2. Configurar Variables de Entorno
-Copia el archivo de ejemplo. Aquí viven los puertos del host y las credenciales de PostgreSQL:
+### 2. Instalación Guiada (Recomendado)
 ```bash
-cp .env.example .env
+./up.sh --setup
 ```
+
+Un asistente recorre la instalación paso a paso:
+
+1. Comprueba Docker, Compose v2 y que el daemon esté arriba.
+2. Crea o ajusta `.env` con formularios: nombre y entorno de la app, puertos del host (avisa si alguno está ocupado), URLs de la API y del frontend, y credenciales de PostgreSQL (con la contraseña vacía genera una aleatoria). El `.env` anterior queda en `.env.backup`.
+3. Construye las imágenes y levanta el stack.
+4. Espera a que el entrypoint de `piston-server` termine (composer, `APP_KEY`, migraciones) y la API responda.
+5. Ofrece crear la primera cuenta.
+
+Si cambias las credenciales de la base y el volumen `piston_pgdata` ya existe, el asistente lo detecta: PostgreSQL conserva las credenciales con que se creó, así que te deja volver a las anteriores o empezar la base de cero.
 
 > **Sobre `APP_KEY`:** no se configura a mano. La clave de cifrado de Laravel vive en `server/.env`, y el entrypoint del contenedor crea ese archivo (a partir de `server/.env.example`) y genera la clave la primera vez que arranca. Si alguna vez necesitas rotarla: `./piston key`.
 
 > **Sobre el frontend:** no hay nada que copiar. Su configuración (`app/src/environments/`) está versionada y no contiene secretos; ver [Configuración por entorno](#configuración-por-entorno).
 
-### 3. Levantar Todo el Stack
+### 3. Arranques del Día a Día
 ```bash
-./piston up          # equivale a: docker compose up -d --build
+./up.sh              # levanta el stack (si falta .env, lo crea desde .env.example)
+./up.sh --build      # reconstruye las imágenes antes (equivale a ./piston up)
 ```
+
+| Flag | Qué hace |
+| :--- | :--- |
+| `--build` | Reconstruye las imágenes y renueva el volumen anónimo de `node_modules` |
+| `--no-cache` | Reconstruye sin caché de Docker (implica `--build`) |
+| `--setup` | Asistente de instalación (implica `--build` y `--wait`) |
+| `--wait` | No termina hasta que la API responde |
+| `--logs` | Sigue los logs al terminar |
+| `server` / `app` / `db` | Solo esos servicios |
+
+Siempre recrea los contenedores (`--force-recreate --remove-orphans`) y, antes de construir, devuelve a tu usuario los archivos de `server/` y `app/` que un contenedor dejó con dueño `root` (con un contenedor efímero: no pide `sudo`).
 
 El primer arranque tarda unos minutos porque construye las imágenes. Al iniciar, `piston-server` ejecuta automáticamente (ver [`server/docker-entrypoint.sh`](server/docker-entrypoint.sh)):
 
-1. `composer install` si falta `vendor/` (el bind mount tapa lo instalado en el build).
+1. `composer install` si falta `vendor/` o cambió `composer.lock` (el bind mount tapa lo instalado en el build).
 2. Creación de `storage/` y `bootstrap/cache` con permisos de escritura.
 3. Creación de `server/.env` y generación de `APP_KEY` si no existe.
 4. Espera activa a que PostgreSQL acepte conexiones.
@@ -59,7 +80,7 @@ Para desactivar las migraciones automáticas, añade `RUN_MIGRATIONS=false` al e
 
 Salida esperada del health check:
 ```json
-{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.6.0","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
+{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.6.1","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
 ```
 
 ### 5. Crear tu Cuenta
@@ -89,10 +110,12 @@ sigue el wizard de bienvenida (cuenta + primer vehículo).
 
 | Síntoma | Causa y solución |
 | :--- | :--- |
+| `error from sender: open .../permission denied` al construir | Un contenedor dejó archivos de `root` en el código. `./up.sh --build` los recupera solo. |
 | `piston-server` en `Restarting (255)` | Falta `vendor/`. `./piston rebuild` o `./piston composer install`. |
 | `data.database: "disconnected"` | PostgreSQL aún inicializando. Espera y repite `./piston health`. |
 | Error CORS en el navegador | El origen del front debe estar en `FRONTEND_URL` (`.env`) y en `server/config/cors.php`. |
-| Puerto ocupado | Cambia `APP_PORT`, `SERVER_PORT` o `DB_PORT` en `.env` y `./piston up`. |
+| Puerto ocupado | `./up.sh --setup` y elige otro, o cambia `APP_PORT`, `SERVER_PORT` o `DB_PORT` en `.env` y `./up.sh`. |
+| `piston-server` esperando la base para siempre | Cambiaste las credenciales con el volumen ya creado. `./up.sh --setup` te deja restaurarlas o recrear la base. |
 | Archivos nuevos con dueño `root` | Los generó un contenedor. `./piston own`. |
 | Quieres empezar de cero | `./piston down && docker volume rm piston_pgdata && ./piston up` (⚠️ borra la base de datos). |
 
@@ -108,7 +131,7 @@ Todos los comandos se ejecutan dentro de los contenedores, así que no necesitas
 
 | Comando | Qué hace |
 | :--- | :--- |
-| `./piston up` / `down` / `restart [svc]` | Ciclo de vida del stack |
+| `./piston up` / `down` / `restart [svc]` | Ciclo de vida del stack (`up` = `./up.sh --build`) |
 | `./piston rebuild` | Reconstruye imágenes sin caché |
 | `./piston ps` / `logs [svc]` | Estado y logs (`svc` = `server`, `app`, `db`) |
 | `./piston health` | Consulta `/api/health` desde el contenedor (la ruta solo acepta localhost) |
@@ -150,6 +173,7 @@ Piston/
 ├── .env                             # Variables locales activas
 ├── .gitignore                       # Ignorados globales
 ├── docker-compose.yml               # Orquestación de app, server y postgres
+├── up.sh                            # Arranque del stack y asistente de instalación (--setup)
 ├── piston                           # CLI de desarrollo (up, artisan, npm, psql…)
 ├── artisan                          # Atajo -> ./piston artisan
 ├── npm                              # Atajo -> ./piston npm
@@ -446,4 +470,4 @@ El script es **todo o nada**: si algo no cuadra no toca ningún archivo. Se nieg
 ---
 
 ## 📄 Licencia y Versión
-- Versión actual: **1.6.0** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).
+- Versión actual: **1.6.1** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).

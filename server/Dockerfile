@@ -25,7 +25,10 @@ RUN composer install --no-interaction --prefer-dist --no-scripts --no-autoloader
 # Copy application files
 COPY . /var/www/html
 
-RUN composer dump-autoload --optimize
+# storage/ queda fuera del build context (ver .dockerignore): se recrea vacío
+RUN mkdir -p storage/app/public storage/framework/cache/data storage/framework/sessions \
+        storage/framework/views storage/logs bootstrap/cache \
+    && composer dump-autoload --optimize
 
 # Adjust permissions
 RUN chown -R www-data:www-data /var/www/html \

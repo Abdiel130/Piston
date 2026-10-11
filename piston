@@ -2,7 +2,7 @@
 # =============================================================================
 # piston — CLI de desarrollo para el stack Docker de Piston
 #
-#   ./piston up                       Levanta el stack (build incluido)
+#   ./piston up [flags]               Levanta el stack: ./up.sh --build [flags]
 #   ./piston down                     Apaga el stack
 #   ./piston restart [servicio]       Reinicia todo o un servicio
 #   ./piston rebuild                  Reconstruye imágenes desde cero
@@ -58,7 +58,7 @@ resolve_svc() {
 cmd="${1:-help}"; shift || true
 
 case "$cmd" in
-  up)       dc up -d --build "$@" && dc ps ;;
+  up)       exec ./up.sh --build "$@" ;;
   down)     dc down "$@" ;;
   restart)  dc restart $( [ $# -gt 0 ] && resolve_svc "$1" ) ;;
   rebuild)  dc down && dc build --no-cache && dc up -d && dc ps ;;

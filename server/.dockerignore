@@ -4,7 +4,13 @@
 .env.production
 vendor/
 node_modules/
-storage/logs/*.log
-storage/framework/cache/data/*
-storage/framework/sessions/*
-storage/framework/views/*
+
+# Estado de ejecución. En desarrollo llega por el bind mount y el entrypoint
+# crea los directorios que falten. Fuera del build context porque lo generan
+# los contenedores (como root): un directorio root con permisos 700, como el
+# que deja Storage::fake() en storage/framework/testing, rompe el build con
+# "error from sender: ... permission denied".
+storage/
+bootstrap/cache/*.php
+.phpunit.cache/
+.phpunit.result.cache
