@@ -41,6 +41,8 @@ enum issue_status   { open monitoring resolved dismissed }
 
 enum reminder_kind   { service document custom }
 enum reminder_status { pending notified done dismissed }
+enum repeat_unit     { day week month year }
+enum repeat_anchor   { done due }
 
 enum periodicity { monthly quarterly semiannual annual custom_days }
 
@@ -492,6 +494,13 @@ Table reminders {
   notify_km_before   int      [default: 500]
   status             reminder_status [not null, default: 'pending']
   last_notified_at   timestamptz
+  repeat_every       int [note: 'Cada N repeat_unit. NULL = no se repite por fecha']
+  repeat_unit        repeat_unit
+  repeat_km          int [note: 'Cada N km. Puede ir junto con la fecha']
+  repeat_anchor      repeat_anchor [not null, default: 'done', note: 'done: desde que se hizo; due: desde el vencimiento anterior']
+  notes              text
+  done_at            date [note: 'Bitácora: cuándo se hizo']
+  done_odometer_km   int  [note: 'Bitácora: con cuántos km']
 
   created_at        timestamptz
   updated_at        timestamptz
@@ -502,7 +511,7 @@ Table reminders {
   indexes {
     (user_id, status, due_date)
   }
-  Note: 'C5 + F2 — Un solo motor de alertas para servicios y documentos.'
+  Note: 'C5 + F2 — Un solo motor de alertas para servicios y documentos. Marcar hecho cierra la fila (done) y crea la siguiente: los cerrados son la bitácora.'
 }
 
 // ──────────────────────── GASTOS Y DOCUMENTOS ────────────────────────

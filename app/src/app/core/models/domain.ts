@@ -13,6 +13,8 @@ import type {
   PriceSource,
   ReminderKind,
   ReminderStatus,
+  RepeatAnchor,
+  RepeatUnit,
   ScheduleStatus,
   ServiceCategory,
   StickerColor,
@@ -268,6 +270,16 @@ export interface Reminder extends SyncFields {
   notify_km_before: number | null;
   status: ReminderStatus;
   last_notified_at: IsoDateTime | null;
+  /** Cada N `repeat_unit`. Nulo = no se repite por fecha. */
+  repeat_every: number | null;
+  repeat_unit: RepeatUnit | null;
+  /** Cada N km. Puede ir junto con la fecha: avisa lo que llegue primero. */
+  repeat_km: number | null;
+  repeat_anchor: RepeatAnchor;
+  notes: string | null;
+  /** Solo en la bitácora (`done`): cuándo y con cuántos km se hizo. */
+  done_at: IsoDate | null;
+  done_odometer_km: number | null;
 }
 
 export interface ExpenseCategory extends SyncFields {

@@ -198,9 +198,18 @@ bitácora.
 
 ### Alcance
 - **Esquema** en `reminders`: `repeat_every` (int), `repeat_unit`
-  (`day|week|month|year`), `repeat_km` (int, opcional), `notes`. Migración,
-  `SyncRegistry`, `domain.ts`, Dexie (versión nueva si se indexa algo) y
-  `schema.dbml`.
+  (`day|week|month|year`), `repeat_km` (int, opcional), `repeat_anchor`
+  (`done|due`), `notes`, y para la bitácora `done_at` y `done_odometer_km`.
+  Migración, `SyncRegistry`, `domain.ts` y `schema.dbml`. Sin versión nueva
+  de Dexie: no se indexa nada nuevo.
+- **Bitácora = cadena en `reminders`**, como la renovación de documentos:
+  marcar hecho cierra la fila (`done`, con fecha, km y notas) y crea la
+  siguiente con la misma configuración. Descartar la cierra como
+  `dismissed` y el siguiente sigue el calendario original.
+- **Ancla**: `done` cuenta el periodo desde que se hizo (aceite cada 2
+  meses); `due`, desde el vencimiento anterior, saltando los periodos ya
+  pasados (refrendo cada 15 de marzo). Los km cuentan desde el odómetro con
+  que se hizo. Lógica pura en `core/data/reminder-schedule.ts`.
 - **Vista** `/vehicle/reminders`: próximos, vencidos y bitácora de hechos.
 - **Plantillas**: refrendo anual, verificación semestral, revisar aceite cada
   2 meses, anticongelante cada mes, presión de llantas, etc. Todas editables.

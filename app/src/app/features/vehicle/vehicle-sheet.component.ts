@@ -34,6 +34,7 @@ const VIEWS: readonly ViewLink[] = [
   { route: '/vehicle', icon: 'car', title: 'Datos del vehículo', sub: 'Ficha, rendimiento y gastos' },
   { route: '/vehicle/insurance', icon: 'shield', title: 'Póliza de seguro', sub: 'Vigencia, teléfonos y archivos' },
   { route: '/vehicle/documents', icon: 'document', title: 'Documentos', sub: 'Verificación, tenencia, tarjeta y licencia' },
+  { route: '/vehicle/reminders', icon: 'bell', title: 'Recordatorios', sub: 'Refrendo, revisiones y bitácora' },
 ];
 
 /**

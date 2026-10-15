@@ -36,6 +36,9 @@ export type IssueStatus = 'open' | 'monitoring' | 'resolved' | 'dismissed';
 
 export type ReminderKind = 'service' | 'document' | 'custom';
 export type ReminderStatus = 'pending' | 'notified' | 'done' | 'dismissed';
+export type RepeatUnit = 'day' | 'week' | 'month' | 'year';
+/** `done`: el periodo cuenta desde que se hizo. `due`: desde el vencimiento anterior. */
+export type RepeatAnchor = 'done' | 'due';
 
 export type Periodicity = 'monthly' | 'quarterly' | 'semiannual' | 'annual' | 'custom_days';
 
