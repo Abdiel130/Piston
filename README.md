@@ -80,7 +80,7 @@ Para desactivar las migraciones automáticas, añade `RUN_MIGRATIONS=false` al e
 
 Salida esperada del health check:
 ```json
-{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.9.0","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
+{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.10.0","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
 ```
 
 ### 5. Crear tu Cuenta
@@ -204,7 +204,7 @@ Piston/
 │   │       │   └── tab-bar/         # Barra de pestañas estilo iOS
 │   │       ├── features/            # Una pantalla por pestaña
 │   │       │   ├── garage/          # Vehículo, nivel de tanque, salud
-│   │       │   ├── vehicle/         # Hoja del vehículo, Datos, póliza y documentos
+│   │       │   ├── vehicle/         # Hoja del vehículo, Datos, póliza, documentos y recordatorios
 │   │       │   ├── fuel/            # Captura por rayitas e historial
 │   │       │   ├── service/         # Semáforo, fallas en seguimiento
 │   │       │   ├── expenses/        # Gasto por categoría y vencimientos
@@ -212,7 +212,7 @@ Piston/
 │   │       └── core/                # Capa offline-first
 │   │           ├── models/          # Enums y tipos, espejo de schema.dbml
 │   │           ├── db/              # Dexie, UUIDv7 y siembra de catálogos
-│   │           ├── data/            # OfflineStore (escrituras), adjuntos, documentos y alertas
+│   │           ├── data/            # OfflineStore (escrituras), adjuntos, documentos, recordatorios y alertas
 │   │           ├── sync/            # Motor de sync: outbox, backoff, delta, descarga de adjuntos
 │   │           └── api/             # Cliente HTTP de la API
 │
@@ -260,6 +260,7 @@ La app es **mobile-first** y **offline-first**: toda escritura ocurre primero en
 - **Refacciones por servicio**: marca, número de parte, cantidad y costo unitario. Aquí vive el histórico real del auto.
 - **Intervalos por vehículo** (cada X km **o** cada Y meses, lo que ocurra primero) con **semáforo** de salud verde / amarillo / rojo.
 - **Recordatorios y alertas** al acercarse el kilometraje o la fecha del próximo servicio.
+- **Recordatorios del vehículo**: vista propia desde la hoja del vehículo con plantillas (refrendo, verificación, aceite, anticongelante, presión y rotación de llantas…) y personalizados cada N días, semanas, meses, años o km, o en la misma fecha cada periodo. Al **marcarlo hecho** queda en la **bitácora** con fecha, km y notas, y el siguiente se programa solo. Vencidos y próximos marcan el garage hasta atenderlos o descartarlos.
 - **Bitácora de fallas y síntomas**: registra "suena al frenar" como incidencia abierta y lígala después al servicio que la resolvió. Guarda también los intentos que *no* la resolvieron.
 - Adjuntos por servicio (factura, nota del taller).
 
@@ -486,4 +487,4 @@ El script es **todo o nada**: si algo no cuadra no toca ningún archivo. Se nieg
 ---
 
 ## 📄 Licencia y Versión
-- Versión actual: **1.9.0** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).
+- Versión actual: **1.10.0** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).

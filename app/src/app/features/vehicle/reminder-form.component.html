@@ -1,0 +1,179 @@
+<div class="pst-stack capture-page">
+  <header class="top">
+    <a class="top__back" [routerLink]="back()"><pst-icon name="chevronLeft" [size]="20" /> {{ backLabel() }}</a>
+    <h1 class="top__title">{{ title() }}</h1>
+    @if (isLog()) {
+      <p class="top__sub">{{ saved()?.status === 'dismissed' ? 'Se descartó esa vez.' : 'Lo que se anotó al hacerlo.' }}</p>
+    }
+  </header>
+
+  @if (missing()) {
+    <p class="pst-note pst-note--warn">Este recordatorio ya no existe. Pudo borrarse en otro dispositivo.</p>
+  } @else if (editing() && !saved()) {
+    <p class="pst-empty">Cargando…</p>
+  } @else {
+    <form class="pst-form" (submit)="$event.preventDefault(); save()">
+      <label class="pst-field">
+        <span class="pst-field__label">Nombre</span>
+        <input class="pst-input" maxlength="160" placeholder="Revisar aceite" [class.is-invalid]="submitted() && errors().title" [value]="form().title" (input)="set('title', readText($event))" />
+      </label>
+      @if (submitted() && errors().title; as message) {
+        <p class="error">{{ message }}</p>
+      }
+
+      @if (isLog()) {
+        <div class="pst-field-row">
+          <label class="pst-field">
+            <span class="pst-field__label">{{ saved()?.status === 'dismissed' ? 'Descartado el' : 'Hecho el' }}</span>
+            <input class="pst-input" type="date" [class.is-invalid]="submitted() && errors().done_at" [value]="form().done_at" (input)="set('done_at', readText($event))" />
+          </label>
+          <label class="pst-field">
+            <span class="pst-field__label">Odómetro ({{ units.distanceSymbol() }}) <span class="optional">opcional</span></span>
+            <input class="pst-input pst-numeric" inputmode="numeric" [class.is-invalid]="submitted() && errors().done_km" [value]="form().done_km ?? ''" (input)="set('done_km', readNumber($event))" />
+          </label>
+        </div>
+        @for (key of ['done_at', 'done_km']; track key) {
+          @if (submitted() && $any(errors())[key]; as message) {
+            <p class="error">{{ message }}</p>
+          }
+        }
+      } @else {
+        <h2 class="pst-section-title section">Se repite</h2>
+        <div class="pst-chips" role="group" aria-label="Se repite">
+          @for (option of modes; track option.value) {
+            <button type="button" class="pst-chip" [class.is-active]="form().mode === option.value" [attr.aria-pressed]="form().mode === option.value" (click)="setMode(option.value)">
+              {{ option.label }}
+            </button>
+          }
+        </div>
+
+        @if (form().mode === 'period' || form().mode === 'fixed') {
+          <label class="pst-field">
+            <span class="pst-field__label">Cada</span>
+            <input class="pst-input pst-numeric" inputmode="numeric" [class.is-invalid]="submitted() && errors().every" [value]="form().every ?? ''" (input)="set('every', readNumber($event))" />
+          </label>
+          <div class="pst-chips" role="group" aria-label="Unidad">
+            @for (option of unitOptions; track option.value) {
+              <button type="button" class="pst-chip" [class.is-active]="form().unit === option.value" [attr.aria-pressed]="form().unit === option.value" (click)="set('unit', option.value)">
+                {{ option.label }}
+              </button>
+            }
+          </div>
+          @if (submitted() && errors().every; as message) {
+            <p class="error">{{ message }}</p>
+          }
+        }
+
+        @if (form().mode === 'period' || form().mode === 'km') {
+          <label class="pst-field">
+            <span class="pst-field__label">
+              {{ form().mode === 'km' ? 'Cada' : 'O cada' }} ({{ units.distanceSymbol() }})
+              @if (form().mode === 'period') {
+                <span class="optional">opcional</span>
+              }
+            </span>
+            <input class="pst-input pst-numeric" inputmode="numeric" placeholder="10000" [class.is-invalid]="submitted() && errors().repeat_km" [value]="form().repeat_km ?? ''" (input)="set('repeat_km', readNumber($event))" />
+          </label>
+          @if (submitted() && errors().repeat_km; as message) {
+            <p class="error">{{ message }}</p>
+          }
+        }
+
+        <span class="pst-field__hint">
+          {{ summary() }}.
+          @switch (form().mode) {
+            @case ('period') { Al marcarlo hecho, el siguiente cuenta desde ese día. }
+            @case ('fixed') { Al marcarlo hecho, el siguiente cae en la misma fecha aunque se haga antes o después. }
+            @case ('km') { Al marcarlo hecho, el siguiente cuenta desde el odómetro de ese día. }
+            @default { Al marcarlo hecho pasa a la bitácora y no se repite. }
+          }
+        </span>
+
+        <h2 class="pst-section-title section">{{ editing() ? 'Siguiente vez' : 'Primera vez' }}</h2>
+        <div class="pst-field-row">
+          @if (form().mode !== 'km') {
+            <label class="pst-field">
+              <span class="pst-field__label">Fecha</span>
+              <input class="pst-input" type="date" [class.is-invalid]="submitted() && errors().due_date" [value]="form().due_date" (input)="set('due_date', readText($event))" />
+            </label>
+          }
+          @if (form().mode !== 'fixed') {
+            <label class="pst-field">
+              <span class="pst-field__label">
+                Odómetro ({{ units.distanceSymbol() }})
+                @if (form().mode !== 'km') {
+                  <span class="optional">opcional</span>
+                }
+              </span>
+              <input class="pst-input pst-numeric" inputmode="numeric" [placeholder]="odometer() ?? ''" [class.is-invalid]="submitted() && errors().due_km" [value]="form().due_km ?? ''" (input)="set('due_km', readNumber($event))" />
+            </label>
+          }
+        </div>
+        @for (key of ['due_date', 'due_km']; track key) {
+          @if (submitted() && $any(errors())[key]; as message) {
+            <p class="error">{{ message }}</p>
+          }
+        }
+        @if (form().mode !== 'fixed' && odometer() !== null) {
+          <span class="pst-field__hint">Odómetro actual: {{ units.formatDistance(owner()?.current_odometer_km) }}.</span>
+        }
+
+        <h2 class="pst-section-title section">Avisar</h2>
+        <div class="pst-field-row">
+          @if (form().mode !== 'km') {
+            <label class="pst-field">
+              <span class="pst-field__label">Días antes</span>
+              <input class="pst-input pst-numeric" inputmode="numeric" placeholder="15" [class.is-invalid]="submitted() && errors().notify_days" [value]="form().notify_days ?? ''" (input)="set('notify_days', readNumber($event))" />
+            </label>
+          }
+          @if (form().mode !== 'fixed') {
+            <label class="pst-field">
+              <span class="pst-field__label">{{ units.distanceSymbol() }} antes</span>
+              <input class="pst-input pst-numeric" inputmode="numeric" placeholder="500" [class.is-invalid]="submitted() && errors().notify_km" [value]="form().notify_km ?? ''" (input)="set('notify_km', readNumber($event))" />
+            </label>
+          }
+        </div>
+        @for (key of ['notify_days', 'notify_km']; track key) {
+          @if (submitted() && $any(errors())[key]; as message) {
+            <p class="error">{{ message }}</p>
+          }
+        }
+        <span class="pst-field__hint">Desde ahí se marca en el garage hasta que lo marques hecho o lo descartes.</span>
+      }
+
+      <label class="pst-field">
+        <span class="pst-field__label">Notas <span class="optional">opcional</span></span>
+        <textarea class="pst-input notes" rows="3" [placeholder]="isLog() ? 'Qué se hizo, qué se usó' : 'Aceite 5W-30, ver nivel en frío'" [value]="form().notes" (input)="set('notes', readText($event))"></textarea>
+      </label>
+
+      @if (saveError(); as message) {
+        <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+      }
+      @if (submitted() && !valid()) {
+        <p class="error">Revisa los campos marcados.</p>
+      }
+
+      <button type="submit" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="saving()">
+        {{ saving() ? 'Guardando…' : editing() ? 'Guardar cambios' : 'Guardar' }}
+      </button>
+      <p class="saved-note">Se guarda en este dispositivo y se sincroniza sola.</p>
+    </form>
+
+    @if (editing()) {
+      <section class="danger">
+        @if (!confirmDelete()) {
+          <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" (click)="confirmDelete.set(true)">
+            {{ isLog() ? 'Borrar de la bitácora' : 'Borrar recordatorio' }}
+          </button>
+        } @else {
+          <p class="pst-note pst-note--bad">
+            {{ isLog() ? 'Se borra esta entrada de todos tus dispositivos.' : 'Deja de avisar y se borra de todos tus dispositivos. La bitácora se conserva.' }}
+            No se puede deshacer.
+          </p>
+          <button type="button" class="pst-btn pst-btn--danger pst-btn--block" (click)="remove()">Sí, borrar</button>
+          <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" (click)="confirmDelete.set(false)">Cancelar</button>
+        }
+      </section>
+    }
+  }
+</div>

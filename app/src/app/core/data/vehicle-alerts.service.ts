@@ -1,9 +1,11 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { db } from '../db/piston-db';
 import { todayIso } from '../format';
-import type { DocumentType, IsoDate, Uuid, VehicleDocument } from '../models';
+import { UnitsService } from '../units.service';
+import type { DocumentType, IsoDate, Reminder, Uuid, Vehicle, VehicleDocument } from '../models';
 import { DOCUMENT_LABEL, documentStatus, expiryLabel, isCurrent } from './document-status';
 import { OfflineStore } from './offline-store.service';
+import { dueLabel, reminderState, type DistanceFormat } from './reminder-schedule';
 
 /** `warn`: está por vencer. `bad`: ya venció o se pasó. */
 export type AlertTone = 'warn' | 'bad';
@@ -28,11 +30,12 @@ export interface VehicleAlert {
  * documentos, recordatorios) suma su fuente a `alerts`.
  *
  * Ver `docs/vehicle-section.md`. Fuentes: documentos vigentes (póliza y los
- * demás) por vencer o vencidos.
+ * demás) por vencer o vencidos, y recordatorios abiertos próximos o pasados.
  */
 @Injectable({ providedIn: 'root' })
 export class VehicleAlerts {
   private readonly store = inject(OfflineStore);
+  private readonly units = inject(UnitsService);
 
   /**
    * El día cambia con la app abierta (o dormida en segundo plano): sin esto,
@@ -45,7 +48,18 @@ export class VehicleAlerts {
     [] as VehicleDocument[],
   );
 
-  readonly alerts = computed<readonly VehicleAlert[]>(() => documentAlerts(this.documents(), this.today()));
+  private readonly reminders = this.store.liveSignal(
+    async () => (await db.reminders.toArray()).filter(isOpen),
+    [] as Reminder[],
+  );
+
+  /** Para los recordatorios por km: el odómetro de cada vehículo. */
+  private readonly vehicles = this.store.liveSignal(() => db.vehicles.toArray(), [] as Vehicle[]);
+
+  readonly alerts = computed<readonly VehicleAlert[]>(() => [
+    ...documentAlerts(this.documents(), this.today()),
+    ...reminderAlerts(this.reminders(), this.vehicles(), this.today(), (km) => this.units.formatDistance(km)),
+  ]);
 
   constructor() {
     const refresh = () => this.today.set(todayIso());
@@ -89,6 +103,37 @@ export function documentAlerts(documents: readonly VehicleDocument[], today: Iso
       title: document.type === 'insurance' ? 'Póliza de seguro' : (document.title ?? DOCUMENT_LABEL[document.type]),
       detail: expiryLabel(document.expires_at!, today),
       route: documentRoute(document.type),
+    });
+  }
+  return alerts;
+}
+
+/** Abierto = no borrado ni en la bitácora. Solo estos avisan. */
+export function isOpen(reminder: Reminder): boolean {
+  return !reminder.deleted_at && (reminder.status === 'pending' || reminder.status === 'notified');
+}
+
+/** Recordatorios abiertos que entraron en su ventana de aviso o ya se pasaron. */
+export function reminderAlerts(
+  reminders: readonly Reminder[],
+  vehicles: readonly Vehicle[],
+  today: IsoDate,
+  distance?: DistanceFormat,
+): VehicleAlert[] {
+  const odometer = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle.current_odometer_km]));
+  const alerts: VehicleAlert[] = [];
+  for (const reminder of reminders) {
+    if (!isOpen(reminder)) continue;
+    const km = odometer.get(reminder.vehicle_id) ?? null;
+    const state = reminderState(reminder, today, km);
+    if (state === 'ok') continue;
+    alerts.push({
+      id: `reminder:${reminder.id}`,
+      vehicle_id: reminder.vehicle_id,
+      tone: state === 'overdue' ? 'bad' : 'warn',
+      title: reminder.title,
+      detail: dueLabel(reminder, today, km, distance),
+      route: '/vehicle/reminders',
     });
   }
   return alerts;

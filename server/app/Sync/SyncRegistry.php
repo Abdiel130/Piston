@@ -296,6 +296,13 @@ final class SyncRegistry
                 'notify_km_before' => F::integer()->withDefault(),
                 'status' => F::enum(['pending', 'notified', 'done', 'dismissed'])->withDefault(),
                 'last_notified_at' => F::dateTime()->nullable(),
+                'repeat_every' => F::integer()->nullable(),
+                'repeat_unit' => F::enum(['day', 'week', 'month', 'year'])->nullable(),
+                'repeat_km' => F::integer()->nullable(),
+                'repeat_anchor' => F::enum(['done', 'due'])->withDefault(),
+                'notes' => F::text()->nullable(),
+                'done_at' => F::date()->nullable(),
+                'done_odometer_km' => F::integer()->nullable(),
             ]),
 
             new SyncTable('attachments', Domain\Attachment::class, Ownership::User, [

@@ -150,6 +150,27 @@ export const routes: Routes = [
           import('./features/vehicle/document-form.component').then((m) => m.DocumentFormComponent),
       },
       {
+        path: 'vehicle/reminders',
+        title: 'Recordatorios · Piston',
+        loadComponent: () =>
+          import('./features/vehicle/reminders.component').then((m) => m.RemindersComponent),
+      },
+      {
+        // Alta (`?template=<id>` arranca de una plantilla). Va antes de `:id`.
+        path: 'vehicle/reminders/new',
+        title: 'Nuevo recordatorio · Piston',
+        data: { back: '/vehicle/reminders', backLabel: 'Recordatorios' },
+        loadComponent: () =>
+          import('./features/vehicle/reminder-form.component').then((m) => m.ReminderFormComponent),
+      },
+      {
+        path: 'vehicle/reminders/:id',
+        title: 'Editar recordatorio · Piston',
+        data: { back: '/vehicle/reminders', backLabel: 'Recordatorios' },
+        loadComponent: () =>
+          import('./features/vehicle/reminder-form.component').then((m) => m.ReminderFormComponent),
+      },
+      {
         path: 'settings/sync',
         title: 'Sincronización · Piston',
         loadComponent: () =>

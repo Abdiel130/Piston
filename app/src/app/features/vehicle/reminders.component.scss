@@ -1,0 +1,71 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-3);
+}
+
+.reminder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-2);
+}
+
+.reminder__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pst-space-2);
+
+  .pst-badge {
+    flex-shrink: 0;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+}
+
+.reminder__title {
+  margin: 0;
+  font-size: var(--pst-body);
+  font-weight: 600;
+}
+
+.reminder__sub,
+.reminder__notes {
+  margin: 0;
+  font-size: var(--pst-subhead);
+  color: var(--pst-label-2);
+}
+
+.reminder__notes {
+  white-space: pre-line;
+}
+
+// Editar es un icono a la izquierda; Descartar y Hecho ocupan el resto.
+.reminder__actions {
+  display: flex;
+  gap: var(--pst-space-2);
+  margin-top: var(--pst-space-1);
+
+  .pst-btn {
+    flex: 1;
+  }
+
+  .pst-btn:first-child {
+    flex: 0 0 auto;
+  }
+}
+
+.log .pst-row__icon {
+  color: var(--pst-good);
+}
+
+.log .log__icon--dismissed {
+  color: var(--pst-label-3);
+}
+
+.log__notes {
+  display: block;
+  font-size: var(--pst-footnote);
+  color: var(--pst-label-2);
+  white-space: normal;
+}

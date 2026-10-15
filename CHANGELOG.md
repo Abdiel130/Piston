@@ -7,6 +7,40 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-14
+
+La sección del vehículo suma su cuarta vista: los recordatorios. El
+refrendo, la verificación y las revisiones de siempre (aceite,
+anticongelante, presión de llantas) ya tienen su lugar, junto con cualquier
+recordatorio propio, por fecha o por kilometraje. Lo que se marca como hecho
+queda en una bitácora y el siguiente se programa solo. Lo vencido o próximo
+marca el garage hasta atenderlo.
+
+### Added
+- **Recordatorios del vehículo**: nueva vista desde la hoja del vehículo con
+  los vencidos arriba, luego los próximos, cada uno con cuándo toca ("Toca en
+  12 días · Faltan 300 km") y cada cuánto se repite.
+- **Plantillas listas para usar**: refrendo anual, verificación semestral
+  (con la fecha que propone el calendario de tu engomado o placa), revisar
+  aceite, anticongelante, líquido de frenos y batería, presión y rotación de
+  llantas. Todas se pueden ajustar antes de guardar.
+- **Recordatorios personalizados**: cada N días, semanas, meses o años
+  contados desde la última vez, en la misma fecha cada periodo (como el
+  refrendo, aunque lo pagues antes o tarde), por kilometraje, por fecha y
+  kilometraje a la vez (lo que llegue primero), o una sola vez. Se elige con
+  cuántos días o kilómetros de anticipación avisar. Los kilómetros respetan
+  tu unidad de distancia.
+- **Marcar como hecho y bitácora**: al marcarlo hecho se anotan la fecha, el
+  odómetro y qué se hizo. La entrada pasa a la bitácora y el siguiente se
+  programa solo: una revisión cada 2 meses hecha hoy vuelve a tocar en 2
+  meses. Las entradas de la bitácora se pueden corregir o borrar.
+- **Descartar**: si una vez no aplica, se descarta. Queda anotado en la
+  bitácora y el siguiente sigue su calendario de siempre.
+- **Avisos en el garage**: un recordatorio que entra en su ventana de aviso
+  se marca en amarillo y uno vencido en rojo, en el apodo del vehículo, en la
+  fila "Recordatorios" de la hoja y en la propia vista. La marca se queda
+  hasta marcarlo hecho o descartarlo.
+
 ## [1.9.0] - 2026-10-10
 
 La sección del vehículo suma su tercera vista: el resto de los documentos.

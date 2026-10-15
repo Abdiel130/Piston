@@ -1,0 +1,151 @@
+<div class="pst-stack capture-page">
+  <header class="top">
+    <a class="top__back" routerLink="/vehicle"><pst-icon name="chevronLeft" [size]="20" /> Vehículo</a>
+    <h1 class="top__title">Recordatorios</h1>
+    <p class="top__sub">{{ name() }}</p>
+  </header>
+
+  @if (!vehicle()) {
+    <section class="pst-card">
+      <p class="pst-empty">No hay un vehículo activo. Agrégalo en Ajustes.</p>
+    </section>
+  } @else {
+    @if (actionError(); as message) {
+      <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+    }
+
+    @for (section of [{ title: 'Vencidos', views: overdue() }, { title: 'Próximos', views: upcoming() }]; track section.title) {
+      @if (section.views.length) {
+        <section class="group">
+          <h2 class="pst-section-title">{{ section.title }}</h2>
+          @for (view of section.views; track view.reminder.id) {
+            <article class="pst-card reminder">
+              <div class="reminder__head">
+                <h3 class="reminder__title">{{ view.reminder.title }}</h3>
+                <span [class]="'pst-badge ' + badge[view.state]">{{ view.due }}</span>
+              </div>
+              <p class="reminder__sub">
+                {{ view.repeat }}
+                @if (view.date) {
+                  · {{ view.date }}
+                }
+              </p>
+              @if (view.reminder.notes) {
+                <p class="reminder__notes">{{ view.reminder.notes }}</p>
+              }
+              <div class="reminder__actions">
+                <a class="pst-btn pst-btn--ghost" [routerLink]="['/vehicle/reminders', view.reminder.id]" [attr.aria-label]="'Editar ' + view.reminder.title">
+                  <pst-icon name="settings" [size]="18" />
+                </a>
+                @if (view.state !== 'ok') {
+                  <button type="button" class="pst-btn pst-btn--ghost" [disabled]="busy()" (click)="dismiss(view.reminder)">Descartar</button>
+                }
+                <button type="button" class="pst-btn pst-btn--primary" [disabled]="busy()" (click)="openDone(view.reminder)">
+                  <pst-icon name="checkCircle" [size]="18" /> Hecho
+                </button>
+              </div>
+            </article>
+          }
+        </section>
+      }
+    }
+
+    @if (!overdue().length && !upcoming().length) {
+      <section class="pst-card">
+        <p class="pst-empty">Sin recordatorios. Agrega el refrendo, la verificación o revisiones como el aceite y la presión de llantas para que el garage te avise.</p>
+      </section>
+    }
+
+    <section>
+      <h2 class="pst-section-title">Agregar</h2>
+      <div class="pst-card pst-card--flush">
+        <div class="pst-list">
+          @for (template of templates; track template.id) {
+            <a class="pst-row" routerLink="/vehicle/reminders/new" [queryParams]="{ template: template.id }">
+              <span class="pst-row__icon"><pst-icon [name]="template.icon" [size]="18" /></span>
+              <span class="pst-row__body">
+                <span class="pst-row__title">{{ template.title }}</span>
+              </span>
+              <span class="pst-row__trail"><pst-icon name="plus" [size]="16" /></span>
+            </a>
+          }
+          <a class="pst-row" routerLink="/vehicle/reminders/new">
+            <span class="pst-row__icon"><pst-icon name="bell" [size]="18" /></span>
+            <span class="pst-row__body">
+              <span class="pst-row__title">Personalizado</span>
+              <span class="pst-row__sub">Por días, semanas, meses, años o km</span>
+            </span>
+            <span class="pst-row__trail"><pst-icon name="plus" [size]="16" /></span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    @if (log().length) {
+      <section>
+        <h2 class="pst-section-title">Bitácora</h2>
+        <div class="pst-card pst-card--flush">
+          <div class="pst-list">
+            @for (entry of log(); track entry.reminder.id) {
+              <a class="pst-row log" [routerLink]="['/vehicle/reminders', entry.reminder.id]">
+                <span class="pst-row__icon" [class.log__icon--dismissed]="entry.dismissed">
+                  <pst-icon [name]="entry.dismissed ? 'close' : 'checkCircle'" [size]="18" />
+                </span>
+                <span class="pst-row__body">
+                  <span class="pst-row__title">{{ entry.reminder.title }}</span>
+                  <span class="pst-row__sub">
+                    {{ entry.dismissed ? 'Descartado' : 'Hecho' }} · {{ entry.date }}
+                    @if (entry.km) {
+                      · {{ entry.km }}
+                    }
+                  </span>
+                  @if (entry.reminder.notes && !entry.dismissed) {
+                    <span class="log__notes">{{ entry.reminder.notes }}</span>
+                  }
+                </span>
+                <span class="pst-row__trail"><pst-icon name="chevronRight" [size]="16" /></span>
+              </a>
+            }
+          </div>
+        </div>
+      </section>
+    }
+  }
+</div>
+
+<pst-sheet [(open)]="doneOpen" label="Marcar como hecho">
+  <ng-template pstSheetContent>
+    <div class="pst-stack capture-page">
+      <header class="top top--sheet">
+        <h1 class="top__title">Marcar como hecho</h1>
+        <p class="top__sub">{{ doneTarget()?.title }}</p>
+      </header>
+      <form class="pst-form" (submit)="$event.preventDefault(); complete()">
+        <div class="pst-field-row">
+          <label class="pst-field">
+            <span class="pst-field__label">Fecha</span>
+            <input class="pst-input" type="date" [max]="today()" [value]="doneAt()" (input)="doneAt.set(readText($event))" />
+          </label>
+          <label class="pst-field">
+            <span class="pst-field__label">Odómetro ({{ units.distanceSymbol() }}) <span class="optional">opcional</span></span>
+            <input class="pst-input pst-numeric" inputmode="numeric" [value]="doneKm() ?? ''" (input)="doneKm.set(readNumber($event))" />
+          </label>
+        </div>
+        <label class="pst-field">
+          <span class="pst-field__label">Notas <span class="optional">opcional</span></span>
+          <textarea class="pst-input notes" rows="2" placeholder="Qué se hizo, qué se usó" [value]="doneNotes()" (input)="doneNotes.set(readText($event))"></textarea>
+        </label>
+        @if (doneSubmitted() && doneError(); as message) {
+          <p class="error">{{ message }}</p>
+        }
+        @if (actionError(); as message) {
+          <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+        }
+        <button type="submit" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="busy()">
+          {{ busy() ? 'Guardando…' : 'Guardar en la bitácora' }}
+        </button>
+        <p class="saved-note">Si se repite, el siguiente se programa solo.</p>
+      </form>
+    </div>
+  </ng-template>
+</pst-sheet>
