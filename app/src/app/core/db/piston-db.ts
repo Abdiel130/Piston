@@ -28,6 +28,8 @@ import type {
   Uuid,
   Vehicle,
   VehicleDocument,
+  NotificationPrefs,
+  NotifiedAlert,
 } from '../models';
 
 /**
@@ -75,6 +77,8 @@ export class PistonDb extends Dexie {
   onboarding!: Table<LocalOnboarding, string>;
   sync_runs!: Table<SyncRun, Uuid>;
   sync_log!: Table<SyncLogEntry, Uuid>;
+  notification_prefs!: Table<NotificationPrefs, string>;
+  notified_alerts!: Table<NotifiedAlert, string>;
 
   constructor() {
     super('piston');
@@ -164,6 +168,13 @@ export class PistonDb extends Dexie {
             entry['conflict'] = null;
           });
       });
+
+    // Notificaciones del sistema (fase 5 del vehículo): preferencias de este
+    // dispositivo y los avisos que ya sonaron, para no repetirlos.
+    this.version(5).stores({
+      notification_prefs: 'key',
+      notified_alerts: 'key, at',
+    });
   }
 }
 

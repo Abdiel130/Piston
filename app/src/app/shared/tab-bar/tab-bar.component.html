@@ -10,6 +10,11 @@
         >
           <span class="tabbar__icon">
             <pst-icon [name]="tab.icon" [size]="24" />
+            @if (tab.path === '/' && garageAlerts(); as alerts) {
+              <span [class]="'tabbar__badge tabbar__badge--' + alerts.tone" [attr.aria-label]="alerts.count + (alerts.count === 1 ? ' aviso' : ' avisos')">
+                {{ alerts.count > 9 ? '9+' : alerts.count }}
+              </span>
+            }
           </span>
           <span class="tabbar__label">{{ tab.label }}</span>
         </a>

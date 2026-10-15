@@ -10,6 +10,9 @@ import { dueLabel, reminderState, type DistanceFormat } from './reminder-schedul
 /** `warn`: está por vencer. `bad`: ya venció o se pasó. */
 export type AlertTone = 'warn' | 'bad';
 
+/** De dónde sale: cada una se puede apagar aparte en Ajustes › Notificaciones. */
+export type AlertCategory = 'insurance' | 'documents' | 'reminders';
+
 /**
  * Algo del vehículo que pide atención: una póliza por vencer, un recordatorio
  * pasado. Se queda mientras no se resuelva, aunque ya se haya notificado.
@@ -22,6 +25,14 @@ export interface VehicleAlert {
   readonly detail: string;
   /** Vista donde se resuelve. */
   readonly route: string;
+  readonly category: AlertCategory;
+  /**
+   * Identifica este aviso en concreto: la fila, el tono y el vencimiento. Si
+   * pasa de warn a bad, o se mueve la fecha, es otro aviso y vuelve a notificar.
+   */
+  readonly key: string;
+  /** La fila permite notificación del sistema (`notify_enabled`). El badge sale igual. */
+  readonly notify: boolean;
 }
 
 /**
@@ -71,7 +82,22 @@ export class VehicleAlerts {
     });
   }
 
-  readonly count = computed(() => this.alerts().length);
+  /**
+   * Las de vehículos activos: un archivado o vendido no pide atención en el
+   * garage. Es lo que cuentan la pestaña, el icono de la app y las
+   * notificaciones.
+   */
+  readonly active = computed<readonly VehicleAlert[]>(() => {
+    const active = new Set(
+      this.vehicles()
+        .filter((vehicle) => !vehicle.deleted_at && vehicle.status === 'active')
+        .map((vehicle) => vehicle.id),
+    );
+    return this.alerts().filter((alert) => active.has(alert.vehicle_id));
+  });
+
+  /** Total de todos los vehículos activos, no solo el de gestión. */
+  readonly count = computed(() => this.active().length);
 
   /** Las de un vehículo. Dentro de un `computed`, se reevalúa sola. */
   forVehicle(vehicleId: Uuid | null): readonly VehicleAlert[] {
@@ -96,13 +122,17 @@ export function documentAlerts(documents: readonly VehicleDocument[], today: Iso
   for (const document of documents) {
     const status = documentStatus(document.expires_at, today);
     if (!isCurrent(document) || status === 'ok') continue;
+    const tone: AlertTone = status === 'expired' ? 'bad' : 'warn';
     alerts.push({
       id: `document:${document.id}`,
       vehicle_id: document.vehicle_id,
-      tone: status === 'expired' ? 'bad' : 'warn',
+      tone,
       title: document.type === 'insurance' ? 'Póliza de seguro' : (document.title ?? DOCUMENT_LABEL[document.type]),
       detail: expiryLabel(document.expires_at!, today),
       route: documentRoute(document.type),
+      category: document.type === 'insurance' ? 'insurance' : 'documents',
+      key: `document:${document.id}:${tone}:${document.expires_at}`,
+      notify: document.notify_enabled !== false,
     });
   }
   return alerts;
@@ -127,13 +157,17 @@ export function reminderAlerts(
     const km = odometer.get(reminder.vehicle_id) ?? null;
     const state = reminderState(reminder, today, km);
     if (state === 'ok') continue;
+    const tone: AlertTone = state === 'overdue' ? 'bad' : 'warn';
     alerts.push({
       id: `reminder:${reminder.id}`,
       vehicle_id: reminder.vehicle_id,
-      tone: state === 'overdue' ? 'bad' : 'warn',
+      tone,
       title: reminder.title,
       detail: dueLabel(reminder, today, km, distance),
       route: '/vehicle/reminders',
+      category: 'reminders',
+      key: `reminder:${reminder.id}:${tone}:${reminder.due_date ?? ''}:${reminder.due_odometer_km ?? ''}`,
+      notify: reminder.notify_enabled !== false,
     });
   }
   return alerts;

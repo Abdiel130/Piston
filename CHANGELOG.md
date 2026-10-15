@@ -7,6 +7,41 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-10-14
+
+Lo importante del vehículo ya avisa aunque no abras su sección. Una póliza
+por vencer, una licencia vencida o un recordatorio que ya toca llegan como
+notificación del sistema, una vez al entrar en su ventana y otra al vencer.
+Tú eliges qué suena en cada dispositivo, por tipo y hasta por documento o
+recordatorio. El total de avisos de todos tus vehículos se ve en la pestaña
+Garage y en el icono de la app.
+
+### Added
+- **Notificaciones del sistema**: los documentos por vencer o vencidos y los
+  recordatorios que ya tocan llegan como notificación, al abrir la app y,
+  con la app instalada en Android o Chrome, una vez al día aunque esté
+  cerrada. Cada aviso suena una vez al entrar en su ventana y otra al
+  vencer, nunca más. Si se juntan muchos, llega uno solo que los resume.
+- **Ajustes › Notificaciones**: muestra el estado del permiso y lo pide con
+  un toque, explica qué hacer si está bloqueado o si el iPhone necesita la
+  app instalada, y permite enviar una de prueba. Un interruptor general y
+  uno por tipo (póliza, documentos, recordatorios) deciden qué suena en ese
+  dispositivo: el teléfono puede avisar y la computadora no.
+- **Notificación por documento o recordatorio**: cada uno puede apagar la
+  suya desde su formulario y quedarse solo con la marca en el garage. Esta
+  opción sí viaja a todos tus dispositivos y se conserva al renovar o al
+  programar el siguiente.
+- **Abrir desde la notificación**: tocarla lleva directo a la póliza, los
+  documentos o los recordatorios, y cambia al vehículo del aviso si no era el
+  que tenías en gestión.
+- **Conteo global de avisos**: la pestaña Garage muestra el total de avisos
+  de todos tus vehículos activos, en amarillo o en rojo según el más grave, y
+  el icono de la app instalada lleva el mismo número.
+
+### Changed
+- **Avisos de vehículos archivados o vendidos**: ya no cuentan en el garage
+  ni notifican.
+
 ## [1.10.0] - 2026-10-14
 
 La sección del vehículo suma su cuarta vista: los recordatorios. El

@@ -280,6 +280,8 @@ export interface Reminder extends SyncFields {
   /** Solo en la bitácora (`done`): cuándo y con cuántos km se hizo. */
   done_at: IsoDate | null;
   done_odometer_km: number | null;
+  /** `false`: solo badge, sin notificación del sistema. Filas viejas: `undefined` = sí. */
+  notify_enabled: boolean;
 }
 
 export interface ExpenseCategory extends SyncFields {
@@ -335,6 +337,8 @@ export interface VehicleDocument extends SyncFields {
   policy_item: string | null;
   /** Documento que lo reemplaza. Nulo = vigente. */
   renewed_by_id: Uuid | null;
+  /** `false`: solo badge, sin notificación del sistema. Filas viejas: `undefined` = sí. */
+  notify_enabled: boolean;
 }
 
 export interface Trip extends SyncFields {

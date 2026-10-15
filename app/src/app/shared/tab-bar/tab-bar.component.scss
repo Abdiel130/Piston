@@ -40,9 +40,38 @@
 }
 
 .tabbar__icon {
+  position: relative;
   display: grid;
   place-items: center;
   transition: transform var(--pst-dur-base) var(--pst-overshoot);
+}
+
+/* Avisos de todos los vehículos sobre el icono de Garage, como en iOS. El
+   amarillo lleva texto oscuro para que se lea. */
+.tabbar__badge {
+  position: absolute;
+  top: -0.25rem;
+  left: calc(50% + 0.375rem);
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 0.3125rem;
+  border-radius: var(--pst-r-pill);
+  font-size: var(--pst-caption-2);
+  font-weight: 700;
+  line-height: 1.125rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--pst-bg);
+}
+
+.tabbar__badge--bad {
+  background: var(--pst-bad);
+  color: #fff;
+}
+
+.tabbar__badge--warn {
+  background: var(--pst-warn);
+  color: #000;
 }
 
 .tabbar__label {

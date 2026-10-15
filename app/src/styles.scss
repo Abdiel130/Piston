@@ -633,6 +633,80 @@ svg {
   cursor: pointer;
 }
 
+/* Interruptor sí/no con su texto. Un checkbox nativo con `role="switch"`:
+   teclado, foco y lector de pantalla gratis; solo cambia cómo se ve. */
+.pst-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--pst-space-3);
+  cursor: pointer;
+}
+
+.pst-switch__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pst-switch__title {
+  font-size: var(--pst-body);
+}
+
+.pst-switch__sub {
+  font-size: var(--pst-footnote);
+  color: var(--pst-label-3);
+}
+
+.pst-switch input {
+  appearance: none;
+  flex-shrink: 0;
+  position: relative;
+  width: 3.1875rem;
+  height: 1.9375rem;
+  margin: 0;
+  border-radius: var(--pst-r-pill);
+  background: var(--pst-surface-4);
+  cursor: pointer;
+  transition: background-color var(--pst-dur-fast) var(--pst-snap);
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 1.6875rem;
+    height: 1.6875rem;
+    border-radius: var(--pst-r-pill);
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    transition: transform var(--pst-dur-fast) var(--pst-snap);
+  }
+
+  &:checked {
+    background: var(--pst-good);
+  }
+
+  &:checked::after {
+    transform: translateX(1.25rem);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pst-ignition);
+    outline-offset: 2px;
+  }
+}
+
+.pst-switch:has(input:disabled) {
+  cursor: default;
+}
+
 /* Selector de opciones en píldoras. Para 2-6 opciones es más rápido que un
    <select>: se ve todo sin abrir nada. */
 .pst-chips {

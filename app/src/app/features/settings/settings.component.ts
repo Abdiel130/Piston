@@ -5,6 +5,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ProfileService } from '../../core/auth/profile.service';
 import { VehicleContext } from '../../core/data/vehicle-context.service';
 import type { ProfilePatch, Vehicle } from '../../core/models';
+import { NotificationService } from '../../core/notifications/notification.service';
 import { PwaService } from '../../core/pwa/pwa.service';
 import { SyncService, type LogoutBlocker, type SyncSummary } from '../../core/sync/sync.service';
 import {
@@ -85,6 +86,7 @@ export class SettingsComponent {
   protected readonly discardConfirmation = DISCARD_CONFIRMATION;
   protected readonly canDiscard = computed(() => this.discardText().trim() === DISCARD_CONFIRMATION);
   private readonly pwa = inject(PwaService);
+  private readonly notifications = inject(NotificationService);
 
   protected readonly summary = this.sync.summary;
 
@@ -166,7 +168,7 @@ export class SettingsComponent {
   protected readonly groups = computed<readonly SettingGroup[]>(() => [
     {
       title: 'Aplicación',
-      rows: [this.installRow(), this.updateRow()],
+      rows: [this.installRow(), this.notificationsRow(), this.updateRow()],
     },
     {
       title: 'Datos',
@@ -275,6 +277,22 @@ export class SettingsComponent {
       icon: 'download',
       title: 'Instalar app',
       value: this.pwa.isIos ? 'Compartir › Agregar a inicio' : 'Menú del navegador › Instalar',
+    };
+  }
+
+  private notificationsRow(): SettingRow {
+    const value = {
+      granted: this.notifications.prefs().enabled ? 'Activas' : 'Apagadas',
+      denied: 'Bloqueadas',
+      default: 'Sin permiso',
+      unsupported: 'No disponibles',
+    }[this.notifications.permission()];
+    return {
+      icon: 'bell',
+      title: 'Notificaciones',
+      value,
+      tone: this.notifications.permission() === 'denied' ? 'bad' : undefined,
+      action: () => void this.router.navigateByUrl('/settings/notifications'),
     };
   }
 

@@ -77,6 +77,13 @@
           <span class="pst-field__hint">Captura manual. Agrega la placa o el engomado en Datos del vehículo para sugerir el periodo.</span>
         }
       }
+      <label class="pst-switch">
+        <span class="pst-switch__body">
+          <span class="pst-switch__title">Notificación del sistema</span>
+          <span class="pst-switch__sub">Al entrar al mes antes de vencer y al vencer. Apagada, solo se marca en el garage.</span>
+        </span>
+        <input type="checkbox" role="switch" [checked]="form().notify_enabled" (change)="set('notify_enabled', $any($event.target).checked)" />
+      </label>
       <label class="pst-field">
         <span class="pst-field__label">Costo <span class="optional">opcional</span></span>
         <input class="pst-input pst-numeric" inputmode="decimal" placeholder="9800" [class.is-invalid]="submitted() && errors().cost" [value]="form().cost ?? ''" (input)="set('cost', readNumber($event))" />

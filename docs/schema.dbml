@@ -501,6 +501,7 @@ Table reminders {
   notes              text
   done_at            date [note: 'Bitácora: cuándo se hizo']
   done_odometer_km   int  [note: 'Bitácora: con cuántos km']
+  notify_enabled     boolean [not null, default: true, note: 'false = solo badge, sin notificación del sistema']
 
   created_at        timestamptz
   updated_at        timestamptz
@@ -596,6 +597,7 @@ Table documents {
   insured_number   varchar(80) [note: 'Número de asegurado o cliente; algunas aseguradoras lo piden en un siniestro']
   policy_item      varchar(20) [note: 'Inciso: renglón de la póliza que cubre este vehículo (1 en una individual)']
   renewed_by_id    uuid        [note: 'Documento que lo reemplaza. Nulo = vigente; solo los vigentes avisan']
+  notify_enabled   boolean     [not null, default: true, note: 'false = solo badge, sin notificación del sistema']
 
   created_at        timestamptz
   updated_at        timestamptz

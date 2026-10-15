@@ -270,6 +270,7 @@ final class SyncRegistry
                 'insured_number' => F::string(80)->nullable(),
                 'policy_item' => F::string(20)->nullable(),
                 'renewed_by_id' => F::ref('documents')->nullable(),
+                'notify_enabled' => F::boolean()->withDefault(),
             ]),
 
             new SyncTable('trips', Domain\Trip::class, Ownership::User, [
@@ -303,6 +304,7 @@ final class SyncRegistry
                 'notes' => F::text()->nullable(),
                 'done_at' => F::date()->nullable(),
                 'done_odometer_km' => F::integer()->nullable(),
+                'notify_enabled' => F::boolean()->withDefault(),
             ]),
 
             new SyncTable('attachments', Domain\Attachment::class, Ownership::User, [

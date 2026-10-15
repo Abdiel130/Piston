@@ -37,6 +37,7 @@ interface FormValue {
   insured_number: string;
   policy_item: string;
   notes: string;
+  notify_enabled: boolean;
 }
 
 type Field = keyof FormValue;
@@ -69,6 +70,7 @@ const BLANK: FormValue = {
   insured_number: '',
   policy_item: '',
   notes: '',
+  notify_enabled: true,
 };
 
 const PHONE = /^[0-9+()\-.\s]*$/;
@@ -378,6 +380,7 @@ export class DocumentFormComponent {
       assistance_phone: insurance ? f.assistance_phone : null,
       insured_number: insurance ? f.insured_number : null,
       policy_item: insurance ? f.policy_item : null,
+      notify_enabled: f.notify_enabled,
     };
   }
 }
@@ -396,5 +399,6 @@ function toForm(d: VehicleDocument): FormValue {
     insured_number: d.insured_number ?? '',
     policy_item: d.policy_item ?? '',
     notes: d.notes ?? '',
+    notify_enabled: d.notify_enabled !== false,
   };
 }

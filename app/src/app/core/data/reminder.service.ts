@@ -125,6 +125,7 @@ export class ReminderService {
       notes: previous.notes,
       done_at: null,
       done_odometer_km: null,
+      notify_enabled: previous.notify_enabled !== false,
     });
   }
 

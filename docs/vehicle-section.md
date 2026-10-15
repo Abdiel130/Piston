@@ -232,13 +232,27 @@ bitácora.
 
 ### Alcance
 - **Permiso** de notificaciones en Ajustes, con explicación y estado.
-- **Disparo**: al abrir la app y en el periodic sync del service worker
-  (`app/public/piston-sw*.js`), revisar `VehicleAlerts` y notificar una sola
-  vez por alerta (marca con `last_notified_at` o `status: 'notified'`).
+- **Disparo**: al abrir la app (`core/notifications/notification.service.ts`,
+  y cada que cambian los avisos con ella abierta) y en el periodic sync del
+  service worker (`app/public/piston-sw-alerts.js`). Comparten el Web Lock
+  `piston-notify`.
+- **Una vez por aviso y dispositivo**, al entrar en su ventana y otra al
+  vencer: `VehicleAlert.key` lleva fila, tono y vencimiento, y lo ya
+  notificado queda en la tabla local `notified_alerts` (Dexie v5). No se usa
+  `last_notified_at` ni `status: 'notified'`: el permiso es por dispositivo y
+  cada uno lleva su cuenta. Más de 3 nuevos a la vez salen en un resumen.
+- **Granular**: interruptor general y uno por categoría (póliza, documentos,
+  recordatorios) en `notification_prefs`, local al dispositivo. Cada
+  documento o recordatorio puede apagar la suya con `notify_enabled`
+  (columna sincronizada); el badge sale igual.
 - El badge sigue visible hasta que se resuelve, aunque ya se haya notificado.
-- **Conteo global**: badge en la pestaña Garage con el total de alertas de
-  todos los vehículos, no solo el de gestión.
-- Tocar la notificación abre la vista correspondiente.
+- **Conteo global**: badge en la pestaña Garage y en el icono de la app
+  (Badging API) con el total de alertas de todos los vehículos activos, no
+  solo el de gestión.
+- Tocar la notificación abre la vista correspondiente con `?vehicle=<id>`,
+  que cambia al vehículo del aviso y se limpia de la URL.
+- El worker no importa TS: `piston-sw-alerts.js` copia la lógica de avisos y
+  `notification-parity.spec.ts` corre ambas con los mismos datos.
 
 ### Criterios de aceptación
 - Una póliza que entra en ventana de 30 días notifica una vez y conserva el

@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { AuthService } from './core/auth/auth.service';
+import { NotificationService } from './core/notifications/notification.service';
 import { IconComponent } from './shared/icon/icon.component';
 import { DynamicIslandComponent } from './shared/island/dynamic-island.component';
 import { IslandService } from './shared/island/island.service';
@@ -30,6 +31,12 @@ export class App {
   private readonly island = inject(IslandService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+
+  constructor() {
+    // Arranca con la app: notifica lo pendiente al abrirla, sin esperar a que
+    // se visite el garage o Ajustes.
+    inject(NotificationService);
+  }
 
   protected readonly islandExpanded = this.island.expanded;
 

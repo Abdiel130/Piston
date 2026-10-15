@@ -19,6 +19,7 @@ function fields(overrides: Partial<ReminderFields> = {}): ReminderFields {
     repeat_km: null,
     repeat_anchor: 'done',
     notes: '  ',
+    notify_enabled: true,
     ...overrides,
   };
 }
