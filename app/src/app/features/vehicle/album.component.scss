@@ -1,0 +1,122 @@
+.description {
+  white-space: pre-line;
+}
+
+.month {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-2);
+}
+
+// Rejilla de 3 como el carrete del teléfono: cuadros recortados, sin huecos.
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--pst-r-md);
+  list-style: none;
+}
+
+.cell {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  background: var(--pst-surface-2);
+  cursor: pointer;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform var(--pst-dur-fast) var(--pst-snap);
+  }
+
+  &.is-selected img {
+    transform: scale(0.86);
+    border-radius: var(--pst-r-sm);
+  }
+}
+
+.cell__placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--pst-label-3);
+}
+
+.cell__badge,
+.cell__cover,
+.cell__check {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgb(0 0 0 / 0.45);
+}
+
+.cell__badge {
+  right: 4px;
+  bottom: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+.cell__cover {
+  left: 4px;
+  bottom: 4px;
+  padding: 1px 6px;
+  border-radius: var(--pst-r-pill);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.cell__check {
+  top: 4px;
+  right: 4px;
+  border-radius: 50%;
+  color: rgb(255 255 255 / 0.7);
+  background: rgb(0 0 0 / 0.25);
+
+  .is-selected & {
+    color: #fff;
+    background: var(--pst-ignition);
+  }
+}
+
+// Barra fija sobre la de pestañas mientras se selecciona.
+.is-selecting {
+  padding-bottom: calc(var(--pst-space-6) + 4rem);
+}
+
+.selection-bar {
+  position: fixed;
+  inset-inline: var(--pst-space-3);
+  bottom: calc(var(--pst-tabbar-h) + var(--pst-safe-bottom) + var(--pst-space-2));
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--pst-space-1);
+  padding: var(--pst-space-2);
+  border-radius: var(--pst-r-lg);
+  background: var(--pst-surface-1);
+  box-shadow: var(--pst-shadow-card);
+
+  .pst-btn {
+    padding-inline: var(--pst-space-3);
+  }
+}
+
+.selection-bar__count {
+  flex: 1;
+  padding-left: var(--pst-space-2);
+  font-size: var(--pst-subhead);
+  font-weight: 600;
+}

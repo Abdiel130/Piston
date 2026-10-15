@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { db } from '../db/piston-db';
-import type { DomainTable, OdometerReading, Uuid, Vehicle } from '../models';
+import type { Attachment, DomainTable, OdometerReading, Uuid, Vehicle } from '../models';
 import { OfflineStore, type NewRow } from './offline-store.service';
 
 /**
@@ -17,7 +17,7 @@ export interface VehicleHistory {
   readonly fuel: number;
   readonly services: number;
   readonly expenses: number;
-  /** Todo lo demás: documentos, viajes, fallas, planes, recordatorios. */
+  /** Todo lo demás: documentos, viajes, fallas, planes, recordatorios, álbumes y fotos. */
   readonly other: number;
 }
 
@@ -45,6 +45,7 @@ const OTHER_HISTORY: readonly DomainTable[] = [
   'maintenance_schedules',
   'recurring_expenses',
   'reminders',
+  'vehicle_albums',
 ];
 
 /**
@@ -122,13 +123,14 @@ export class VehicleService {
 
   async history(id: Uuid): Promise<VehicleHistory> {
     const count = async (table: DomainTable) => (await this.store.listBy(table, 'vehicle_id', id)).length;
-    const [fuel, services, expenses, ...others] = await Promise.all([
+    const [fuel, services, expenses, photos, ...others] = await Promise.all([
       count('fuel_entries'),
       count('service_records'),
       count('expenses'),
+      this.store.listBy<Attachment>('attachments', '[owner_type+owner_id]', ['vehicle', id]).then((rows) => rows.length),
       ...OTHER_HISTORY.map(count),
     ]);
-    return { fuel, services, expenses, other: others.reduce((sum, n) => sum + n, 0) };
+    return { fuel, services, expenses, other: photos + others.reduce((sum, n) => sum + n, 0) };
   }
 
   /**

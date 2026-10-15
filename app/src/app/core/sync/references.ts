@@ -32,6 +32,7 @@ export const REFERENCES: Readonly<Partial<Record<DomainTable, Readonly<Record<st
   },
   documents: { vehicle_id: 'vehicles' },
   trips: { vehicle_id: 'vehicles' },
+  vehicle_albums: { vehicle_id: 'vehicles' },
 };
 
 /** Tabla del dueño de un adjunto (`owner_type` no es una FK real en Postgres). */
@@ -44,6 +45,7 @@ export const ATTACHMENT_OWNER_TABLE: Readonly<Record<AttachmentOwner, DomainTabl
   document: 'documents',
   issue: 'issues',
   trip: 'trips',
+  album: 'vehicle_albums',
 };
 
 /** Las filas de las que depende `row` según su payload. */

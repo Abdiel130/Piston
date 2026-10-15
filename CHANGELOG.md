@@ -7,6 +7,38 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-10-14
+
+Con la galería se completa la sección del vehículo. Las fotos del auto se
+agrupan en álbumes (una restauración, las llantas, la pintura) y se ordenan
+por la fecha en que se tomaron, así se ve cómo cambia o se desgasta con el
+tiempo. Se ven sin conexión desde que las tomas, suben solas y ocupan poco
+espacio en el teléfono.
+
+### Added
+- **Galería del vehículo**: nueva vista desde la hoja del vehículo con tus
+  álbumes, cada uno con su portada, cuántas fotos tiene y qué periodo cubre.
+  Las fotos que no van en ningún álbum quedan en "Sin álbum".
+- **Álbumes por fecha de captura**: dentro de un álbum las fotos se agrupan
+  por mes, de la más vieja a la más nueva. La fecha sale de la propia foto,
+  así una foto de hace dos años subida hoy queda en su lugar. Si la fecha no
+  es correcta, se corrige.
+- **Subir varias fotos a la vez** o tomarlas con la cámara. Se reducen antes
+  de guardarse para no llenar el teléfono, se ven al instante aunque no haya
+  señal y suben solas cuando vuelve la conexión.
+- **Visor a pantalla completa**: pasas de foto con las flechas, el teclado o
+  deslizando, y ahí mismo le pones título y notas, la eliges como portada o
+  la borras.
+- **Organizar fotos**: crea, renombra y borra álbumes, y selecciona varias
+  fotos para moverlas a otro álbum o borrarlas. Borrar un álbum nunca borra
+  sus fotos: pasan a "Sin álbum".
+- **Fotos en tus otros dispositivos**: se bajan al abrir la galería y se
+  quedan guardadas para verlas después sin conexión.
+
+### Changed
+- Un vehículo con fotos o álbumes ya cuenta como historial: en lugar de
+  borrarlo, se archiva.
+
 ## [1.11.0] - 2026-10-14
 
 Lo importante del vehículo ya avisa aunque no abras su sección. Una póliza

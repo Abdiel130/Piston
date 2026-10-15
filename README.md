@@ -80,7 +80,7 @@ Para desactivar las migraciones automáticas, añade `RUN_MIGRATIONS=false` al e
 
 Salida esperada del health check:
 ```json
-{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.11.0","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
+{"success":true,"code":"ok","message":"Listo.","data":{"status":"ok","service":"Piston API","version":"1.12.0","database":"connected"},"meta":{"request_id":"…","timestamp":"…"}}
 ```
 
 ### 5. Crear tu Cuenta
@@ -204,7 +204,7 @@ Piston/
 │   │       │   └── tab-bar/         # Barra de pestañas estilo iOS
 │   │       ├── features/            # Una pantalla por pestaña
 │   │       │   ├── garage/          # Vehículo, nivel de tanque, salud
-│   │       │   ├── vehicle/         # Hoja del vehículo, Datos, póliza, documentos y recordatorios
+│   │       │   ├── vehicle/         # Hoja del vehículo, Datos, póliza, documentos, recordatorios y galería
 │   │       │   ├── fuel/            # Captura por rayitas e historial
 │   │       │   ├── service/         # Semáforo, fallas en seguimiento
 │   │       │   ├── expenses/        # Gasto por categoría y vencimientos
@@ -223,7 +223,7 @@ Piston/
     ├── routes/api.php               # Rutas REST API y endpoint /health
     ├── config/cors.php              # Configuración CORS para localhost:4300
     ├── app/Models/Concerns/         # SyncsOffline: UUID, soft delete, scope sinceRev
-    └── database/migrations/         # 20 tablas de dominio + trigger de `rev`
+    └── database/migrations/         # 21 tablas de dominio + trigger de `rev`
 ```
 
 ---
@@ -242,7 +242,7 @@ La app es **mobile-first** y **offline-first**: toda escritura ocurre primero en
 - **Historial de odómetro** como serie temporal, con detección de lecturas inconsistentes.
 - **Ciclo de vida de propiedad**: fecha, precio y kilometraje de compra y de venta.
 - **Archivar vehículos vendidos** conservando todo su histórico, y **expediente exportable** (PDF/JSON) para entregar al comprador.
-- Galería de fotos del vehículo.
+- **Galería del vehículo**: fotos en **álbumes** (una restauración, las llantas, la pintura) para ver su evolución o desgaste. Cada álbum se ve por mes, de la foto más vieja a la más nueva, según la **fecha en que se tomó** (aunque la subas hoy), con visor a pantalla completa. Subida de varias a la vez, reducidas para no llenar el teléfono; se ven **sin conexión** y suben solas. Mover fotos entre álbumes, elegir portada, corregir fecha, título y notas. Borrar un álbum no borra sus fotos: pasan a "Sin álbum".
 
 ### ⛽ Combustible
 - **Captura flexible**: registra por monto pagado, por litros o por **rayitas**; el resto se calcula solo.
@@ -413,7 +413,7 @@ El camino de vuelta también es parte del sync. La fila del adjunto llega a los 
 
 - **Documentos vigentes** (póliza y demás): se bajan en cada ciclo, después de las subidas. Se necesitan justo cuando no hay señal.
 - **Documentos renovados** (historial): sus blobs se liberan en cuanto el archivo subió, y se ven con `AttachmentDownloads.blob()`, que lo trae del servidor sin guardarlo.
-- **Resto** (tickets, fotos de servicios): se bajan al abrirlos, para no llenar el dispositivo.
+- **Resto** (tickets, fotos de servicios, fotos de la galería): se bajan al abrirlos y se quedan guardados, para no llenar el dispositivo.
 - Un `404` (el otro dispositivo aún no sube el archivo) salta solo ese adjunto y se reintenta en el siguiente ciclo. Los blobs de adjuntos borrados en otro dispositivo se liberan.
 
 ### PWA
@@ -488,4 +488,4 @@ El script es **todo o nada**: si algo no cuadra no toca ningún archivo. Se nieg
 ---
 
 ## 📄 Licencia y Versión
-- Versión actual: **1.11.0** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).
+- Versión actual: **1.12.0** (Ver [CHANGELOG.md](CHANGELOG.md) para más detalles).

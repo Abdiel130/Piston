@@ -6,7 +6,7 @@ use App\Models\Domain;
 use App\Sync\Field as F;
 
 /**
- * Las 20 tablas que viajan por `/api/sync`, en orden de dependencia.
+ * Las 21 tablas que viajan por `/api/sync`, en orden de dependencia.
  *
  * Es la única fuente de verdad del sync en el servidor: qué columnas acepta el
  * push y con qué reglas, de quién es cada fila y cómo se castea al jalar. Las
@@ -307,10 +307,19 @@ final class SyncRegistry
                 'notify_enabled' => F::boolean()->withDefault(),
             ]),
 
+            new SyncTable('vehicle_albums', Domain\VehicleAlbum::class, Ownership::User, [
+                'vehicle_id' => F::ref('vehicles'),
+                'name' => F::string(80),
+                'description' => F::text()->nullable(),
+                // Sin ref: el adjunto cuelga del álbum y viaja después.
+                'cover_attachment_id' => F::uuid()->nullable(),
+                'sort_order' => F::smallInteger()->withDefault(),
+            ]),
+
             new SyncTable('attachments', Domain\Attachment::class, Ownership::User, [
                 'owner_type' => F::enum([
                     'vehicle', 'fuel_entry', 'service_record', 'service_part',
-                    'expense', 'document', 'issue', 'trip',
+                    'expense', 'document', 'issue', 'trip', 'album',
                 ]),
                 'owner_id' => F::uuid(),
                 'kind' => F::enum(['photo', 'invoice', 'document_scan', 'receipt', 'other'])->withDefault(),
@@ -323,6 +332,7 @@ final class SyncRegistry
                 'sort_order' => F::smallInteger()->withDefault(),
                 'title' => F::string(120)->nullable(),
                 'notes' => F::text()->nullable(),
+                'taken_at' => F::dateTime()->nullable(),
             ], polymorphicOwner: [
                 'vehicle' => 'vehicles',
                 'fuel_entry' => 'fuel_entries',
@@ -332,6 +342,7 @@ final class SyncRegistry
                 'document' => 'documents',
                 'issue' => 'issues',
                 'trip' => 'trips',
+                'album' => 'vehicle_albums',
             ]),
         ];
 

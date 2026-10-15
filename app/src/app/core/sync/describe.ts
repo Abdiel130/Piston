@@ -22,6 +22,7 @@ export const TABLE_LABEL: Readonly<Record<DomainTable, string>> = {
   expenses: 'Gasto',
   documents: 'Documento',
   trips: 'Viaje',
+  vehicle_albums: 'Álbum',
   attachments: 'Foto o archivo',
 };
 
@@ -93,6 +94,7 @@ function detailParts(table: DomainTable, row: Record<string, unknown>): (string 
       return [str(row['title']), date(row['due_date'])];
     case 'attachments':
       return [str(row['title']) ?? str(row['file_name'])];
+    case 'vehicle_albums':
     case 'fuel_stations':
     case 'service_types':
     case 'expense_categories':

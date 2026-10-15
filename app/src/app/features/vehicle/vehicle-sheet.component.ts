@@ -35,6 +35,7 @@ const VIEWS: readonly ViewLink[] = [
   { route: '/vehicle/insurance', icon: 'shield', title: 'Póliza de seguro', sub: 'Vigencia, teléfonos y archivos' },
   { route: '/vehicle/documents', icon: 'document', title: 'Documentos', sub: 'Verificación, tenencia, tarjeta y licencia' },
   { route: '/vehicle/reminders', icon: 'bell', title: 'Recordatorios', sub: 'Refrendo, revisiones y bitácora' },
+  { route: '/vehicle/gallery', icon: 'image', title: 'Galería', sub: 'Fotos por álbum para ver su evolución' },
 ];
 
 /**

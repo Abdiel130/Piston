@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { db } from '../db/piston-db';
 import { uuidV7 } from '../db/uuid';
-import type { Attachment, AttachmentKind, AttachmentOwner, Uuid } from '../models';
+import type { Attachment, AttachmentKind, AttachmentOwner, IsoDateTime, Uuid } from '../models';
 import { OfflineStore } from './offline-store.service';
 import { sha256Hex } from './sha256';
 
@@ -9,6 +9,10 @@ import { sha256Hex } from './sha256';
 export interface PreparedFile {
   readonly file: File;
   readonly checksum: string;
+  /** Solo fotos (ver `preparePhoto`): medidas y cuándo se tomó. */
+  readonly width?: number | null;
+  readonly height?: number | null;
+  readonly takenAt?: IsoDateTime | null;
 }
 
 /** Qué es el archivo. Opcional: un ticket no lo necesita, una guía sí. */
@@ -72,14 +76,15 @@ export class AttachmentService {
         file_name: file.name,
         mime_type: file.type || null,
         size_bytes: file.size,
-        width: null,
-        height: null,
+        width: prepared.width ?? null,
+        height: prepared.height ?? null,
         checksum,
         storage_path: null,
         local_blob_key: blobKey,
         upload_status: 'pending',
         sort_order: sortOrder,
         ...cleanCaption(caption),
+        taken_at: prepared.takenAt ?? null,
       });
 
       await db.attachment_blobs.add({
@@ -106,6 +111,15 @@ export class AttachmentService {
   /** Cambia título y notas. Viaja por el outbox como cualquier edición. */
   async setCaption(attachmentId: Uuid, caption: AttachmentCaption): Promise<void> {
     await this.store.update<Attachment>('attachments', attachmentId, cleanCaption(caption));
+  }
+
+  /** Cambia de dueño (ej. de un álbum a otro). El archivo no se toca. */
+  async move(attachmentId: Uuid, ownerType: AttachmentOwner, ownerId: Uuid): Promise<void> {
+    await this.store.update<Attachment>('attachments', attachmentId, { owner_type: ownerType, owner_id: ownerId });
+  }
+
+  async setTakenAt(attachmentId: Uuid, takenAt: IsoDateTime | null): Promise<void> {
+    await this.store.update<Attachment>('attachments', attachmentId, { taken_at: takenAt });
   }
 
   async listFor(ownerType: AttachmentOwner, ownerId: Uuid): Promise<Attachment[]> {

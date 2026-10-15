@@ -81,6 +81,7 @@ export const TABLE_ICON: Readonly<Partial<Record<DomainTable, IconName>>> = {
   expenses: 'receipt',
   documents: 'document',
   trips: 'road',
+  vehicle_albums: 'image',
   attachments: 'camera',
 };
 

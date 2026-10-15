@@ -50,7 +50,7 @@ enum document_type { insurance emissions_check ownership_tax circulation_card dr
 
 enum trip_purpose { personal work mixed other }
 
-enum attachment_owner { vehicle fuel_entry service_record service_part expense document issue trip }
+enum attachment_owner { vehicle fuel_entry service_record service_part expense document issue trip album }
 enum attachment_kind  { photo invoice document_scan receipt other }
 enum upload_status    { pending uploading uploaded failed }
 
@@ -638,6 +638,27 @@ Table trips {
   Note: 'G1 — Sin GPS: captura manual de origen/destino/km.'
 }
 
+Table vehicle_albums {
+  id                  uuid [pk]
+  user_id             uuid [not null]
+  vehicle_id          uuid [not null]
+  name                varchar(80) [not null]
+  description         text
+  cover_attachment_id uuid [note: 'Portada. Sin FK (ciclo con attachments); nula o borrada = la foto más reciente']
+  sort_order          smallint [not null, default: 0]
+
+  created_at        timestamptz
+  updated_at        timestamptz
+  client_updated_at timestamptz
+  deleted_at        timestamptz
+  rev               bigint [not null]
+
+  indexes {
+    (vehicle_id, sort_order)
+  }
+  Note: 'Galería: agrupa fotos (attachments con owner_type album). Las fotos sin álbum cuelgan del vehículo. Borrar un álbum deja sus fotos sueltas.'
+}
+
 // ─────────────────────────── ADJUNTOS ───────────────────────────
 
 Table attachments {
@@ -658,6 +679,7 @@ Table attachments {
   sort_order     smallint [not null, default: 0]
   title          varchar(120) [note: 'Qué es: "¿Cómo reportar un siniestro?"']
   notes          text
+  taken_at       timestamptz [note: 'Cuándo se tomó la foto (EXIF o fecha del archivo). Ordena la galería']
 
   created_at        timestamptz
   updated_at        timestamptz
@@ -786,5 +808,8 @@ Ref: documents.renewed_by_id > documents.id
 
 Ref: trips.user_id    > users.id
 Ref: trips.vehicle_id > vehicles.id
+
+Ref: vehicle_albums.user_id    > users.id
+Ref: vehicle_albums.vehicle_id > vehicles.id
 
 Ref: attachments.user_id > users.id

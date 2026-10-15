@@ -171,6 +171,19 @@ export const routes: Routes = [
           import('./features/vehicle/reminder-form.component').then((m) => m.ReminderFormComponent),
       },
       {
+        path: 'vehicle/gallery',
+        title: 'Galería · Piston',
+        loadComponent: () =>
+          import('./features/vehicle/gallery.component').then((m) => m.GalleryComponent),
+      },
+      {
+        // `:id` es el álbum, o `loose` para las fotos sin álbum.
+        path: 'vehicle/gallery/:id',
+        title: 'Álbum · Piston',
+        loadComponent: () =>
+          import('./features/vehicle/album.component').then((m) => m.AlbumComponent),
+      },
+      {
         path: 'settings/notifications',
         title: 'Notificaciones · Piston',
         loadComponent: () =>

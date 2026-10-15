@@ -1,0 +1,164 @@
+<div class="pst-stack capture-page" [class.is-selecting]="selecting()">
+  <header class="top">
+    <a class="top__back" routerLink="/vehicle/gallery"><pst-icon name="chevronLeft" [size]="20" /> Galería</a>
+    <h1 class="top__title">{{ title() }}</h1>
+    @if (album()?.description; as description) {
+      <p class="top__sub description">{{ description }}</p>
+    }
+    <p class="top__sub">{{ span() }}</p>
+  </header>
+
+  @if (!vehicle()) {
+    <section class="pst-card">
+      <p class="pst-empty">No hay un vehículo activo. Agrégalo en Ajustes.</p>
+    </section>
+  } @else if (missing()) {
+    <section class="pst-card">
+      <p class="pst-empty">Este álbum ya no existe. Sus fotos quedaron en Sin álbum.</p>
+    </section>
+  } @else {
+    @if (!selecting()) {
+      <div class="pst-chips">
+        <label class="pst-chip file-pick">
+          <pst-icon name="camera" [size]="16" /> Tomar foto
+          <input type="file" accept="image/*" capture="environment" (change)="pickFiles($event)" />
+        </label>
+        <label class="pst-chip file-pick">
+          <pst-icon name="image" [size]="16" /> Subir fotos
+          <input type="file" accept="image/*" multiple (change)="pickFiles($event)" />
+        </label>
+        @if (photos().length) {
+          <button type="button" class="pst-chip" (click)="startSelecting()">Seleccionar</button>
+        }
+        @if (album()) {
+          <button type="button" class="pst-chip" (click)="openEdit()"><pst-icon name="settings" [size]="16" /> Editar</button>
+        }
+      </div>
+    }
+
+    @if (preparing()) {
+      <p class="pst-field__hint" role="status">Preparando {{ preparing() === 1 ? '1 foto' : preparing() + ' fotos' }}…</p>
+    }
+    @if (fileError(); as message) {
+      <p class="error" role="alert">{{ message }}</p>
+    }
+    @if (error(); as message) {
+      <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+    }
+
+    @for (month of months(); track month.key) {
+      <section class="month">
+        <h2 class="pst-section-title">{{ month.label }}</h2>
+        <ul class="grid">
+          @for (photo of month.photos; track photo.id) {
+            <li>
+              <button
+                type="button"
+                class="cell"
+                [class.is-selected]="selected().has(photo.id)"
+                [attr.aria-pressed]="selecting() ? selected().has(photo.id) : null"
+                [attr.aria-label]="(photo.title ?? photo.file_name) + (selecting() ? '' : ', abrir')"
+                (click)="tap(photo, indexOf(photo))"
+              >
+                @if (urls().get(photo.id); as url) {
+                  <img [src]="url" alt="" loading="lazy" decoding="async" />
+                } @else {
+                  <span class="cell__placeholder">
+                    <pst-icon [name]="photo.upload_status === 'uploaded' ? 'download' : 'cloudOff'" [size]="20" />
+                  </span>
+                }
+                @if (photo.upload_status !== 'uploaded' && photo.local_blob_key) {
+                  <span class="cell__badge" title="Por subir"><pst-icon name="cloudOff" [size]="12" /></span>
+                }
+                @if (coverId() === photo.id && album()?.cover_attachment_id === photo.id) {
+                  <span class="cell__cover">Portada</span>
+                }
+                @if (selecting()) {
+                  <span class="cell__check"><pst-icon name="checkCircle" [size]="20" /></span>
+                }
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+    } @empty {
+      <section class="pst-card">
+        <p class="pst-empty">
+          Sin fotos todavía. Sube varias a la vez: se ordenan por la fecha en que se tomaron, aunque las subas hoy.
+        </p>
+      </section>
+    }
+  }
+</div>
+
+@if (selecting()) {
+  <div class="selection-bar" role="toolbar" aria-label="Fotos seleccionadas">
+    @if (confirmRemove()) {
+      <span class="selection-bar__count">¿Borrar {{ selected().size === 1 ? 'la foto' : selected().size + ' fotos' }}?</span>
+      <button type="button" class="pst-btn pst-btn--ghost" (click)="confirmRemove.set(false)">Cancelar</button>
+      <button type="button" class="pst-btn pst-btn--danger" [disabled]="busy()" (click)="removeSelected()">Borrar</button>
+    } @else {
+      <span class="selection-bar__count">{{ selected().size }} seleccionada{{ selected().size === 1 ? '' : 's' }}</span>
+      @if (album() && selected().size === 1) {
+        <button type="button" class="pst-btn pst-btn--ghost" [disabled]="busy()" (click)="useAsCover()">Portada</button>
+      }
+      <button type="button" class="pst-btn pst-btn--ghost" [disabled]="!selected().size || !destinations().length" (click)="moveOpen.set(true)">Mover</button>
+      <button type="button" class="pst-btn pst-btn--ghost" [disabled]="!selected().size" (click)="confirmRemove.set(true)">Borrar</button>
+      <button type="button" class="pst-btn pst-btn--primary" (click)="stopSelecting()">Listo</button>
+    }
+  </div>
+}
+
+<pst-photo-viewer [photos]="photos()" [urls]="urls()" [(index)]="viewing" [albumId]="album()?.id ?? null" [coverId]="coverId()" />
+
+<pst-sheet [(open)]="moveOpen" label="Mover a">
+  <ng-template pstSheetContent>
+    <section>
+      <h2 class="pst-section-title">Mover {{ selected().size === 1 ? 'la foto' : selected().size + ' fotos' }} a</h2>
+      <div class="pst-card pst-card--flush">
+        <div class="pst-list">
+          @for (destination of destinations(); track destination.key) {
+            <button type="button" class="pst-row" [disabled]="busy()" (click)="moveTo(destination)">
+              <span class="pst-row__icon"><pst-icon name="image" [size]="18" /></span>
+              <span class="pst-row__body"><span class="pst-row__title">{{ destination.name }}</span></span>
+              <span class="pst-row__trail"><pst-icon name="chevronRight" [size]="16" /></span>
+            </button>
+          }
+        </div>
+      </div>
+    </section>
+  </ng-template>
+</pst-sheet>
+
+<pst-sheet [(open)]="editOpen" label="Editar álbum">
+  <ng-template pstSheetContent>
+    <div class="pst-stack capture-page">
+      <header class="top top--sheet">
+        <h1 class="top__title">Editar álbum</h1>
+      </header>
+      <form class="pst-form" (submit)="$event.preventDefault(); saveEdit()">
+        <label class="pst-field">
+          <span class="pst-field__label">Nombre</span>
+          <input class="pst-input" maxlength="80" [value]="editName()" (input)="editName.set(readText($event))" />
+        </label>
+        <label class="pst-field">
+          <span class="pst-field__label">Descripción <span class="optional">opcional</span></span>
+          <textarea class="pst-input notes" rows="2" [value]="editDescription()" (input)="editDescription.set(readText($event))"></textarea>
+        </label>
+        @if (error(); as message) {
+          <p class="error">{{ message }}</p>
+        }
+        <button type="submit" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="busy() || !editName().trim()">
+          {{ busy() ? 'Guardando…' : 'Guardar' }}
+        </button>
+        @if (!confirmDelete()) {
+          <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" (click)="confirmDelete.set(true)">Borrar álbum</button>
+        } @else {
+          <p class="pst-field__hint">Las fotos no se borran: pasan a Sin álbum.</p>
+          <button type="button" class="pst-btn pst-btn--danger pst-btn--block" [disabled]="busy()" (click)="deleteAlbum()">Sí, borrar álbum</button>
+          <button type="button" class="pst-btn pst-btn--ghost pst-btn--block" (click)="confirmDelete.set(false)">Cancelar</button>
+        }
+      </form>
+    </div>
+  </ng-template>
+</pst-sheet>

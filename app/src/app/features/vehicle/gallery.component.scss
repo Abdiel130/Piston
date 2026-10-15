@@ -1,0 +1,47 @@
+// Dos columnas de tarjetas con portada cuadrada, como un carrete de álbumes.
+.albums {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--pst-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.album-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.album-card__cover {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  margin-bottom: var(--pst-space-1);
+  overflow: hidden;
+  border-radius: var(--pst-r-md);
+  background: var(--pst-surface-2);
+  color: var(--pst-label-3);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.album-card__name {
+  overflow: hidden;
+  font-size: var(--pst-subhead);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.album-card__sub {
+  font-size: var(--pst-footnote);
+  color: var(--pst-label-2);
+}

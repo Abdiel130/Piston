@@ -355,6 +355,17 @@ export interface Trip extends SyncFields {
   notes: string | null;
 }
 
+/** Grupo de fotos del vehículo: un proyecto, una restauración, el desgaste. */
+export interface VehicleAlbum extends SyncFields {
+  user_id: Uuid | null;
+  vehicle_id: Uuid;
+  name: string;
+  description: string | null;
+  /** Foto de portada. Nula o borrada = la más reciente del álbum. */
+  cover_attachment_id: Uuid | null;
+  sort_order: number;
+}
+
 export interface Attachment extends SyncFields {
   user_id: Uuid | null;
   owner_type: AttachmentOwner;
@@ -375,6 +386,8 @@ export interface Attachment extends SyncFields {
   /** Qué es: "¿Cómo reportar un siniestro?". */
   title: string | null;
   notes: string | null;
+  /** Cuándo se tomó la foto (EXIF o fecha del archivo). Ordena la galería. Filas viejas: `undefined`. */
+  taken_at: IsoDateTime | null;
 }
 
 /** Binario diferido. CLIENT-ONLY: la foto se ve al instante, sube después. */

@@ -137,7 +137,7 @@ el detalle de un cambio no sincronizado. Los rechazos del sync se registran en
 ## Sincronización
 
 Todas exigen `auth:sanctum` y `throttle:sync` (120/min por cuenta). La lógica
-vive en `server/app/Sync/`; `SyncRegistry` es la única fuente de las 20 tablas,
+vive en `server/app/Sync/`; `SyncRegistry` es la única fuente de las 21 tablas,
 sus columnas escribibles, reglas y dueño.
 
 ### `POST /api/sync`: push
@@ -247,7 +247,7 @@ gana siempre.
 `limit` por defecto 500, máximo 1000. Responde
 `{ changes: { tabla: [filas…] }, server_rev, has_more }`.
 
-- Las filas de las 20 tablas se mezclan por `rev` y se cortan en ese orden;
+- Las filas de las 21 tablas se mezclan por `rev` y se cortan en ese orden;
   `server_rev` es el `rev` de la última fila entregada. Con `has_more` se
   vuelve a pedir desde `server_rev`.
 - Incluye tombstones (`deleted_at` no nulo).

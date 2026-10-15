@@ -23,6 +23,7 @@ export type DomainTable =
   | 'expenses'
   | 'documents'
   | 'trips'
+  | 'vehicle_albums'
   | 'attachments';
 
 /**
@@ -52,6 +53,7 @@ export const TABLE_ORDER: readonly DomainTable[] = [
   'documents',
   'trips',
   'reminders',
+  'vehicle_albums',
   'attachments',
 ];
 
@@ -228,7 +230,7 @@ export interface SyncLogEntry {
  * `last_synced_at` de la fila GLOBAL_CURSOR es la hora del último ciclo que
  * terminó bien, aunque no haya traído nada.
  *
- * La secuencia `rev` de Postgres es GLOBAL (una sola para las 20 tablas), así
+ * La secuencia `rev` de Postgres es GLOBAL (una sola para las 21 tablas), así
  * que un único cursor basta. Se conserva la forma por tabla del schema para
  * poder sincronizar tablas por separado más adelante.
  */
