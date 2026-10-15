@@ -1,0 +1,91 @@
+<div class="pst-stack capture-page">
+  <header class="top">
+    <a class="top__back" routerLink="/vehicle"><pst-icon name="chevronLeft" [size]="20" /> Vehículo</a>
+    <h1 class="top__title">Galería</h1>
+    <p class="top__sub">{{ name() }}</p>
+  </header>
+
+  @if (!vehicle()) {
+    <section class="pst-card">
+      <p class="pst-empty">No hay un vehículo activo. Agrégalo en Ajustes.</p>
+    </section>
+  } @else {
+    @if (cards().length) {
+      <ul class="albums">
+        @for (card of cards(); track card.id) {
+          <li>
+            <a class="album-card" [routerLink]="['/vehicle/gallery', card.id]">
+              <span class="album-card__cover">
+                @if (card.cover && urls().get(card.cover.id); as url) {
+                  <img [src]="url" [alt]="'Portada de ' + card.name" loading="lazy" />
+                } @else {
+                  <pst-icon name="image" [size]="28" />
+                }
+              </span>
+              <span class="album-card__name">{{ card.name }}</span>
+              <span class="album-card__sub">{{ card.sub }}</span>
+            </a>
+          </li>
+        }
+      </ul>
+    } @else {
+      <section class="pst-card">
+        <p class="pst-empty">
+          Aún no hay fotos. Crea un álbum por proyecto (una restauración, las llantas, la pintura) para ver cómo cambia el
+          vehículo con el tiempo, o sube fotos sueltas.
+        </p>
+      </section>
+    }
+
+    <div class="pst-card pst-card--flush">
+      <div class="pst-list">
+        <button type="button" class="pst-row" (click)="openCreate()">
+          <span class="pst-row__icon"><pst-icon name="plus" [size]="18" /></span>
+          <span class="pst-row__body">
+            <span class="pst-row__title">Nuevo álbum</span>
+            <span class="pst-row__sub">Un proyecto, una restauración, el desgaste</span>
+          </span>
+        </button>
+        @if (!total()) {
+          <a class="pst-row" routerLink="/vehicle/gallery/loose">
+            <span class="pst-row__icon"><pst-icon name="camera" [size]="18" /></span>
+            <span class="pst-row__body">
+              <span class="pst-row__title">Subir fotos sin álbum</span>
+              <span class="pst-row__sub">Luego puedes moverlas a un álbum</span>
+            </span>
+            <span class="pst-row__trail"><pst-icon name="chevronRight" [size]="16" /></span>
+          </a>
+        }
+      </div>
+    </div>
+    <p class="pst-field__hint">
+      Las fotos se guardan en este dispositivo al instante y suben solas cuando hay conexión.
+    </p>
+  }
+</div>
+
+<pst-sheet [(open)]="createOpen" label="Nuevo álbum">
+  <ng-template pstSheetContent>
+    <div class="pst-stack capture-page">
+      <header class="top top--sheet">
+        <h1 class="top__title">Nuevo álbum</h1>
+      </header>
+      <form class="pst-form" (submit)="$event.preventDefault(); create()">
+        <label class="pst-field">
+          <span class="pst-field__label">Nombre</span>
+          <input class="pst-input" maxlength="80" placeholder="Ej. Restauración 2025" [value]="newName()" (input)="newName.set(readText($event))" />
+        </label>
+        <label class="pst-field">
+          <span class="pst-field__label">Descripción <span class="optional">opcional</span></span>
+          <textarea class="pst-input notes" rows="2" [value]="newDescription()" (input)="newDescription.set(readText($event))"></textarea>
+        </label>
+        @if (error(); as message) {
+          <p class="error">{{ message }}</p>
+        }
+        <button type="submit" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="busy() || !newName().trim()">
+          {{ busy() ? 'Creando…' : 'Crear álbum' }}
+        </button>
+      </form>
+    </div>
+  </ng-template>
+</pst-sheet>

@@ -267,11 +267,33 @@ bitácora.
 
 ### Alcance
 - **Esquema**: tabla `vehicle_albums` (`vehicle_id`, `name`, `description`,
-  `cover_attachment_id`, `sort_order`) con sync completo, y `album` como nuevo
-  `AttachmentOwner`. Las fotos sin álbum usan `owner_type: 'vehicle'`.
-- **Vista** `/vehicle/gallery`: álbumes, rejilla de fotos, visor a pantalla
-  completa y subida múltiple. Orden por fecha para ver la evolución.
-- Crear, renombrar y borrar álbumes. Mover fotos entre álbumes.
+  `cover_attachment_id`, `sort_order`) con sync completo (trigger de `rev`,
+  `SyncRegistry`, `TABLE_ORDER` antes de `attachments`, Dexie v6), y `album`
+  como nuevo `AttachmentOwner` (el CHECK de `owner_type` se recrea). Las fotos
+  sin álbum usan `owner_type: 'vehicle'`. `cover_attachment_id` no es FK: el
+  adjunto cuelga del álbum y cerraría un ciclo; nula o borrada = la foto más
+  reciente.
+- **`taken_at`** en `attachments`: cuándo se tomó la foto. Se lee del EXIF
+  (`DateTimeOriginal`, luego `DateTimeDigitized` y `DateTime`) y, sin EXIF, de
+  la fecha del archivo. Se corrige en el visor. Ordena la galería: una foto
+  vieja subida hoy queda en su lugar.
+- **Fotos reducidas** antes de guardarse (`core/data/photo-prep.ts`): lado
+  largo 2560 px, JPEG 0.85, con `width`/`height`. El EXIF se lee antes de
+  reencodar. Si el navegador no puede pintarla (ej. HEIC fuera de Safari) se
+  guarda la original.
+- **Vistas**: `/vehicle/gallery` (tarjetas de álbum con portada, conteo y
+  periodo, y "Sin álbum") y `/vehicle/gallery/:id` (`loose` = sin álbum):
+  rejilla de 3 por mes, de la más vieja a la más nueva, subida múltiple o con
+  cámara, visor a pantalla completa (flechas, teclado o deslizar) con fecha,
+  título, notas, portada y borrar.
+- Crear, renombrar y borrar álbumes. **Borrar un álbum no borra fotos**:
+  pasan a "Sin álbum". Seleccionar varias para moverlas (solo cambia el dueño
+  del adjunto, el archivo no se toca) o borrarlas.
+- **Otros dispositivos**: las fotos no son `EAGER_OWNERS`; se bajan al
+  mostrarse en la galería y quedan guardadas (`features/vehicle/photo-urls.ts`).
+- Un vehículo con álbumes o fotos sueltas cuenta como historial y no se puede
+  borrar (se archiva).
+- Lógica en `core/data/album.service.ts` con spec.
 
 ### Criterios de aceptación
 - Las fotos se ven sin conexión y suben solas.

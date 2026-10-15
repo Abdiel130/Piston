@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * Todo lo que cambió después de `since`, tombstones incluidos, para una cuenta.
  *
- * La secuencia `rev` es global a las 20 tablas, así que las filas se mezclan
+ * La secuencia `rev` es global a las 21 tablas, así que las filas se mezclan
  * por `rev` y la página se corta en ese orden: el `server_rev` que se devuelve
  * es exactamente el de la última fila entregada y nada queda en medio.
  */

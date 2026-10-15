@@ -31,7 +31,7 @@ const ORDER = [
   'vehicles', 'gauge_calibration_points', 'odometer_readings', 'fuel_stations', 'service_types',
   'expense_categories', 'fuel_entries', 'fuel_station_prices', 'service_records', 'service_record_items',
   'service_parts', 'maintenance_schedules', 'issues', 'issue_service_links', 'recurring_expenses',
-  'expenses', 'documents', 'trips', 'reminders', 'attachments',
+  'expenses', 'documents', 'trips', 'reminders', 'vehicle_albums', 'attachments',
 ];
 
 /** Mismo texto que TABLE_LABEL en core/sync/describe.ts, para el historial. */
@@ -42,7 +42,7 @@ const LABEL = {
   service_parts: 'Refacción', maintenance_schedules: 'Plan de mantenimiento', issues: 'Falla',
   issue_service_links: 'Falla ligada a servicio', reminders: 'Recordatorio', expense_categories: 'Categoría de gasto',
   recurring_expenses: 'Gasto recurrente', expenses: 'Gasto', documents: 'Documento', trips: 'Viaje',
-  attachments: 'Foto o archivo',
+  vehicle_albums: 'Álbum', attachments: 'Foto o archivo',
 };
 
 self.addEventListener('sync', (event) => {

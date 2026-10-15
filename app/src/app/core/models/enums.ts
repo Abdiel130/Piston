@@ -61,7 +61,8 @@ export type AttachmentOwner =
   | 'expense'
   | 'document'
   | 'issue'
-  | 'trip';
+  | 'trip'
+  | 'album';
 export type AttachmentKind = 'photo' | 'invoice' | 'document_scan' | 'receipt' | 'other';
 export type UploadStatus = 'pending' | 'uploading' | 'uploaded' | 'failed';
 

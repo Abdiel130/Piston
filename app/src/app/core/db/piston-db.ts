@@ -27,6 +27,7 @@ import type {
   Trip,
   Uuid,
   Vehicle,
+  VehicleAlbum,
   VehicleDocument,
   NotificationPrefs,
   NotifiedAlert,
@@ -67,6 +68,7 @@ export class PistonDb extends Dexie {
   expenses!: Table<Expense, Uuid>;
   documents!: Table<VehicleDocument, Uuid>;
   trips!: Table<Trip, Uuid>;
+  vehicle_albums!: Table<VehicleAlbum, Uuid>;
   attachments!: Table<Attachment, Uuid>;
 
   // ── Solo cliente (no existen en Postgres) ─────────────────────────────
@@ -174,6 +176,11 @@ export class PistonDb extends Dexie {
     this.version(5).stores({
       notification_prefs: 'key',
       notified_alerts: 'key, at',
+    });
+
+    // Galería del vehículo (fase 6): álbumes de fotos.
+    this.version(6).stores({
+      vehicle_albums: 'id, vehicle_id, rev',
     });
   }
 }

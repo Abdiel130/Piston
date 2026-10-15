@@ -69,7 +69,7 @@ function remoteAttachment(id: string, ownerType: Attachment['owner_type'], rev: 
   return {
     id, user_id: 'u1', owner_type: ownerType, owner_id: 'owner-1', kind: 'document_scan',
     file_name: `${id}.pdf`, mime_type: 'application/pdf', size_bytes: 4, width: null, height: null,
-    checksum: null, storage_path: null, local_blob_key: null, upload_status: 'uploaded', sort_order: 0, title: null, notes: null,
+    checksum: null, storage_path: null, local_blob_key: null, upload_status: 'uploaded', sort_order: 0, title: null, notes: null, taken_at: null,
     created_at: '2026-10-10T00:00:00Z', updated_at: '2026-10-10T00:00:00Z',
     client_updated_at: '2026-10-10T00:00:00Z', deleted_at: null, rev,
   };
