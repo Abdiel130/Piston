@@ -31,6 +31,9 @@ describe('documentAlerts', () => {
       title: 'Póliza de seguro',
       detail: 'Vence en 20 días',
       route: '/vehicle/insurance',
+      category: 'insurance',
+      key: 'document:doc-1:warn:2026-10-30',
+      notify: true,
     });
   });
 
@@ -47,6 +50,18 @@ describe('documentAlerts', () => {
       { title: 'Verificación', tone: 'warn', route: '/vehicle/documents' },
       { title: 'Permiso de carga', tone: 'bad', route: '/vehicle/documents' },
     ]);
+  });
+
+  it('vencida es otro aviso: cambia la llave; con la notificación apagada solo cambia notify', () => {
+    const [expiring] = documentAlerts([doc({ type: 'driver_license', expires_at: '2026-10-30' })], TODAY);
+    const [expired] = documentAlerts(
+      [doc({ type: 'driver_license', expires_at: '2026-10-01', notify_enabled: false })],
+      TODAY,
+    );
+
+    expect(expiring.category).toBe('documents');
+    expect(expired.key).not.toBe(expiring.key);
+    expect(expired.notify).toBe(false);
   });
 
   it('vencida es bad', () => {
@@ -99,6 +114,9 @@ describe('reminderAlerts', () => {
         title: 'Revisar aceite',
         detail: 'Se pasó por 2 días',
         route: '/vehicle/reminders',
+        category: 'reminders',
+        key: 'reminder:rem-1:bad:2026-10-08:',
+        notify: true,
       },
     ]);
   });

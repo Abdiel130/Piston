@@ -171,6 +171,12 @@ export const routes: Routes = [
           import('./features/vehicle/reminder-form.component').then((m) => m.ReminderFormComponent),
       },
       {
+        path: 'settings/notifications',
+        title: 'Notificaciones · Piston',
+        loadComponent: () =>
+          import('./features/settings/notifications.component').then((m) => m.NotificationSettingsComponent),
+      },
+      {
         path: 'settings/sync',
         title: 'Sincronización · Piston',
         loadComponent: () =>

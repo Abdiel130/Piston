@@ -1,0 +1,87 @@
+<div class="pst-stack capture-page">
+  <header class="top">
+    <a class="top__back" routerLink="/settings"><pst-icon name="chevronLeft" [size]="20" /> Ajustes</a>
+    <h1 class="top__title">Notificaciones</h1>
+    <p class="top__sub">En este dispositivo</p>
+  </header>
+
+  <section class="pst-card permission">
+    <div class="permission__head">
+      <span class="pst-row__icon"><pst-icon name="bell" [size]="18" /></span>
+      <span class="permission__title">Permiso del sistema</span>
+      <span [class]="'pst-badge pst-badge--' + status().tone">{{ status().label }}</span>
+    </div>
+    <p class="pst-field__hint">
+      Piston te avisa cuando un documento está por vencer o un recordatorio ya toca, aunque no abras la
+      sección del vehículo. Cada aviso suena una vez al entrar en su ventana y otra al vencer. La marca en
+      el garage se queda hasta que lo atiendas, con o sin notificaciones.
+    </p>
+
+    @switch (permission()) {
+      @case ('default') {
+        <button type="button" class="pst-btn pst-btn--primary pst-btn--block" [disabled]="asking()" (click)="ask()">
+          {{ asking() ? 'Esperando respuesta…' : 'Permitir notificaciones' }}
+        </button>
+      }
+      @case ('denied') {
+        <p class="pst-note pst-note--warn">
+          Las bloqueaste para este sitio. Para activarlas, ábrelas desde los permisos del sitio en el navegador
+          (el candado junto a la dirección) o en los ajustes de la app instalada.
+        </p>
+      }
+      @case ('unsupported') {
+        <p class="pst-note pst-note--warn">
+          @if (needsInstall()) {
+            En iPhone las notificaciones solo funcionan con la app instalada: Compartir › Agregar a inicio, y
+            ábrela desde ahí.
+          } @else {
+            Este navegador no permite notificaciones. Los avisos se siguen marcando en el garage.
+          }
+        </p>
+      }
+      @case ('granted') {
+        <button type="button" class="pst-btn pst-btn--block" (click)="test()">Enviar una de prueba</button>
+      }
+    }
+    @if (error(); as message) {
+      <p class="pst-note pst-note--bad" role="alert">{{ message }}</p>
+    }
+  </section>
+
+  <section>
+    <h2 class="pst-section-title">Qué avisar</h2>
+    <div class="pst-card switches">
+      <label class="pst-switch">
+        <span class="pst-switch__body">
+          <span class="pst-switch__title">Notificaciones de Piston</span>
+          <span class="pst-switch__sub">Apagadas, solo se marcan en el garage.</span>
+        </span>
+        <input type="checkbox" role="switch" [checked]="prefs().enabled" (change)="toggle('enabled', $event)" />
+      </label>
+      @for (category of categories; track category.key) {
+        <label class="pst-switch">
+          <span class="pst-switch__body">
+            <span class="pst-switch__title">{{ category.title }}</span>
+            <span class="pst-switch__sub">{{ category.sub }}</span>
+          </span>
+          <input type="checkbox" role="switch" [disabled]="!prefs().enabled" [checked]="prefs()[category.key]" (change)="toggle(category.key, $event)" />
+        </label>
+      }
+    </div>
+    <p class="pst-field__hint">
+      También puedes apagar la de un documento o recordatorio en particular desde su formulario. Estas
+      opciones son de este dispositivo: el teléfono puede avisar y la computadora no.
+    </p>
+  </section>
+
+  <section class="pst-card">
+    <p class="pst-field__hint when">
+      <pst-icon name="clock" [size]="14" />
+      Se revisa al abrir la app y, con la app instalada en Android o Chrome, una vez al día aunque esté cerrada,
+      cuando el sistema lo permite.
+      @if (pending()) {
+        Ahora hay {{ pending() }} {{ pending() === 1 ? 'aviso' : 'avisos' }} en el garage.
+      }
+    </p>
+  </section>
+</div>

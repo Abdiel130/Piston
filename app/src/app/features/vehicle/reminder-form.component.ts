@@ -30,6 +30,7 @@ interface FormValue {
   notify_days: number | null;
   notify_km: number | null;
   notes: string;
+  notify_enabled: boolean;
   /** Solo en la bitácora. */
   done_at: string;
   done_km: number | null;
@@ -48,6 +49,7 @@ const BLANK: FormValue = {
   notify_days: 15,
   notify_km: 500,
   notes: '',
+  notify_enabled: true,
   done_at: '',
   done_km: null,
 };
@@ -288,6 +290,7 @@ export class ReminderFormComponent {
       notify_days: r.notify_days_before,
       notify_km: this.units.inputDistance(r.notify_km_before),
       notes: r.notes ?? '',
+      notify_enabled: r.notify_enabled !== false,
       done_at: r.done_at ?? '',
       done_km: this.units.inputDistance(r.done_odometer_km),
     };
@@ -308,6 +311,7 @@ export class ReminderFormComponent {
       repeat_km: byKm ? this.units.toOdometerKm(f.repeat_km) : null,
       repeat_anchor: f.mode === 'fixed' ? 'due' : 'done',
       notes: f.notes,
+      notify_enabled: f.notify_enabled,
     };
   }
 }

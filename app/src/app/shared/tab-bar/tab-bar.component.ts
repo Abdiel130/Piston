@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map } from 'rxjs';
+import { VehicleAlerts, worstTone } from '../../core/data/vehicle-alerts.service';
 import { IconComponent, type IconName } from '../icon/icon.component';
 
 interface Tab {
@@ -26,6 +27,13 @@ interface Tab {
 })
 export class TabBarComponent {
   private readonly router = inject(Router);
+  private readonly alerts = inject(VehicleAlerts);
+
+  /** Avisos de TODOS los vehículos activos, no solo el de gestión: van en Garage. */
+  protected readonly garageAlerts = computed(() => {
+    const active = this.alerts.active();
+    return active.length ? { count: active.length, tone: worstTone(active)! } : null;
+  });
 
   protected readonly tabs: readonly Tab[] = [
     // La sección del vehículo se abre desde el garage: sigue siendo Garage.

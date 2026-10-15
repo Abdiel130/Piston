@@ -139,6 +139,13 @@
           }
         }
         <span class="pst-field__hint">Desde ahí se marca en el garage hasta que lo marques hecho o lo descartes.</span>
+        <label class="pst-switch">
+          <span class="pst-switch__body">
+            <span class="pst-switch__title">Notificación del sistema</span>
+            <span class="pst-switch__sub">Apagada, solo se marca en el garage. Qué tipos notifican se elige en Ajustes.</span>
+          </span>
+          <input type="checkbox" role="switch" [checked]="form().notify_enabled" (change)="set('notify_enabled', $any($event.target).checked)" />
+        </label>
       }
 
       <label class="pst-field">

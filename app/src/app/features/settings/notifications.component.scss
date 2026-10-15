@@ -1,0 +1,36 @@
+.permission {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-3);
+}
+
+.permission__head {
+  display: flex;
+  align-items: center;
+  gap: var(--pst-space-3);
+
+  .pst-badge {
+    text-transform: none;
+    letter-spacing: 0;
+  }
+}
+
+.permission__title {
+  flex: 1;
+  font-weight: 600;
+}
+
+.pst-badge--idle {
+  background: var(--pst-surface-3);
+  color: var(--pst-label-2);
+}
+
+.switches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pst-space-4);
+}
+
+.when {
+  margin: 0;
+}

@@ -23,6 +23,7 @@ function fields(overrides: Partial<DocumentFields> = {}): DocumentFields {
     assistance_phone: '',
     insured_number: ' A-0042 ',
     policy_item: '1',
+    notify_enabled: true,
     ...overrides,
   };
 }
